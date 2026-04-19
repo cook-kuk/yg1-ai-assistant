@@ -53,6 +53,11 @@ SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공
    - **웹 검색** (knowledge type=web_search): "업계 일반적으로는…"으로 유도, 단정 금지
    - **LLM 추론**: "경험적으로…" / "일반적으로…" 로 표시
 
+8. [clarify] 블록이 있으면 그건 "DB 관점에서 지금 조건이 너무 느슨해 후보가 {candidate_count}개 남아있다"는 뜻이다.
+   그대로 두고 top-10 추천만 주지 마라. 반드시 한 문장으로 "현재 {candidate_count}건 후보가 있어요 — DB에서 좁혀볼 수 있는 조건은 아래입니다" 식으로 설명하고, [clarify] 의 각 필드별 상위 값을 chips 로 제안해라.
+   chip 레이블은 "{label}: {value}" 형식으로 간결하게 (예: "헬릭스각: 30", "직경공차: h7", "볼반경: 0.5"). 숫자 필드는 단위 없이 DB 원문 값 그대로.
+   [clarify] 가 비어 있으면 (candidate_count 가 작으면) 이 원칙은 무시하고 기존 추천 원칙을 따른다.
+
 응답은 JSON: {"answer": "...", "reasoning": "...", "chips": [...], "refined_filters": null | {...}}"""
 
 
@@ -174,6 +179,7 @@ def generate_response(
     total_count: int,
     relaxed_fields: list[str] | None = None,
     available_filters: dict | None = None,
+    clarify: dict | None = None,
 ) -> dict:
     """Compose the chat reply. The system prompt is intentionally short
     (6 principles) — heavy lifting is delegated to the `[context]` block
@@ -183,7 +189,13 @@ def generate_response(
     the model still has concrete candidates to quote, but the domain
     taxonomy (industry→material, material→coating) stays in the JSON KB.
     `available_filters` feeds the [facets] block so principle 6 (brand
-    clarification) can propose real DB values as chips."""
+    clarification) can propose real DB values as chips.
+
+    `clarify` is the output of clarify.suggest_clarifying_chips — a DB-backed
+    summary of which unspecified fields are most-differentiating under the
+    current filters. When present it triggers the clarification principle:
+    "유저 조건이 느슨해서 후보가 많으면, 가장 분기되는 필드를 되물어봐라."
+    """
     intent_summary = _summarize_intent(intent)
     product_summary = _summarize_products(products or [])
     context_str = _build_context_blocks(knowledge)
@@ -203,6 +215,11 @@ def generate_response(
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
     if facets_str:
         parts.append(f"[facets]\n{facets_str}")
+    if clarify and clarify.get("groups"):
+        from clarify import format_chips_for_prompt
+        clarify_str = format_chips_for_prompt(clarify)
+        if clarify_str:
+            parts.append(f"[clarify]\n{clarify_str}")
     parts.append(f"[질문]\n{message}")
     user_turn = "\n\n".join(parts)
 

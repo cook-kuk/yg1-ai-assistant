@@ -169,10 +169,14 @@ def _periodic() -> None:
 # ── in-memory filter engine ──────────────────────────────────────────────
 
 def _matches(p: dict, f: dict) -> bool:
-    # diameter exact (±10% by default)
+    # diameter exact (±10% by default) — prefer search_diameter_mm when the
+    # row carries it (already pre-cast to numeric), else fall back to the
+    # regex-guarded text column.
     dia_target = f.get("diameter")
     if dia_target is not None:
-        actual = _to_numeric_str(p.get("diameter"))
+        actual = _to_float(p.get("search_diameter_mm"))
+        if actual is None:
+            actual = _to_numeric_str(p.get("diameter"))
         if actual is None:
             return False
         lo = dia_target * (1.0 - _DEFAULT_DIAMETER_TOLERANCE)
@@ -208,6 +212,11 @@ def _matches(p: dict, f: dict) -> bool:
         ("machining_category", "tool_type"),
         ("application_shape", "series_application_shape"),
         ("coolant_hole", "milling_coolant_hole"),
+        # P1 — split-per-family coolant filters.
+        ("holemaking_coolant_hole", "holemaking_coolant_hole"),
+        ("threading_coolant_hole", "threading_coolant_hole"),
+        # P0 — text-match tolerance (h6/h7/h8).
+        ("diameter_tolerance", "milling_diameter_tolerance"),
     ]:
         v = f.get(key)
         if v and not _row_matches_ilike(p.get(col), str(v)):
@@ -229,13 +238,38 @@ def _matches(p: dict, f: dict) -> bool:
         if country not in cc:
             return False
 
-    # numeric ranges
+    # P2 — unit system (Metric / Inch / METRIC etc.) via case-insensitive equality.
+    unit_system = f.get("unit_system")
+    if unit_system:
+        row_unit = p.get("edp_unit")
+        if not row_unit or str(row_unit).strip().lower() != str(unit_system).strip().lower():
+            return False
+
+    # P2 — perf-oriented normalized brand equality (exact, upper-cased).
+    bn = f.get("brand_norm")
+    if bn:
+        row_bn = p.get("norm_brand")
+        if not row_bn or str(row_bn).upper() != str(bn).upper():
+            return False
+
+    # numeric ranges (exact-value paths with small tolerances for P0 fields
+    # already pre-apply their tolerance in search.py; in-memory only honors
+    # the explicit min/max pairs below).
     for (key_lo, key_hi, col, caster) in [
         ("diameter_min", "diameter_max", "diameter", _to_numeric_str),
         ("overall_length_min", "overall_length_max", "milling_overall_length", _to_numeric_str),
         ("length_of_cut_min", "length_of_cut_max", "milling_length_of_cut", _to_numeric_str),
         ("shank_diameter_min", "shank_diameter_max", "milling_shank_dia", _to_numeric_str),
         ("flute_count_min", "flute_count_max", "flutes", _to_numeric_str),
+        # P0/P1 dimensional ranges mirrored from _build_where so the in-memory
+        # path and DB path both honor the same filter dict.
+        ("helix_angle_min", "helix_angle_max", "milling_helix_angle", _to_numeric_str),
+        ("point_angle_min", "point_angle_max", "holemaking_point_angle", _to_numeric_str),
+        ("thread_pitch_min", "thread_pitch_max", "threading_pitch", _to_numeric_str),
+        ("tpi_min", "tpi_max", "threading_tpi", _to_numeric_str),
+        ("ball_radius_min", "ball_radius_max", "milling_ball_radius", _to_numeric_str),
+        ("neck_diameter_min", "neck_diameter_max", "milling_neck_diameter", _to_numeric_str),
+        ("effective_length_min", "effective_length_max", "milling_effective_length", _to_numeric_str),
     ]:
         lo = f.get(key_lo)
         hi = f.get(key_hi)
@@ -249,7 +283,48 @@ def _matches(p: dict, f: dict) -> bool:
         if hi is not None and val > hi:
             return False
 
+    # Exact-value P0 filters — same ±tolerance as search._build_where so the
+    # two paths stay consistent.
+    for (key, col, tol) in [
+        ("helix_angle", "milling_helix_angle", 2.0),
+        ("point_angle", "holemaking_point_angle", 1.0),
+        ("thread_pitch", "threading_pitch", 0.05),
+        ("thread_tpi", "threading_tpi", 0.5),
+        ("ball_radius", "milling_ball_radius", 0.05),
+    ]:
+        target = f.get(key)
+        if target is None:
+            continue
+        val = _to_numeric_str(p.get(col))
+        if val is None or not (target - tol <= val <= target + tol):
+            return False
+
+    # P3 — inventory-gate filters are handled by the DB path only. The
+    # in-memory index doesn't carry stock rows, so ignore them here and let
+    # callers route to search.search_products via needs_db_path() when they
+    # need accurate inventory filtering.
+
     return True
+
+
+def needs_db_path(filters: dict) -> bool:
+    """Return True when the filter dict carries a flag the in-memory index
+    can't accurately enforce — either inventory gates (no stock on the
+    index) or a drill/thread-family filter (the index is milling-only).
+    Callers should route to search.search_products instead of
+    search_products_fast so the DB-side gates fire."""
+    if filters.get("in_stock_only") or filters.get("warehouse"):
+        return True
+    drill = any(filters.get(k) is not None for k in (
+        "point_angle", "point_angle_min", "point_angle_max",
+        "holemaking_coolant_hole",
+    ))
+    thread = any(filters.get(k) is not None for k in (
+        "thread_pitch", "thread_pitch_min", "thread_pitch_max",
+        "thread_tpi", "tpi_min", "tpi_max",
+        "threading_coolant_hole",
+    ))
+    return drill or thread
 
 
 def search_products_fast(filters: dict, limit: int = 125_000) -> list[dict]:
@@ -285,6 +360,16 @@ _OPTION_FIELDS: dict[str, tuple[str, bool]] = {
     "tool_material": ("milling_tool_material", False),
     "coolant_hole": ("milling_coolant_hole", False),
     "country": ("country_codes", True),
+    # P0/P1/P2 additions — clarification chips & UI toggles read these.
+    "helix_angle": ("milling_helix_angle", False),
+    "point_angle": ("holemaking_point_angle", False),
+    "thread_pitch": ("threading_pitch", False),
+    "thread_tpi": ("threading_tpi", False),
+    "diameter_tolerance": ("milling_diameter_tolerance", False),
+    "ball_radius": ("milling_ball_radius", False),
+    "holemaking_coolant_hole": ("holemaking_coolant_hole", False),
+    "threading_coolant_hole": ("threading_coolant_hole", False),
+    "unit_system": ("edp_unit", False),
 }
 
 

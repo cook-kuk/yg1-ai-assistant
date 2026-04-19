@@ -36,6 +36,7 @@ SELECT_COLS = """
     edp_series_name       AS series,
     edp_series_idx        AS series_idx,
     edp_root_category     AS root_category,
+    edp_unit,
     series_tool_type      AS tool_type,
     series_cutting_edge_shape AS subtype,
     series_description,
@@ -47,51 +48,125 @@ SELECT_COLS = """
     milling_helix_angle,
     milling_coolant_hole,
     milling_tool_material,
+    milling_ball_radius,
+    milling_diameter_tolerance,
+    milling_neck_diameter,
+    milling_effective_length,
     material_tags,
     milling_coating       AS coating,
     search_shank_type,
+    search_diameter_mm,
     option_overall_length,
     option_oal,
     milling_shank_dia,
     holemaking_tool_material,
+    holemaking_coolant_hole,
+    holemaking_point_angle,
     threading_tool_material,
+    threading_coolant_hole,
+    threading_pitch,
+    threading_tpi,
     series_application_shape,
-    country_codes
+    country_codes,
+    norm_brand,
+    norm_coating
 """
 
 MV_TABLE = "catalog_app.product_recommendation_mv"
+INVENTORY_MV = "catalog_app.product_inventory_summary_mv"
+INVENTORY_SNAPSHOT = "catalog_app.inventory_snapshot"
 
 
 def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str], list]:
     """Build the WHERE clauses + params list from a normalized filter dict.
     If `exclude` is set, the clause for that field is skipped — used by
     get_filter_options so toggling a field still counts candidates that
-    differ *only* in that field."""
-    where: list[str] = [
-        "edp_root_category ILIKE %s",
-        "milling_outside_dia IS NOT NULL",
-    ]
-    params: list = ["%mill%"]
+    differ *only* in that field.
+
+    The root-category / outside-dia base clauses are auto-widened: if the
+    caller set a drilling-specific (point_angle, holemaking_*) or
+    threading-specific (thread_pitch, tpi, threading_*) filter, drop the
+    milling-only gate so those families are visible. Otherwise stay Milling
+    to preserve historical /recommend behavior.
+    """
+    def _has(*keys) -> bool:
+        return any(filters.get(k) is not None for k in keys)
+
+    drill_family = _has(
+        "point_angle", "point_angle_min", "point_angle_max",
+        "holemaking_coolant_hole",
+    )
+    thread_family = _has(
+        "thread_pitch", "thread_pitch_min", "thread_pitch_max",
+        "thread_tpi", "tpi_min", "tpi_max",
+        "threading_coolant_hole",
+    )
+
+    where: list[str] = []
+    params: list = []
+    if drill_family and not thread_family:
+        where.append("(edp_root_category ILIKE %s OR edp_root_category ILIKE %s)")
+        params.extend(["%mill%", "%hole%"])
+    elif thread_family and not drill_family:
+        where.append("(edp_root_category ILIKE %s OR edp_root_category ILIKE %s)")
+        params.extend(["%mill%", "%thread%"])
+    elif drill_family and thread_family:
+        where.append(
+            "(edp_root_category ILIKE %s OR edp_root_category ILIKE %s "
+            "OR edp_root_category ILIKE %s)"
+        )
+        params.extend(["%mill%", "%hole%", "%thread%"])
+    else:
+        where.append("edp_root_category ILIKE %s")
+        params.append("%mill%")
+        # Historical milling-only base also required a numeric diameter — keep
+        # that for the milling path so zero-diameter rows stay excluded.
+        where.append("milling_outside_dia IS NOT NULL")
 
     def _skip(name: str) -> bool:
         return exclude == name
 
-    # Explicit numeric ranges win over the heuristic ±10% tolerance. When a
-    # user provides diameter_min/max the exact-value tolerance is skipped.
+    # Prefer the pre-normalized numeric column (search_diameter_mm) when it's
+    # set — no regex cast, no string gymnastics. Fall back to the text column
+    # only if search_diameter_mm is NULL so rows with inch fractions ("1/2")
+    # can still be rescued by the regex path via milling_outside_dia.
     dia_min = filters.get("diameter_min")
     dia_max = filters.get("diameter_max")
     diameter = filters.get("diameter")
     if (dia_min is not None or dia_max is not None) and not _skip("diameter"):
-        clause = _range_clause("milling_outside_dia", dia_min, dia_max, params)
-        if clause:
-            where.append(clause)
+        if dia_min is not None and dia_max is not None:
+            where.append(
+                "(search_diameter_mm BETWEEN %s AND %s "
+                "OR (search_diameter_mm IS NULL "
+                "AND milling_outside_dia ~ '^[0-9]+(\\.[0-9]+)?$' "
+                "AND milling_outside_dia::numeric BETWEEN %s AND %s))"
+            )
+            params.extend([dia_min, dia_max, dia_min, dia_max])
+        elif dia_min is not None:
+            where.append(
+                "(search_diameter_mm >= %s "
+                "OR (search_diameter_mm IS NULL "
+                "AND milling_outside_dia ~ '^[0-9]+(\\.[0-9]+)?$' "
+                "AND milling_outside_dia::numeric >= %s))"
+            )
+            params.extend([dia_min, dia_min])
+        else:
+            where.append(
+                "(search_diameter_mm <= %s "
+                "OR (search_diameter_mm IS NULL "
+                "AND milling_outside_dia ~ '^[0-9]+(\\.[0-9]+)?$' "
+                "AND milling_outside_dia::numeric <= %s))"
+            )
+            params.extend([dia_max, dia_max])
     elif diameter is not None and not _skip("diameter"):
         lo, hi = diameter * 0.9, diameter * 1.1
         where.append(
-            "milling_outside_dia ~ '^[0-9]+(\\.[0-9]+)?$' "
-            "AND milling_outside_dia::numeric BETWEEN %s AND %s"
+            "(search_diameter_mm BETWEEN %s AND %s "
+            "OR (search_diameter_mm IS NULL "
+            "AND milling_outside_dia ~ '^[0-9]+(\\.[0-9]+)?$' "
+            "AND milling_outside_dia::numeric BETWEEN %s AND %s))"
         )
-        params.extend([lo, hi])
+        params.extend([lo, hi, lo, hi])
 
     oal_min = filters.get("overall_length_min")
     oal_max = filters.get("overall_length_max")
@@ -186,6 +261,141 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
         where.append("milling_coolant_hole ILIKE %s")
         params.append(f"%{coolant_hole}%")
 
+    # ── P0/P1 dimensional filters ─────────────────────────────────────
+    # All of these MV columns are stored as text (fraction/imperial rows mixed
+    # in), so reuse _range_clause's regex-guarded cast for numeric ranges.
+
+    helix_angle = filters.get("helix_angle")
+    h_min = filters.get("helix_angle_min")
+    h_max = filters.get("helix_angle_max")
+    if (h_min is not None or h_max is not None) and not _skip("helix_angle"):
+        clause = _range_clause("milling_helix_angle", h_min, h_max, params)
+        if clause:
+            where.append(clause)
+    elif helix_angle is not None and not _skip("helix_angle"):
+        # ±2° tolerance by default — "45도 헬릭스" shouldn't exclude 43° / 47°.
+        lo, hi = helix_angle - 2, helix_angle + 2
+        clause = _range_clause("milling_helix_angle", lo, hi, params)
+        if clause:
+            where.append(clause)
+
+    point_angle = filters.get("point_angle")
+    pa_min = filters.get("point_angle_min")
+    pa_max = filters.get("point_angle_max")
+    if (pa_min is not None or pa_max is not None) and not _skip("point_angle"):
+        clause = _range_clause("holemaking_point_angle", pa_min, pa_max, params)
+        if clause:
+            where.append(clause)
+    elif point_angle is not None and not _skip("point_angle"):
+        # Drill point angles are usually discrete (118°/135°/140°) so ±1° is
+        # tight enough to map "135도 선단각" onto the intended family.
+        lo, hi = point_angle - 1, point_angle + 1
+        clause = _range_clause("holemaking_point_angle", lo, hi, params)
+        if clause:
+            where.append(clause)
+
+    pitch = filters.get("thread_pitch")
+    p_min = filters.get("thread_pitch_min")
+    p_max = filters.get("thread_pitch_max")
+    if (p_min is not None or p_max is not None) and not _skip("thread_pitch"):
+        clause = _range_clause("threading_pitch", p_min, p_max, params)
+        if clause:
+            where.append(clause)
+    elif pitch is not None and not _skip("thread_pitch"):
+        # Pitches are exact-valued (1.25 / 1.5 / 2.0) — small ±0.05 tolerance
+        # just absorbs rounding in the raw spec text.
+        clause = _range_clause("threading_pitch", pitch - 0.05, pitch + 0.05, params)
+        if clause:
+            where.append(clause)
+
+    tpi = filters.get("thread_tpi")
+    tpi_min = filters.get("tpi_min")
+    tpi_max = filters.get("tpi_max")
+    if (tpi_min is not None or tpi_max is not None) and not _skip("thread_tpi"):
+        clause = _range_clause("threading_tpi", tpi_min, tpi_max, params)
+        if clause:
+            where.append(clause)
+    elif tpi is not None and not _skip("thread_tpi"):
+        clause = _range_clause("threading_tpi", tpi - 0.5, tpi + 0.5, params)
+        if clause:
+            where.append(clause)
+
+    tol = filters.get("diameter_tolerance")
+    if tol and not _skip("diameter_tolerance"):
+        where.append("milling_diameter_tolerance ILIKE %s")
+        params.append(f"%{tol}%")
+
+    ball_r = filters.get("ball_radius")
+    br_min = filters.get("ball_radius_min")
+    br_max = filters.get("ball_radius_max")
+    if (br_min is not None or br_max is not None) and not _skip("ball_radius"):
+        clause = _range_clause("milling_ball_radius", br_min, br_max, params)
+        if clause:
+            where.append(clause)
+    elif ball_r is not None and not _skip("ball_radius"):
+        clause = _range_clause("milling_ball_radius", ball_r - 0.05, ball_r + 0.05, params)
+        if clause:
+            where.append(clause)
+
+    neck_min = filters.get("neck_diameter_min")
+    neck_max = filters.get("neck_diameter_max")
+    if (neck_min is not None or neck_max is not None) and not _skip("neck_diameter"):
+        clause = _range_clause("milling_neck_diameter", neck_min, neck_max, params)
+        if clause:
+            where.append(clause)
+
+    eff_min = filters.get("effective_length_min")
+    eff_max = filters.get("effective_length_max")
+    if (eff_min is not None or eff_max is not None) and not _skip("effective_length"):
+        clause = _range_clause("milling_effective_length", eff_min, eff_max, params)
+        if clause:
+            where.append(clause)
+
+    holemaking_ch = filters.get("holemaking_coolant_hole")
+    if holemaking_ch and not _skip("holemaking_coolant_hole"):
+        where.append("holemaking_coolant_hole ILIKE %s")
+        params.append(f"%{holemaking_ch}%")
+
+    threading_ch = filters.get("threading_coolant_hole")
+    if threading_ch and not _skip("threading_coolant_hole"):
+        where.append("threading_coolant_hole ILIKE %s")
+        params.append(f"%{threading_ch}%")
+
+    # ── P2: unit system (Metric/Inch) + normalized brand for perf ─────
+
+    unit_system = filters.get("unit_system")
+    if unit_system and not _skip("unit_system"):
+        # edp_unit values are "Metric" / "METRIC" / "Inch" — case-insensitive
+        # ILIKE covers both the title-case and uppercased rows.
+        where.append("edp_unit ILIKE %s")
+        params.append(unit_system)
+
+    brand_norm = filters.get("brand_norm")
+    if brand_norm and not _skip("brand_norm"):
+        where.append("norm_brand = %s")
+        params.append(str(brand_norm).upper())
+
+    # ── P3: in-stock gate + warehouse scope ───────────────────────────
+    # Implemented as EXISTS subqueries against the inventory tables so the
+    # main MV's row count stays cardinality-stable (no JOIN blow-up when a
+    # single EDP has many warehouse rows).
+
+    if filters.get("in_stock_only") and not _skip("in_stock_only"):
+        where.append(
+            f"EXISTS (SELECT 1 FROM {INVENTORY_MV} inv "
+            "WHERE inv.edp = edp_no AND inv.total_stock > 0)"
+        )
+
+    warehouse = filters.get("warehouse")
+    if warehouse and not _skip("warehouse"):
+        where.append(
+            f"EXISTS (SELECT 1 FROM {INVENTORY_SNAPSHOT} inv_s "
+            "WHERE inv_s.edp = edp_no "
+            "AND inv_s.warehouse_or_region ILIKE %s "
+            "AND inv_s.quantity > 0)"
+        )
+        params.append(f"%{warehouse}%")
+
     return where, params
 
 
@@ -213,6 +423,36 @@ def search_products(
     shank_diameter_max: Optional[float] = None,
     flute_count_min: Optional[int] = None,
     flute_count_max: Optional[int] = None,
+    # P0 — dimensional / geometric filters that the old signature dropped.
+    helix_angle: Optional[float] = None,
+    helix_angle_min: Optional[float] = None,
+    helix_angle_max: Optional[float] = None,
+    point_angle: Optional[float] = None,
+    point_angle_min: Optional[float] = None,
+    point_angle_max: Optional[float] = None,
+    thread_pitch: Optional[float] = None,
+    thread_pitch_min: Optional[float] = None,
+    thread_pitch_max: Optional[float] = None,
+    thread_tpi: Optional[float] = None,
+    tpi_min: Optional[float] = None,
+    tpi_max: Optional[float] = None,
+    diameter_tolerance: Optional[str] = None,
+    # P1 — ball/neck/effective + coolant variants.
+    ball_radius: Optional[float] = None,
+    ball_radius_min: Optional[float] = None,
+    ball_radius_max: Optional[float] = None,
+    neck_diameter_min: Optional[float] = None,
+    neck_diameter_max: Optional[float] = None,
+    effective_length_min: Optional[float] = None,
+    effective_length_max: Optional[float] = None,
+    holemaking_coolant_hole: Optional[str] = None,
+    threading_coolant_hole: Optional[str] = None,
+    # P2 — unit switch + perf-oriented normalized brand.
+    unit_system: Optional[str] = None,
+    brand_norm: Optional[str] = None,
+    # P3 — inventory gate.
+    in_stock_only: Optional[bool] = None,
+    warehouse: Optional[str] = None,
     limit: int = 5000,
 ) -> list[dict]:
     """Filter product_recommendation_mv on SCR intent + manual filter values."""
@@ -240,6 +480,32 @@ def search_products(
         "shank_diameter_max": shank_diameter_max,
         "flute_count_min": flute_count_min,
         "flute_count_max": flute_count_max,
+        "helix_angle": helix_angle,
+        "helix_angle_min": helix_angle_min,
+        "helix_angle_max": helix_angle_max,
+        "point_angle": point_angle,
+        "point_angle_min": point_angle_min,
+        "point_angle_max": point_angle_max,
+        "thread_pitch": thread_pitch,
+        "thread_pitch_min": thread_pitch_min,
+        "thread_pitch_max": thread_pitch_max,
+        "thread_tpi": thread_tpi,
+        "tpi_min": tpi_min,
+        "tpi_max": tpi_max,
+        "diameter_tolerance": diameter_tolerance,
+        "ball_radius": ball_radius,
+        "ball_radius_min": ball_radius_min,
+        "ball_radius_max": ball_radius_max,
+        "neck_diameter_min": neck_diameter_min,
+        "neck_diameter_max": neck_diameter_max,
+        "effective_length_min": effective_length_min,
+        "effective_length_max": effective_length_max,
+        "holemaking_coolant_hole": holemaking_coolant_hole,
+        "threading_coolant_hole": threading_coolant_hole,
+        "unit_system": unit_system,
+        "brand_norm": brand_norm,
+        "in_stock_only": in_stock_only,
+        "warehouse": warehouse,
     }
     where, params = _build_where(filters)
     sql = f"""
@@ -294,6 +560,17 @@ FIELD_TO_EXPR: dict[str, str] = {
     "tool_material": "milling_tool_material",
     "coolant_hole": "milling_coolant_hole",
     "country": "unnest(country_codes)",
+    # P0/P1/P2 — new toggle fields so the UI can enumerate discrete values
+    # (helix 30/35/45°, point 118/135/140°, tolerance h6/h7/h8, etc.).
+    "helix_angle": "milling_helix_angle",
+    "point_angle": "holemaking_point_angle",
+    "thread_pitch": "threading_pitch",
+    "thread_tpi": "threading_tpi",
+    "diameter_tolerance": "milling_diameter_tolerance",
+    "ball_radius": "milling_ball_radius",
+    "holemaking_coolant_hole": "holemaking_coolant_hole",
+    "threading_coolant_hole": "threading_coolant_hole",
+    "unit_system": "edp_unit",
 }
 
 

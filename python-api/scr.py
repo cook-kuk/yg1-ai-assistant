@@ -376,7 +376,15 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "brand": string|null,          // 사용자 언급 브랜드
   "coating": string|null,        // 코팅명 (아래 canonical 값만 사용)
   "tool_material": string|null,  // "CARBIDE" / "HSS" / "CBN" / "PCD" / "CERMET"
-  "shank_type": string|null      // "Weldon" / "Cylindrical" / "Morse Taper" / "Straight"
+  "shank_type": string|null,     // "Weldon" / "Cylindrical" / "Morse Taper" / "Straight"
+  "helix_angle": number|null,    // milling 헬릭스각 (도). "45도 헬릭스", "30° helix"
+  "point_angle": number|null,    // drill 선단각 (도). "135도 선단각", "118° point"
+  "thread_pitch": number|null,   // tap/thread 피치 (mm). "M8×1.25" → 1.25
+  "thread_tpi": number|null,     // inch tap TPI. "1/4-20 UNC" → 20
+  "diameter_tolerance": string|null, // "h6"/"h7"/"h8" 등 공차 등급
+  "ball_radius": number|null,    // 볼엔드밀 반경 (mm). "R0.5", "R 0.3"
+  "unit_system": string|null,    // "Metric" | "Inch"
+  "in_stock_only": boolean|null  // "재고 있는 것만" / "in stock"
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -576,6 +584,44 @@ Bright Finish · Uncoated
   규칙: 메시지 어디든 [숫자]+[날|F|f|flute|플루트] 패턴이 보이면 flute_count 는 절대 null 이 아니다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+치수·각도·나사 스펙 추출 (P0/P1 필드):
+
+헬릭스각 (helix_angle, 도):
+  "45도 헬릭스" · "30° helix" · "헬릭스 45°" · "35 deg helix" → 숫자만 추출
+  "하이 헬릭스" · "low helix" 같은 형용사만 있으면 null.
+
+선단각 / 포인트각 (point_angle, 도):
+  "135도 선단각" · "118° point" · "point angle 140" · "선단각 130도" → 숫자만 추출
+
+나사 피치 (thread_pitch, mm):
+  "M8×1.25" → 1.25
+  "M6x1.0" / "M6*1.0" / "피치 1.5" / "pitch 1.25mm" / "P=1.25" → 숫자만
+
+TPI (thread_tpi):
+  "1/4-20 UNC" → 20
+  "20 TPI" / "TPI 24" / "20 UNF" → 숫자만
+  UNC/UNF/BSP/G 등 규격 이름 자체는 무시하고 숫자만 추출.
+
+직경공차 (diameter_tolerance):
+  "h7" · "h8" · "h6" · "H7" · "H8" — 알파벳+숫자 페어를 원문 그대로 (대문자 H·h 구분 유지).
+  "±0.01" 같은 값만 있으면 null.
+
+볼반경 (ball_radius, mm):
+  "R0.5" · "R 0.3" · "R=1.0" · "볼반경 0.5" · "ball radius 0.2" → 숫자만
+  "R1/2" 같은 분수는 mm로 변환 (R 1/2 → 12.7).
+  반경 언급 없이 "Ball" 만 있으면 ball_radius=null, subtype="Ball" 만 채움.
+
+단위계 (unit_system):
+  "인치", "inch", "imperial" → "Inch"
+  "미터", "메트릭", "metric", "mm 기준" → "Metric"
+  둘 다 언급 없으면 null.
+
+재고 한정 (in_stock_only, boolean):
+  "재고 있는 것만" · "재고있는거만" · "stock 있는거" · "in stock" · "available now" · "당장 되는 거" → true
+  "재고 없어도 돼" · "all products" 등은 false 또는 null.
+  언급 없으면 null (false 아님).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 부정 조건 처리 (반드시 준수):
 
 유저가 아래 키워드와 함께 브랜드/코팅/형상/재질을 언급하면, 해당 값은 **검색에서 제외할 항목**이지
@@ -607,6 +653,12 @@ Bright Finish · Uncoated
 4. 메시지에 소재 관련 단어가 있는가? → 있으면 material_tag 필수
 5. "말고/제외/빼고/아닌/not/except/no" 뒤에 나오는 브랜드/코팅은 제외 대상이다 → 해당 필드를 null로 둘 것. "X 말고"에서 X를 brand에 넣으면 오답.
 6. 분수 인치 → mm 자동 환산: 1/4인치=6.35, 1/2인치=12.7, 1/8인치=3.175, 3/8인치=9.525, 3/4인치=19.05
+7. 숫자+도/°/deg 패턴이 헬릭스/helix 근처면 helix_angle, 선단/point 근처면 point_angle.
+8. M숫자×숫자 또는 "M6x1.0" 패턴이면 diameter=첫 숫자(6), thread_pitch=둘째 숫자(1.0).
+9. "R숫자" 패턴 + 볼/ball 맥락이면 ball_radius. 단독 R 만 있고 볼 맥락 없으면 subtype="Corner Radius" 우선.
+10. "h7"/"h8"/"h6"/"H7" 문자열이 메시지에 있으면 diameter_tolerance 필수.
+11. "재고", "stock", "in stock", "available" 언급 → in_stock_only=true.
+12. "인치/inch/imperial" → unit_system="Inch", "메트릭/metric" → unit_system="Metric".
 
 위 조건 중 하나라도 해당하는데 잘못 출력하면 오답이다.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -786,6 +838,23 @@ def parse_intent(message: str) -> SCRIntent:
     if final_coating and _is_brand_excluded(message, final_coating):
         final_coating = None
 
+    def _as_float(v):
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _as_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "yes", "on", "1"):
+                return True
+            if s in ("false", "no", "off", "0"):
+                return False
+        return None
+
     return SCRIntent(
         intent=data.get("intent") or "recommendation",
         diameter=data.get("diameter"),
@@ -798,4 +867,12 @@ def parse_intent(message: str) -> SCRIntent:
         coating=final_coating,
         tool_material=data.get("tool_material"),
         shank_type=_resolve_shank(data.get("shank_type")),
+        helix_angle=_as_float(data.get("helix_angle")),
+        point_angle=_as_float(data.get("point_angle")),
+        thread_pitch=_as_float(data.get("thread_pitch")),
+        thread_tpi=_as_float(data.get("thread_tpi")),
+        diameter_tolerance=(data.get("diameter_tolerance") or None) or None,
+        ball_radius=_as_float(data.get("ball_radius")),
+        unit_system=(data.get("unit_system") or None) or None,
+        in_stock_only=_as_bool(data.get("in_stock_only")),
     )

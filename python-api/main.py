@@ -45,7 +45,9 @@ from product_index import (
     index_size,
     get_filter_options_fast,
     count_products_fast,
+    needs_db_path,
 )
+from clarify import suggest_clarifying_chips
 from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
 from scheduler import scheduler
 from cutting import get_cutting_conditions, get_conditions_for_products
@@ -231,6 +233,17 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "coating": intent.coating,
         "tool_material": intent.tool_material,
         "shank_type": intent.shank_type,
+        # P0/P2 fields the LLM may now emit (helix/point/pitch/tpi/tolerance/
+        # ball_radius/unit_system/in_stock_only) travel as plain intent keys
+        # so search._build_where sees them without special plumbing.
+        "helix_angle": getattr(intent, "helix_angle", None),
+        "point_angle": getattr(intent, "point_angle", None),
+        "thread_pitch": getattr(intent, "thread_pitch", None),
+        "thread_tpi": getattr(intent, "thread_tpi", None),
+        "diameter_tolerance": getattr(intent, "diameter_tolerance", None),
+        "ball_radius": getattr(intent, "ball_radius", None),
+        "unit_system": getattr(intent, "unit_system", None),
+        "in_stock_only": getattr(intent, "in_stock_only", None),
     }
     if filters:
         if filters.workpiece_name is not None:
@@ -249,8 +262,21 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
             "length_of_cut_min", "length_of_cut_max",
             "shank_diameter_min", "shank_diameter_max",
             "flute_count_min", "flute_count_max",
+            # P0/P1 range filters the UI can set independently of the LLM.
+            "helix_angle_min", "helix_angle_max",
+            "point_angle_min", "point_angle_max",
+            "thread_pitch_min", "thread_pitch_max",
+            "tpi_min", "tpi_max",
+            "diameter_tolerance",
+            "ball_radius_min", "ball_radius_max",
+            "neck_diameter_min", "neck_diameter_max",
+            "effective_length_min", "effective_length_max",
+            "holemaking_coolant_hole", "threading_coolant_hole",
+            # P2/P3
+            "unit_system", "brand_norm",
+            "in_stock_only", "warehouse",
         ):
-            v = getattr(filters, fld)
+            v = getattr(filters, fld, None)
             if v is not None:
                 base[fld] = v
     return base
@@ -585,6 +611,15 @@ def products(req: ProductsRequest) -> ProductsResponse:
             "coating": intent.coating,
             "tool_material": intent.tool_material,
             "shank_type": intent.shank_type,
+            # P0/P2 intent keys the LLM can now emit.
+            "helix_angle": getattr(intent, "helix_angle", None),
+            "point_angle": getattr(intent, "point_angle", None),
+            "thread_pitch": getattr(intent, "thread_pitch", None),
+            "thread_tpi": getattr(intent, "thread_tpi", None),
+            "diameter_tolerance": getattr(intent, "diameter_tolerance", None),
+            "ball_radius": getattr(intent, "ball_radius", None),
+            "unit_system": getattr(intent, "unit_system", None),
+            "in_stock_only": getattr(intent, "in_stock_only", None),
         }
         if req.filters:
             for fld in (
@@ -594,14 +629,37 @@ def products(req: ProductsRequest) -> ProductsResponse:
                 "length_of_cut_min", "length_of_cut_max",
                 "shank_diameter_min", "shank_diameter_max",
                 "flute_count_min", "flute_count_max",
+                # P0/P1 UI ranges.
+                "helix_angle_min", "helix_angle_max",
+                "point_angle_min", "point_angle_max",
+                "thread_pitch_min", "thread_pitch_max",
+                "tpi_min", "tpi_max",
+                "diameter_tolerance",
+                "ball_radius_min", "ball_radius_max",
+                "neck_diameter_min", "neck_diameter_max",
+                "effective_length_min", "effective_length_max",
+                "holemaking_coolant_hole", "threading_coolant_hole",
+                "unit_system", "brand_norm",
+                "in_stock_only", "warehouse",
             ):
-                v = getattr(req.filters, fld)
+                v = getattr(req.filters, fld, None)
                 if v is not None:
                     base[fld] = v
         return base
 
     def _run_search() -> list[dict]:
-        return search_products_fast(_build_filters(), limit=125_000)
+        filt = _build_filters()
+        # Inventory gates (in_stock_only / warehouse) can't be satisfied by
+        # the in-memory index — no stock rows on it. Route those queries to
+        # the DB path so EXISTS subqueries against inventory_summary and
+        # inventory_snapshot fire.
+        if needs_db_path(filt):
+            return search_products(
+                **{k: v for k, v in filt.items()
+                   if k in search_products.__code__.co_varnames},
+                limit=125_000,
+            )
+        return search_products_fast(filt, limit=125_000)
 
     rows = _run_search()
     sources.append(SourceAttribution(
@@ -759,6 +817,13 @@ def products(req: ProductsRequest) -> ProductsResponse:
                     detail=f"{k_type}: {str(label)[:60]}",
                     confidence="high",
                 ))
+        # Clarification chips — DB-backed scan of the most-differentiating
+        # unspecified fields under the current filters. Runs only when the
+        # candidate pool is big enough that narrowing is actually useful.
+        try:
+            clarify_payload = suggest_clarifying_chips(filter_dict)
+        except Exception:
+            clarify_payload = None
         try:
             chat_result = generate_response(
                 message=req.message,
@@ -768,6 +833,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
                 total_count=len(ranked),
                 relaxed_fields=relaxed_fields or None,
                 available_filters=available or None,
+                clarify=clarify_payload,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
             chips = chat_result.get("chips") or []
@@ -1040,6 +1106,14 @@ async def products_stream(req: ProductsRequest):
                 "coating": intent.coating,
                 "tool_material": intent.tool_material,
                 "shank_type": intent.shank_type,
+                "helix_angle": getattr(intent, "helix_angle", None),
+                "point_angle": getattr(intent, "point_angle", None),
+                "thread_pitch": getattr(intent, "thread_pitch", None),
+                "thread_tpi": getattr(intent, "thread_tpi", None),
+                "diameter_tolerance": getattr(intent, "diameter_tolerance", None),
+                "ball_radius": getattr(intent, "ball_radius", None),
+                "unit_system": getattr(intent, "unit_system", None),
+                "in_stock_only": getattr(intent, "in_stock_only", None),
             }
             if req.filters:
                 for fld in (
@@ -1049,11 +1123,29 @@ async def products_stream(req: ProductsRequest):
                     "length_of_cut_min", "length_of_cut_max",
                     "shank_diameter_min", "shank_diameter_max",
                     "flute_count_min", "flute_count_max",
+                    "helix_angle_min", "helix_angle_max",
+                    "point_angle_min", "point_angle_max",
+                    "thread_pitch_min", "thread_pitch_max",
+                    "tpi_min", "tpi_max",
+                    "diameter_tolerance",
+                    "ball_radius_min", "ball_radius_max",
+                    "neck_diameter_min", "neck_diameter_max",
+                    "effective_length_min", "effective_length_max",
+                    "holemaking_coolant_hole", "threading_coolant_hole",
+                    "unit_system", "brand_norm",
+                    "in_stock_only", "warehouse",
                 ):
-                    v = getattr(req.filters, fld)
+                    v = getattr(req.filters, fld, None)
                     if v is not None:
                         filters[fld] = v
-            rows = search_products_fast(filters, limit=125_000)
+            if needs_db_path(filters):
+                rows = search_products(
+                    **{k: v for k, v in filters.items()
+                       if k in search_products.__code__.co_varnames},
+                    limit=125_000,
+                )
+            else:
+                rows = search_products_fast(filters, limit=125_000)
             # Follow-up narrow + relax — only when the user signaled a
             # drill-down (anaphor or added-field intent). See the sync
             # /products endpoint for the same guard.
@@ -1099,6 +1191,16 @@ async def products_stream(req: ProductsRequest):
             except Exception:
                 knowledge = []
             try:
+                # Clarification chips — same as sync /products path. Runs on
+                # the current filter dict so the LLM sees which fields the DB
+                # itself suggests narrowing by.
+                stream_filter_dict = _filters_to_dict(req.filters, intent)
+                try:
+                    clarify_payload_stream = await asyncio.to_thread(
+                        suggest_clarifying_chips, stream_filter_dict,
+                    )
+                except Exception:
+                    clarify_payload_stream = None
                 chat_result = await asyncio.to_thread(
                     generate_response,
                     req.message, intent,
@@ -1106,6 +1208,8 @@ async def products_stream(req: ProductsRequest):
                     knowledge,
                     len(ranked),
                     None,
+                    None,
+                    clarify_payload_stream,
                 )
             except Exception:
                 chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}

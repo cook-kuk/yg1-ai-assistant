@@ -18,6 +18,18 @@ class SCRIntent(BaseModel):
     coating: Optional[str] = None
     tool_material: Optional[str] = None  # CARBIDE / HSS / CBN / PCD / CERMET
     shank_type: Optional[str] = None     # Weldon / Cylindrical / Morse Taper / Straight
+    # P0 additions — high-coverage dimensional/geometric fields the old parser
+    # silently ignored. "45도 헬릭스" / "M8×1.25" / "R0.5" / "h7" all used to
+    # get dropped at SCR; they now flow through to _build_where and _matches.
+    helix_angle: Optional[float] = None      # milling_helix_angle (deg)
+    point_angle: Optional[float] = None      # holemaking_point_angle (deg, drill tip)
+    thread_pitch: Optional[float] = None     # threading_pitch (mm)
+    thread_tpi: Optional[float] = None       # threading_tpi (inch threads)
+    diameter_tolerance: Optional[str] = None # h6 / h7 / h8 — ILIKE against milling_diameter_tolerance
+    ball_radius: Optional[float] = None      # milling_ball_radius (mm) — "R0.5 볼엔드밀"
+    # P2 additions — per-query unit + inventory switch.
+    unit_system: Optional[str] = None        # "Metric" | "Inch" — maps to edp_unit
+    in_stock_only: Optional[bool] = None     # "재고 있는 것만" / "in stock"
 
 
 class Candidate(BaseModel):
@@ -86,6 +98,36 @@ class ManualFilters(BaseModel):
     tool_material: Optional[str] = None
     shank_type: Optional[str] = None
     coolant_hole: Optional[str] = None
+    # P0/P1 dimensional ranges — mirror the SCRIntent exact-value fields so
+    # the UI filter bar can scope by range (e.g. helix 30–35°) without
+    # needing an exact match.
+    helix_angle_min: Optional[float] = None
+    helix_angle_max: Optional[float] = None
+    point_angle_min: Optional[float] = None
+    point_angle_max: Optional[float] = None
+    thread_pitch_min: Optional[float] = None
+    thread_pitch_max: Optional[float] = None
+    tpi_min: Optional[float] = None
+    tpi_max: Optional[float] = None
+    diameter_tolerance: Optional[str] = None   # h6 / h7 / h8 (text ILIKE)
+    ball_radius_min: Optional[float] = None
+    ball_radius_max: Optional[float] = None
+    neck_diameter_min: Optional[float] = None
+    neck_diameter_max: Optional[float] = None
+    effective_length_min: Optional[float] = None
+    effective_length_max: Optional[float] = None
+    # Coolant-hole split out per-operation family — the MV stores three
+    # separate columns and a single `coolant_hole` filter only hits milling.
+    holemaking_coolant_hole: Optional[str] = None
+    threading_coolant_hole: Optional[str] = None
+    # P2 — unit + perf-oriented normalized brand.
+    unit_system: Optional[str] = None          # Metric / Inch → edp_unit
+    brand_norm: Optional[str] = None           # norm_brand equality (upper-cased canonical)
+    # P3 — inventory gate. Enforced in search.py via JOIN against
+    # product_inventory_summary_mv; the in-memory index path falls back to
+    # the DB path when these are set since the index doesn't carry stock.
+    in_stock_only: Optional[bool] = None
+    warehouse: Optional[str] = None            # inventory_snapshot.warehouse_or_region ILIKE
 
 
 class ProductsRequest(BaseModel):
