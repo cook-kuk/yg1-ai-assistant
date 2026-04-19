@@ -247,6 +247,13 @@ class ProductsResponse(BaseModel):
     # when the data isn't available, which the frontend treats as hide-chip.
     stock_summary: Optional[Dict[str, Any]] = None
     cutting_range: Optional[Dict[str, Any]] = None
+    # Dual CoT surfacing — "light" (gpt-5.4-mini, low-effort) is the default;
+    # chat._assess_cot_level escalates to "strong" (gpt-5.4, medium reasoning
+    # + self-verify) when the answer carries a correctness tax: compare /
+    # why / troubleshooting / 0-result / S·H material / dissatisfaction
+    # follow-up. Exposed so the UI can render a "deep-reasoning" badge and
+    # tests can assert the branch fired.
+    cot_level: Optional[str] = None
 
 
 class ProductsPageRequest(BaseModel):

@@ -667,15 +667,16 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         effective_knowledge = knowledge if intent_value == "domain_knowledge" else []
         answer_text = ""
         chips: list[str] = []
+        chat_result_skip: dict = {}
         if req.message:
             try:
-                chat_result = await asyncio.to_thread(
+                chat_result_skip = await asyncio.to_thread(
                     generate_response,
                     req.message, intent, [], effective_knowledge,
                     0, None, None,
                 )
-                answer_text = chat_result.get("answer") or ""
-                chips = chat_result.get("chips") or []
+                answer_text = chat_result_skip.get("answer") or ""
+                chips = chat_result_skip.get("chips") or []
             except Exception:
                 answer_text = (
                     "도메인 지식을 찾지 못했습니다."
@@ -723,6 +724,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             session_id=session.session_id,
             broadened=False,
             sources=sources,
+            cot_level=chat_result_skip.get("cot_level"),
         )
 
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
@@ -918,6 +920,34 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         if opts:
             available[f] = [FilterOption(value=o["value"], count=o["count"]) for o in opts]
 
+    # 4.5 Pre-guidance blocks — compute BEFORE the CoT so the prompt can
+    # quote concrete aggregates (principles 12/13) instead of hedging.
+    # series_chips : 반복되는 시리즈의 직경/날수 범위 (series_profile_mv)
+    # stock_summary: 후보 중 즉시 출고 가능 비율
+    # cutting_range: material_tag + 직경 기준 Vc/fz/RPM 분포 (YG-1 카탈로그)
+    series_chips = _series_profile_chips(ranked)
+    stock_summary = _stock_summary_from_ranked(ranked)
+    try:
+        cutting_range = get_cutting_range_for_material(
+            getattr(intent, "material_tag", None),
+            getattr(intent, "diameter", None),
+        )
+    except Exception:
+        cutting_range = None
+
+    if stock_summary:
+        sources.append(SourceAttribution(
+            type="internal_db",
+            detail=f"product_inventory_summary_mv: {stock_summary['in_stock']}/{stock_summary['total']}건 재고 ({stock_summary['pct']}%)",
+            confidence="high",
+        ))
+    if cutting_range and cutting_range.get("row_count"):
+        sources.append(SourceAttribution(
+            type="cutting_conditions",
+            detail=f"ISO {intent.material_tag} 기준 조건표 {cutting_range['row_count']}행 집계",
+            confidence="high",
+        ))
+
     # 5. Answer generation.
     #    - Natural-language message → RAG lookup + GPT-5.4-mini (CoT).
     #    - Manual-only request → deterministic template (no LLM round-trip).
@@ -954,6 +984,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             clarify_payload = await asyncio.to_thread(suggest_clarifying_chips, filter_dict)
         except Exception:
             clarify_payload = None
+        chat_result: dict = {}
         try:
             chat_result = await asyncio.to_thread(
                 generate_response,
@@ -965,6 +996,8 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 relaxed_fields or None,
                 available or None,
                 clarify_payload,
+                stock_summary,
+                cutting_range,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
             chips = chat_result.get("chips") or []
@@ -1012,6 +1045,14 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         products=edp_list,
     )
 
+    # Prepend series-profile chips so the UI surfaces "이 시리즈는 N-Mmm,
+    # 2/3/4날" as the first hint set, before the LLM's clarification chips.
+    # De-dup against whatever the LLM emitted to avoid double-chips on the
+    # same series label.
+    if series_chips:
+        existing = set(chips)
+        chips = series_chips + [c for c in chips if c not in series_chips and c not in existing]
+
     return ProductsResponse(
         text=cleaned_answer,
         chips=chips,
@@ -1024,6 +1065,9 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         session_id=session.session_id,
         broadened=broadened,
         sources=sources,
+        stock_summary=stock_summary,
+        cutting_range=cutting_range,
+        cot_level=(chat_result.get("cot_level") if isinstance(chat_result, dict) else None),
     )
 
 
@@ -1311,6 +1355,19 @@ async def products_stream(req: ProductsRequest):
         rows, broadened = await asyncio.to_thread(_search_and_rank)
         ranked = await asyncio.to_thread(rank_candidates, rows, intent, len(rows) or 1)
 
+        # Pre-guidance blocks — same A/B/C set the sync /products endpoint
+        # builds. Computed here so the products event ships them too and the
+        # CoT prompt can quote concrete aggregates (principles 12/13).
+        series_chips_stream = _series_profile_chips(ranked)
+        stock_summary_stream = _stock_summary_from_ranked(ranked)
+        try:
+            cutting_range_stream = get_cutting_range_for_material(
+                getattr(intent, "material_tag", None),
+                getattr(intent, "diameter", None),
+            )
+        except Exception:
+            cutting_range_stream = None
+
         top10_payload = []
         for c, s, b in ranked[:10]:
             top10_payload.append({
@@ -1326,7 +1383,7 @@ async def products_stream(req: ProductsRequest):
             })
         yield (
             f"event: products\ndata: "
-            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened}, ensure_ascii=False)}\n\n"
+            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream}, ensure_ascii=False)}\n\n"
         )
 
         # 3. CoT answer — `knowledge` is already populated from the parallel
@@ -1352,11 +1409,21 @@ async def products_stream(req: ProductsRequest):
                     None,
                     None,
                     clarify_payload_stream,
+                    stock_summary_stream,
+                    cutting_range_stream,
                 )
             except Exception:
                 chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
         else:
             chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
+
+        if series_chips_stream:
+            existing_chips = chat_result.get("chips") or []
+            existing_set = set(existing_chips)
+            chat_result["chips"] = series_chips_stream + [
+                c for c in existing_chips
+                if c not in series_chips_stream and c not in existing_set
+            ]
 
         yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
 

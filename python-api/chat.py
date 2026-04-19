@@ -68,6 +68,12 @@ SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공
    chip 레이블은 "{label}: {value}" 형식으로 간결하게 (예: "헬릭스각: 30", "직경공차: h7", "볼반경: 0.5"). 숫자 필드는 단위 없이 DB 원문 값 그대로.
    [clarify] 가 비어 있으면 (candidate_count 가 작으면) 이 원칙은 무시하고 기존 추천 원칙을 따른다.
 
+12. [재고 요약] 블록이 있으면 answer 첫 문단 어딘가에 "조건에 맞는 {total}건 중 {in_stock}건({pct}%)이 재고 있음" 식으로 한 문장 포함해라.
+   pct 가 0 이면 "즉시 출고 가능한 재고는 없어 납기 확인이 필요합니다" 로 전환. pct 가 100 이면 "모두 재고 확보" 식으로 간결하게. 숫자는 블록에 적힌 값 그대로 인용.
+
+13. [절삭조건 참고범위] 블록이 있으면 **반드시** answer 마지막 줄에 한 문장으로 "YG-1 카탈로그 기준 Vc={vc_min}~{vc_max} m/min, fz={fz_min}~{fz_max} mm/tooth, RPM={n_min}~{n_max} 범위입니다 (YG-1 카탈로그 절삭조건표 {row_count}행 기준)" 형식으로 추가해라.
+   범위가 넓더라도 생략하지 마라 — 유저가 "어디부터 시작할지" 감을 잡게 해 주는 게 목적이다. 값 일부가 null 이면 있는 항목만 인용. 숫자를 지어내지 말 것.
+
 응답은 JSON: {"answer": "...", "reasoning": "...", "chips": [...], "refined_filters": null | {...}}"""
 
 
@@ -222,7 +228,45 @@ def _summarize_facets(available_filters: dict | None, top_n: int = 4) -> str:
     return "\n".join(lines)
 
 
-def generate_response(
+def _format_stock_summary_block(summary: dict | None) -> str:
+    """Render the [재고 요약] block consumed by principle 12. Returns "" when
+    the caller has no meaningful summary (no candidates)."""
+    if not summary:
+        return ""
+    total = summary.get("total") or 0
+    if total <= 0:
+        return ""
+    in_stock = int(summary.get("in_stock") or 0)
+    pct = int(summary.get("pct") or 0)
+    return f"total={total}, in_stock={in_stock}, pct={pct}"
+
+
+def _format_cutting_range_block(cr: dict | None) -> str:
+    """Render the [절삭조건 참고범위] block consumed by principle 13. Skips
+    null fields so the model doesn't hallucinate bounds the CSV didn't cover."""
+    if not cr:
+        return ""
+    bits: list[str] = []
+    vc_min, vc_max = cr.get("vc_min"), cr.get("vc_max")
+    fz_min, fz_max = cr.get("fz_min"), cr.get("fz_max")
+    n_min, n_max = cr.get("n_min"), cr.get("n_max")
+    if vc_min is not None and vc_max is not None:
+        bits.append(f"Vc: {vc_min}~{vc_max} m/min")
+    if fz_min is not None and fz_max is not None:
+        bits.append(f"fz: {fz_min}~{fz_max} mm/tooth")
+    if n_min is not None and n_max is not None:
+        bits.append(f"RPM: {n_min}~{n_max}")
+    if not bits:
+        return ""
+    row_count = cr.get("row_count")
+    source = cr.get("source") or "YG-1 카탈로그 절삭조건표"
+    footer = f"출처: {source}"
+    if row_count:
+        footer += f" ({row_count}행 집계)"
+    return "\n".join(bits + [footer])
+
+
+def _generate_light_cot(
     message: str,
     intent: Any,
     products: list[dict],
@@ -231,26 +275,20 @@ def generate_response(
     relaxed_fields: list[str] | None = None,
     available_filters: dict | None = None,
     clarify: dict | None = None,
+    stock_summary: dict | None = None,
+    cutting_range: dict | None = None,
 ) -> dict:
-    """Compose the chat reply. The system prompt is intentionally short
-    (6 principles) — heavy lifting is delegated to the `[context]` block
-    the user message carries.
-
-    The top-product summary + intent/count/relaxed metadata ride along so
-    the model still has concrete candidates to quote, but the domain
-    taxonomy (industry→material, material→coating) stays in the JSON KB.
-    `available_filters` feeds the [facets] block so principle 6 (brand
-    clarification) can propose real DB values as chips.
-
-    `clarify` is the output of clarify.suggest_clarifying_chips — a DB-backed
-    summary of which unspecified fields are most-differentiating under the
-    current filters. When present it triggers the clarification principle:
-    "유저 조건이 느슨해서 후보가 많으면, 가장 분기되는 필드를 되물어봐라."
+    """Fast-path composer — gpt-5.4-mini @ reasoning_effort=low. Used for
+    the bulk of /products traffic where the answer is a straightforward
+    quote of DB data + knowledge. Keeps the 13 principles, no extra
+    verification pass. generate_response() is the public entry point.
     """
     intent_summary = _summarize_intent(intent)
     product_summary = _summarize_products(products or [])
     context_str = _build_context_blocks(knowledge)
     facets_str = _summarize_facets(available_filters)
+    stock_block = _format_stock_summary_block(stock_summary)
+    cutting_block = _format_cutting_range_block(cutting_range)
 
     meta_lines = [
         f"total_count: {total_count}",
@@ -271,6 +309,10 @@ def generate_response(
         clarify_str = format_chips_for_prompt(clarify)
         if clarify_str:
             parts.append(f"[clarify]\n{clarify_str}")
+    if stock_block:
+        parts.append(f"[재고 요약]\n{stock_block}")
+    if cutting_block:
+        parts.append(f"[절삭조건 참고범위]\n{cutting_block}")
     parts.append(f"[질문]\n{message}")
     user_turn = "\n\n".join(parts)
 
@@ -312,3 +354,315 @@ def generate_response(
         "chips": chips,
         "refined_filters": data.get("refined_filters") or None,
     }
+
+
+# ── Dual CoT ────────────────────────────────────────────────────────────
+#
+# Two chat paths:
+#   light  — gpt-5.4-mini, reasoning_effort=low. Default for /products.
+#   strong — gpt-5.4, reasoning_effort=medium + self-verify pass. Takes
+#            roughly 2–4× as long but we want it when the answer has a
+#            correctness tax: zero results, material-S/H queries, compare
+#            / why / troubleshooting asks, dissatisfaction follow-ups.
+#
+# _assess_cot_level is deliberately signal-based, not keyword-matched on
+# whole phrases. Each signal adds to a score; once we cross the threshold
+# we escalate. New signals can be added without reshuffling the existing
+# logic. Threshold tuned on ~12 query families; conservative enough that
+# casual "수스 10mm 4날" stays on the light path.
+
+# Env-override for the strong model so ops can swap in another Opus-tier
+# variant without code change. Kept separate from OPENAI_HAIKU_MODEL (the
+# light-path ID, read at module load into OPENAI_MODEL).
+OPENAI_STRONG_MODEL = os.environ.get("OPENAI_SONNET_MODEL", "gpt-5.4")
+
+_COMPARE_SIGNALS = ("비교", "차이", "뭐가 나아", "어떤 게", "vs", "장단점", "둘 중", "어느 게")
+_WHY_SIGNALS = ("왜", "이유", "근거", "어째서", "왜냐", "because")
+_TROUBLE_SIGNALS = (
+    "떨림", "파손", "수명", "마모", "채터", "진동",
+    "깨짐", "부러", "문제", "안 돼", "안돼", "이상", "불량",
+)
+_DISSAT_SIGNALS = ("아니", "그거 말고", "다시", "다른 거", "다른거", "안 맞", "안맞", "틀렸", "말고")
+
+_STRONG_THRESHOLD = int(os.environ.get("DUAL_COT_STRONG_THRESHOLD", "3"))
+
+
+def _assess_cot_level(
+    message: str,
+    intent: Any,
+    products: list,
+    knowledge: list,
+    total_count: int,
+    relaxed_fields: list | None,
+) -> str:
+    """Return "strong" when the composite signal score crosses
+    _STRONG_THRESHOLD, else "light". Signals are orthogonal — compare+why
+    can co-occur and add independently."""
+    if not message:
+        return "light"
+
+    msg = message.lower()
+    score = 0
+    reasons: list[str] = []
+
+    # Signal weights tuned so each "primary" signal (compare / why /
+    # trouble / S·H material / dissat / 0건) crosses _STRONG_THRESHOLD=3
+    # on its own, while pure spec queries ("수스 10mm 4날") that only
+    # raise the "filter-richness" booster stay on light.
+
+    # Signal 1 — uncertainty in the result set.
+    if total_count == 0:
+        score += 3
+        reasons.append("0건")
+    if relaxed_fields:
+        score += 2
+        reasons.append(f"relaxed={relaxed_fields}")
+
+    # Signal 2 — material difficulty. Titanium/Inconel (S) and hardened
+    # steel (H) carry the largest coating/geometry tradeoff surface;
+    # worth a Strong answer even when nothing else is complex.
+    mat = getattr(intent, "material_tag", None)
+    if mat in ("S", "H"):
+        score += 3
+        reasons.append(f"mat={mat}")
+
+    # Signal 3 — user intent complexity.
+    if any(k in msg for k in _COMPARE_SIGNALS):
+        score += 3
+        reasons.append("compare")
+    if any(k in msg for k in _WHY_SIGNALS):
+        score += 3
+        reasons.append("why")
+
+    # Signal 4 — troubleshooting. Cause analysis + alternative suggestion
+    # is exactly the kind of answer Strong is designed for.
+    if any(k in msg for k in _TROUBLE_SIGNALS):
+        score += 3
+        reasons.append("trouble")
+
+    # Signal 5 — many-constraint queries (booster, never primary). More
+    # filled slots → more tradeoffs to reason across, but by itself this
+    # shouldn't force Strong for a routine "4-slot" query.
+    filled = sum(1 for f in (
+        "diameter", "flute_count", "material_tag", "subtype",
+        "brand", "coating", "tool_material", "shank_type",
+    ) if getattr(intent, f, None) is not None)
+    if filled >= 4:
+        score += 1
+        reasons.append(f"filters={filled}")
+    if len(msg) > 50 and filled >= 3:
+        score += 1
+        reasons.append("long+filters")
+
+    # Signal 6 — knowledge depth booster.
+    if knowledge and len(knowledge) >= 2:
+        score += 1
+        reasons.append(f"knowledge={len(knowledge)}")
+
+    # Signal 7 — dissatisfaction in a follow-up turn. User is asking us
+    # to reconsider; the extra reasoning pays for itself.
+    if any(k in msg for k in _DISSAT_SIGNALS):
+        score += 3
+        reasons.append("dissat")
+
+    level = "strong" if score >= _STRONG_THRESHOLD else "light"
+    return level
+
+
+def _strong_product_block(products: list[dict], limit: int = 10) -> str:
+    """Structured, single-line-per-row product dump used as ground truth
+    in the Strong prompt + verifier. Uses the actual DB column aliases
+    produced by search.SELECT_COLS (brand/series/subtype/diameter/flutes/
+    coating/total_stock) so the verifier can exact-match."""
+    if not products:
+        return ""
+    rows: list[str] = []
+    for i, p in enumerate(products[:limit], 1):
+        if not isinstance(p, dict):
+            continue
+        stock = p.get("total_stock")
+        stock_s = "재고없음/null" if stock is None else f"재고={stock}"
+        rows.append(
+            f"  #{i} EDP={p.get('edp_no','?')} | brand={p.get('brand','-')} | "
+            f"series={p.get('series','-')} | {p.get('subtype','-')} | "
+            f"Ø{p.get('diameter','-')}mm | {p.get('flutes','-')}날 | "
+            f"coating={p.get('coating','-')} | {stock_s}"
+        )
+    return "\n".join(rows)
+
+
+# Strong-path system prompt. Holds all 13 operating principles from
+# SYSTEM_PROMPT by reference — the Strong model is expected to apply them
+# with tighter self-checking, so we add two extra rails: every product
+# claim must resolve to the [매칭 제품] block; comparisons must surface
+# both sides' pros/cons.
+STRONG_SYSTEM_PROMPT = SYSTEM_PROMPT + """
+
+━━━ Strong-path 추가 규칙 (이 원칙을 "반드시" 지킬 것) ━━━
+S1. [매칭 제품] 블록에 없는 EDP/브랜드/시리즈/스펙을 인용하지 말 것. 빈 값이면 "카탈로그 확인 필요"로 명시.
+S2. 비교 질문은 양쪽 장단점을 각각 제시 (한쪽만 편들지 말 것). 기준은 DB 수치/도메인지식에서 뽑을 것.
+S3. 0건 또는 relaxed_fields 있을 때, "어느 조건을 얼마로 완화하면 N건 나옵니다" 식으로 구체적 대안 한 가지 이상 제시.
+S4. 트러블슈팅은 원인 가설 → 확인 질문 → 대안 제품 순서로 구조화. 원인 추측에 "일반적으로"/"경험상" 표지 필수.
+S5. 숫자(Vc/fz/RPM/HRC/직경/재고 등)는 전달받은 context 값만 사용. 새 숫자를 지어내지 말 것."""
+
+
+def _generate_strong_cot(
+    message: str,
+    intent: Any,
+    products: list[dict],
+    knowledge: list[dict],
+    total_count: int,
+    relaxed_fields: list[str] | None = None,
+    available_filters: dict | None = None,
+    clarify: dict | None = None,
+    stock_summary: dict | None = None,
+    cutting_range: dict | None = None,
+) -> dict:
+    """Two-pass composer — gpt-5.4 drafts with reasoning_effort=medium,
+    then gpt-5.4-mini verifies the draft against the [매칭 제품] ground
+    truth and corrects any hallucinated specs. Falls back to the light
+    path on any exception so a single bad request can't block the UI."""
+    intent_summary = _summarize_intent(intent)
+    product_summary = _summarize_products(products or [], limit=10)
+    context_str = _build_context_blocks(knowledge)
+    facets_str = _summarize_facets(available_filters)
+    stock_block = _format_stock_summary_block(stock_summary)
+    cutting_block = _format_cutting_range_block(cutting_range)
+    product_ground_truth = _strong_product_block(products or [], limit=10)
+
+    meta_lines = [f"total_count: {total_count}"]
+    if relaxed_fields:
+        meta_lines.append(f"relaxed_fields: {relaxed_fields}")
+    if intent_summary:
+        meta_lines.append(f"intent: {json.dumps(intent_summary, ensure_ascii=False)}")
+    if product_summary:
+        meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
+    meta_block = "\n".join(meta_lines)
+
+    parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if product_ground_truth:
+        parts.append(f"[매칭 제품 (ground truth — 여기 없는 건 인용 금지)]\n{product_ground_truth}")
+    if facets_str:
+        parts.append(f"[facets]\n{facets_str}")
+    if clarify and clarify.get("groups"):
+        from clarify import format_chips_for_prompt
+        clarify_str = format_chips_for_prompt(clarify)
+        if clarify_str:
+            parts.append(f"[clarify]\n{clarify_str}")
+    if stock_block:
+        parts.append(f"[재고 요약]\n{stock_block}")
+    if cutting_block:
+        parts.append(f"[절삭조건 참고범위]\n{cutting_block}")
+    parts.append(f"[질문]\n{message}")
+    user_turn = "\n\n".join(parts)
+
+    client = _get_client()
+    try:
+        draft_resp = client.chat.completions.create(
+            model=OPENAI_STRONG_MODEL,
+            messages=[
+                {"role": "system", "content": STRONG_SYSTEM_PROMPT},
+                {"role": "user", "content": user_turn},
+            ],
+            response_format={"type": "json_object"},
+            reasoning_effort="medium",
+        )
+        draft_text = draft_resp.choices[0].message.content or ""
+    except Exception:
+        # Strong path failed at the draft step — downgrade silently.
+        result = _generate_light_cot(
+            message, intent, products, knowledge, total_count,
+            relaxed_fields, available_filters, clarify,
+            stock_summary, cutting_range,
+        )
+        result["cot_level"] = "light"
+        return result
+
+    # Self-verify — mini model rechecks the draft against the ground-truth
+    # product block. Only commits corrections it can defend; otherwise
+    # returns the draft unchanged.
+    verify_system = (
+        "당신은 YG-1 카탈로그 사실검증자입니다. [초안]이 [매칭 제품]과 "
+        "[meta]를 벗어나 수치·제품명·재고를 지어냈는지 검사하세요. "
+        "제품 근거 이상의 과도한 단정은 '카탈로그 확인 필요'로 완화하세요. "
+        "출력은 {answer,chips,verified,corrections} JSON. answer/chips는 "
+        "교정 후 최종값, verified=false면 corrections에 무엇을 바꿨는지 "
+        "한 줄로 쓰세요."
+    )
+    verify_user = (
+        f"[초안]\n{draft_text}\n\n"
+        f"[매칭 제품]\n{product_ground_truth or '(없음)'}\n\n"
+        f"[meta]\n{meta_block}"
+    )
+    try:
+        verify_resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": verify_system},
+                {"role": "user", "content": verify_user},
+            ],
+            response_format={"type": "json_object"},
+            reasoning_effort="low",
+        )
+        verified = _extract_json(verify_resp.choices[0].message.content or "")
+        # Only trust the verifier if it returned an answer; otherwise keep
+        # the draft so a bad verifier pass doesn't discard good output.
+        data = verified if verified.get("answer") else _extract_json(draft_text)
+    except Exception:
+        data = _extract_json(draft_text)
+
+    raw_chips = data.get("chips") or []
+    chips: list[str] = []
+    for c in raw_chips:
+        if not c:
+            continue
+        if isinstance(c, dict):
+            label = c.get("label") or c.get("value")
+            if label:
+                chips.append(str(label))
+        elif isinstance(c, str):
+            chips.append(c)
+        else:
+            chips.append(str(c))
+
+    return {
+        "answer": str(data.get("answer") or ""),
+        "reasoning": str(data.get("reasoning") or data.get("corrections") or ""),
+        "chips": chips,
+        "refined_filters": data.get("refined_filters") or None,
+    }
+
+
+def generate_response(
+    message: str,
+    intent: Any,
+    products: list[dict],
+    knowledge: list[dict],
+    total_count: int,
+    relaxed_fields: list[str] | None = None,
+    available_filters: dict | None = None,
+    clarify: dict | None = None,
+    stock_summary: dict | None = None,
+    cutting_range: dict | None = None,
+) -> dict:
+    """Public entry point — dispatches to light/strong CoT based on
+    _assess_cot_level. Always tags the result dict with cot_level so
+    callers can forward it to ProductsResponse."""
+    level = _assess_cot_level(
+        message, intent, products or [], knowledge or [], total_count, relaxed_fields,
+    )
+    if level == "strong":
+        result = _generate_strong_cot(
+            message, intent, products, knowledge, total_count,
+            relaxed_fields, available_filters, clarify,
+            stock_summary, cutting_range,
+        )
+        result.setdefault("cot_level", "strong")
+        return result
+    result = _generate_light_cot(
+        message, intent, products, knowledge, total_count,
+        relaxed_fields, available_filters, clarify,
+        stock_summary, cutting_range,
+    )
+    result["cot_level"] = "light"
+    return result
