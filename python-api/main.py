@@ -407,9 +407,17 @@ _TOGGLE_FIELDS = [
 ]
 
 
-def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
+def _filters_to_dict(
+    filters: ManualFilters | None,
+    intent: SCRIntent,
+    edp_no: Optional[str] = None,
+) -> dict:
     """Flatten the intent + optional manual overlay into a plain filter dict
-    for search_products / product_count_filtered / get_filter_options."""
+    for search_products / product_count_filtered / get_filter_options.
+
+    edp_no is a product-code override — when a specific EDP is detected in
+    the request, it supersedes every other filter (the user asked for THAT
+    product, not a new search scoped by prior context)."""
     base = {
         "diameter": intent.diameter,
         "flute_count": intent.flute_count,
@@ -445,6 +453,9 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "overall_length_max": getattr(intent, "overall_length_max", None),
         "shank_diameter_min": getattr(intent, "shank_diameter_min", None),
         "shank_diameter_max": getattr(intent, "shank_diameter_max", None),
+        # Region/country — search._build_where calls country_alias.expand_country
+        # so any Korean/English/case variant resolves to the canonical MV form(s).
+        "country": getattr(intent, "country", None),
     }
     # Exact shank_diameter → ±0.2mm range. Shank dia is a fit tolerance, not
     # a selection target; h5/h6 tolerance classes keep actual values within
@@ -497,6 +508,8 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
             v = getattr(filters, fld, None)
             if v is not None:
                 base[fld] = v
+    if edp_no:
+        base["edp_no"] = edp_no
     return base
 
 
@@ -617,6 +630,40 @@ def _auto_inject_excellent_brand(intent, message: Optional[str]) -> None:
             continue
         intent.brand = brand
         return
+
+
+# EDP-code shaped tokens — 2–6 letters + 3–7 digits, optional hyphen/
+# underscore suffix. Verified against the in-memory index (zero false
+# positives — "SUS304" / "SKD12" don't match real catalog EDPs so they
+# return None). When found, the request short-circuits carry-forward so
+# a stale "copper (N)" scope from a prior turn doesn't narrow the lookup
+# away from an unrelated product family.
+# Python's `\b` is ASCII-word-boundary only, so "UGMG34919을" won't match —
+# Korean 을 immediately after the digits isn't treated as a boundary.
+# Explicit ASCII-alnum look-around lets Korean particles / punctuation /
+# whitespace all count as boundaries without matching mid-identifier.
+_PRODUCT_CODE_RE = re.compile(r"(?<![A-Z0-9])([A-Z][A-Z0-9]{1,5}\d{3,7}(?:[\-_]?\d{1,4})?)(?![A-Z0-9])")
+
+
+def _detect_product_code(message: Optional[str]) -> Optional[str]:
+    """Extract an EDP-shaped token from the message and confirm it exists
+    in the product index. Returns the canonical upper-cased code or None."""
+    if not message:
+        return None
+    msg_upper = message.upper()
+    try:
+        index = load_index()
+    except Exception:
+        return None
+    if not index:
+        return None
+    for m in _PRODUCT_CODE_RE.finditer(msg_upper):
+        code = m.group(1).replace("_", "-")
+        for p in index:
+            edp_str = str(p.get("edp_no") or "").upper()
+            if code in edp_str:
+                return code
+    return None
 
 
 def _detect_excluded_brands(message: str) -> list[str]:
@@ -749,9 +796,17 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     if req.message:
         _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
-    # Fill unset intent fields from the session's carried context so
-    # abbreviated follow-ups still know the material/diameter from turn 1.
-    carry_forward_intent(session, intent)
+    # EDP-code shortcut — when the user types a specific product code
+    # ("UGMG34919 보여줘"), drop every carried filter. Otherwise a prior
+    # turn's "구리(N)" material scope narrows the EDP lookup to zero hits
+    # on an unrelated product family. Skips carry_forward entirely.
+    detected_edp = _detect_product_code(req.message) if req.message else None
+    if detected_edp:
+        session.current_filters.clear()
+    else:
+        # Fill unset intent fields from the session's carried context so
+        # abbreviated follow-ups still know the material/diameter from turn 1.
+        carry_forward_intent(session, intent)
 
     # Anaphoric follow-up override — "이 중에서 …" after a result-bearing turn
     # is always a recommendation narrow, even when the parser misroutes the
@@ -867,7 +922,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # endpoint and /products/stream use, so every search path carries
     # the same intent+ManualFilters coverage without field-level drift.
     def _build_filters() -> dict:
-        return _filters_to_dict(req.filters, intent)
+        return _filters_to_dict(req.filters, intent, edp_no=detected_edp)
 
     def _run_search() -> list[dict]:
         filt = _build_filters()
@@ -982,6 +1037,11 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             helix_angle=c.get("milling_helix_angle"),
             coolant_hole=c.get("milling_coolant_hole"),
             shank_type=c.get("search_shank_type"),
+            edp_unit=c.get("edp_unit"),
+            shank_dia=c.get("milling_shank_dia"),
+            ball_radius=c.get("milling_ball_radius"),
+            neck_diameter=c.get("milling_neck_diameter"),
+            effective_length=c.get("milling_effective_length"),
             cutting_conditions=conditions_map.get(edp) or None,
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
@@ -1016,7 +1076,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     ]
 
     # 4. Live-toggle facets — in-memory GROUP BY, no DB per-field round-trip.
-    filter_dict = _filters_to_dict(req.filters, intent)
+    filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
     available: dict[str, list[FilterOption]] = {}
     for f in _TOGGLE_FIELDS:
         try:
@@ -1283,6 +1343,11 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
             helix_angle=c.get("milling_helix_angle"),
             coolant_hole=c.get("milling_coolant_hole"),
             shank_type=c.get("search_shank_type"),
+            edp_unit=c.get("edp_unit"),
+            shank_dia=c.get("milling_shank_dia"),
+            ball_radius=c.get("milling_ball_radius"),
+            neck_diameter=c.get("milling_neck_diameter"),
+            effective_length=c.get("milling_effective_length"),
             cutting_conditions=conditions_map.get(edp) or None,
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
@@ -1388,7 +1453,14 @@ async def products_stream(req: ProductsRequest):
         if req.message:
             _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
-        carry_forward_intent(session, intent)
+        # EDP-code shortcut (see sync /products for the full rationale).
+        # Detected here so the stream path also short-circuits carry-forward
+        # when the user types an explicit product code.
+        detected_edp = _detect_product_code(req.message) if req.message else None
+        if detected_edp:
+            session.current_filters.clear()
+        else:
+            carry_forward_intent(session, intent)
 
         # Anaphoric follow-up override — see sync /products for rationale.
         _force_recommendation_on_followup(intent, req.message, session)
@@ -1459,7 +1531,7 @@ async def products_stream(req: ProductsRequest):
             # stays uniform across every search surface. Previously the
             # stream branch maintained its own inline dict that drifted
             # behind _filters_to_dict.
-            filters = _filters_to_dict(req.filters, intent)
+            filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
             if needs_db_path(filters):
                 rows = search_products(
                     **{k: v for k, v in filters.items()
@@ -1549,7 +1621,7 @@ async def products_stream(req: ProductsRequest):
             "refined_filters": None,
         }
         if req.message:
-            stream_filter_dict = _filters_to_dict(req.filters, intent)
+            stream_filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
             try:
                 clarify_payload_stream = await asyncio.to_thread(
                     suggest_clarifying_chips, stream_filter_dict,
@@ -1629,7 +1701,7 @@ async def products_stream(req: ProductsRequest):
         # dict (SCRIntent + merged ManualFilter fields) so pagination /
         # carry-forward doesn't silently drop UI-only scopes.
         edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
-        stream_effective_filters = _filters_to_dict(req.filters, intent)
+        stream_effective_filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
         intent_dump = {
             "intent": intent.intent,
             **intent.model_dump(exclude_none=True),

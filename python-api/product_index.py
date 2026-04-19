@@ -176,6 +176,16 @@ def _periodic() -> None:
 # ── in-memory filter engine ──────────────────────────────────────────────
 
 def _matches(p: dict, f: dict) -> bool:
+    # edp_no exact/prefix match — takes precedence so explicit product-code
+    # queries return just that product (or its variants) regardless of what
+    # else carried forward from the session. Case-insensitive.
+    edp_filter = f.get("edp_no")
+    if edp_filter:
+        actual_edp = str(p.get("edp_no") or "").upper()
+        needle = str(edp_filter).upper()
+        if needle not in actual_edp:
+            return False
+
     # diameter exact (±10% by default) — prefer search_diameter_mm when the
     # row carries it (already pre-cast to numeric), else fall back to the
     # regex-guarded text column.
