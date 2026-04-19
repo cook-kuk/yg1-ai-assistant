@@ -32,6 +32,10 @@ from config import (
     LIGHT_COT_TIMEOUT,
     STRONG_COT_DRAFT_TIMEOUT,
     STRONG_COT_VERIFY_TIMEOUT,
+    COT_FILLED_MANY_THRESHOLD,
+    COT_FILLED_LONG_THRESHOLD,
+    COT_LONG_MSG_CHARS,
+    COT_KNOWLEDGE_MIN,
 )
 from patterns import (
     COMPARE_SIGNALS,
@@ -640,6 +644,201 @@ def _generate_light_cot(
     }
 
 
+# Regex anchors the `"answer":"…"` span inside the model's streaming JSON.
+# We start extracting only after this match so leading metadata lines (like
+# {"reasoning": "…") don't bleed into the partial text the UI shows.
+_ANSWER_FIELD_RE = re.compile(r'"answer"\s*:\s*"')
+
+
+def _extract_answer_progress(partial: str) -> str:
+    """Walk the accumulated JSON and return just the current content of the
+    `answer` field — so the UI's typewriter shows natural text, not raw
+    `{"answer":"...` fragments. Handles JSON escapes (\\n, \\", \\\\) and
+    tolerates an unclosed quote (the model hasn't emitted the close yet)."""
+    m = _ANSWER_FIELD_RE.search(partial)
+    if not m:
+        return ""
+    out: list[str] = []
+    i = m.end()
+    n = len(partial)
+    while i < n:
+        ch = partial[i]
+        if ch == "\\" and i + 1 < n:
+            nxt = partial[i + 1]
+            if nxt == "n":
+                out.append("\n")
+            elif nxt == "t":
+                out.append("\t")
+            elif nxt == "r":
+                out.append("\r")
+            elif nxt == '"':
+                out.append('"')
+            elif nxt == "\\":
+                out.append("\\")
+            elif nxt == "/":
+                out.append("/")
+            else:
+                out.append(nxt)
+            i += 2
+            continue
+        if ch == '"':
+            break  # unescaped closing quote — answer string is done
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _normalize_chat_chips(data: dict) -> list[str]:
+    """Reused chip normalizer — plain-string list for the UI regardless of
+    whether the model emitted raw strings, {label, type, value} objects,
+    or a list of other shapes."""
+    raw = data.get("chips") or []
+    out: list[str] = []
+    for c in raw:
+        if not c:
+            continue
+        if isinstance(c, dict):
+            label = c.get("label") or c.get("value")
+            if label:
+                out.append(str(label))
+        elif isinstance(c, str):
+            out.append(c)
+        else:
+            out.append(str(c))
+    return out
+
+
+async def stream_light_cot(
+    message: str,
+    intent: Any,
+    products: list[dict],
+    knowledge: list[dict],
+    total_count: int,
+    relaxed_fields: list[str] | None = None,
+    available_filters: dict | None = None,
+    clarify: dict | None = None,
+    stock_summary: dict | None = None,
+    cutting_range: dict | None = None,
+    session: Any = None,
+    req_filters: dict | None = None,
+):
+    """Streaming variant of _generate_light_cot — yields (event_type,
+    payload) tuples for the SSE relay. Mirrors stream_strong_cot's shape:
+        ("partial_answer", {text, status})  — emitted every ~N chars
+        ("answer", {answer, reasoning, chips, refined_filters, cot_level})
+                                             — terminal frame
+    On any failure, falls back to the sync _generate_light_cot so the UI
+    still gets an answer frame rather than a hung connection.
+
+    The prompt assembly duplicates _generate_light_cot (intentional —
+    streaming needs async client) but both read the same SYSTEM_PROMPT
+    and context helpers, so drift is limited to the call plumbing.
+    """
+    import asyncio
+
+    product_summary = _summarize_products(products or [])
+    context_str = _build_context_blocks(knowledge)
+    facets_str = _summarize_facets(available_filters)
+    stock_block = _format_stock_summary_block(stock_summary)
+    cutting_block = _format_cutting_range_block(cutting_range)
+    ui_context = _build_ui_context(
+        intent, req_filters, available_filters, products, total_count, relaxed_fields,
+    )
+
+    meta_lines = [f"total_count: {total_count}"]
+    if relaxed_fields:
+        meta_lines.append(f"relaxed_fields: {relaxed_fields}")
+    if product_summary:
+        meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
+    meta_block = "\n".join(meta_lines)
+
+    parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if ui_context:
+        parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if facets_str:
+        parts.append(f"[facets]\n{facets_str}")
+    if clarify and clarify.get("groups"):
+        from clarify import format_chips_for_prompt
+        clarify_str = format_chips_for_prompt(clarify)
+        if clarify_str:
+            parts.append(f"[clarify]\n{clarify_str}")
+    if stock_block:
+        parts.append(f"[재고 요약]\n{stock_block}")
+    if cutting_block:
+        parts.append(f"[절삭조건 참고범위]\n{cutting_block}")
+    parts.append(f"[질문]\n{message}")
+    user_turn = "\n\n".join(parts)
+
+    history_msgs = _raw_history_messages(session)
+    aclient = _get_aclient()
+    partial = ""
+    last_emit = 0
+    finished_ok = False
+
+    try:
+        stream = await aclient.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=(
+                [{"role": "system", "content": SYSTEM_PROMPT}]
+                + history_msgs
+                + [{"role": "user", "content": user_turn}]
+            ),
+            response_format={"type": "json_object"},
+            reasoning_effort="low",
+            stream=True,
+            timeout=LIGHT_COT_TIMEOUT,
+        )
+        async for chunk in stream:
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None) if delta else None
+            if not content:
+                continue
+            partial += content
+            # Periodic flush — extract the `answer` field content from the
+            # in-progress JSON so the UI's typewriter shows natural Korean
+            # text instead of raw `{"answer":"...` fragments. Chunk
+            # threshold keeps SSE traffic bounded while the user still sees
+            # typing start in ~1.5s of first-byte instead of a 5–10s blank.
+            if len(partial) - last_emit >= _PARTIAL_CHUNK_CHARS:
+                last_emit = len(partial)
+                progress = _extract_answer_progress(partial)
+                if progress:
+                    yield ("partial_answer", {
+                        "text": progress,
+                        "status": "답변 생성 중...",
+                        "cot_level": "light",
+                    })
+        finished_ok = bool(partial)
+    except Exception:
+        finished_ok = False
+
+    if not finished_ok:
+        fallback = await asyncio.to_thread(
+            _generate_light_cot,
+            message, intent, products, knowledge, total_count,
+            relaxed_fields, available_filters, clarify,
+            stock_summary, cutting_range, session, req_filters,
+        )
+        fallback["cot_level"] = "light"
+        fallback["verified"] = None
+        yield ("answer", fallback)
+        return
+
+    data = _extract_json(partial) or {}
+    result = {
+        "answer": str(data.get("answer") or ""),
+        "reasoning": str(data.get("reasoning") or ""),
+        "chips": _normalize_chat_chips(data),
+        "refined_filters": data.get("refined_filters") or None,
+        "cot_level": "light",
+        "verified": None,
+    }
+    yield ("answer", result)
+
+
 # ── Dual CoT ────────────────────────────────────────────────────────────
 #
 # Two chat paths:
@@ -752,15 +951,15 @@ def _assess_cot_level(
         "diameter", "flute_count", "material_tag", "subtype",
         "brand", "coating", "tool_material", "shank_type",
     ) if getattr(intent, f, None) is not None)
-    if filled >= 4:
+    if filled >= COT_FILLED_MANY_THRESHOLD:
         score += 1
         reasons.append(f"filters={filled}")
-    if len(msg) > 50 and filled >= 3:
+    if len(msg) > COT_LONG_MSG_CHARS and filled >= COT_FILLED_LONG_THRESHOLD:
         score += 1
         reasons.append("long+filters")
 
     # Signal 6 — knowledge depth booster.
-    if knowledge and len(knowledge) >= 2:
+    if knowledge and len(knowledge) >= COT_KNOWLEDGE_MIN:
         score += 1
         reasons.append(f"knowledge={len(knowledge)}")
 

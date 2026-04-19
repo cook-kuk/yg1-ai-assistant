@@ -61,6 +61,7 @@ from config import (
     DEFAULT_PAGE_SIZE as _CFG_DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE as _CFG_MAX_PAGE_SIZE,
     HEALTH_DETAILED,
+    CUTTING_DEFAULT_LIMIT,
 )
 
 _start_time = time.time()
@@ -129,7 +130,7 @@ def cutting_conditions_api(
     series: Optional[str] = None,
     iso: Optional[str] = None,
     workpiece: Optional[str] = None,
-    limit: int = 20,
+    limit: int = CUTTING_DEFAULT_LIMIT,
 ) -> list[dict]:
     """Browse the cutting-condition chart (Vc / Fz / RPM / Feed / Ap / Ae)
     filtered by any of brand / series / ISO group / workpiece name."""
@@ -861,17 +862,27 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     if req.message:
         _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
-    # EDP-code shortcut — when the user types a specific product code
-    # ("UGMG34919 보여줘"), drop every carried filter. Otherwise a prior
-    # turn's "구리(N)" material scope narrows the EDP lookup to zero hits
-    # on an unrelated product family. Skips carry_forward entirely.
+    # EDP-code shortcut — when the user types a specific product code.
+    # Two modes:
+    #   (a) Fresh query, no prior session filters: treat the EDP as the
+    #       primary filter so the main list renders that product directly.
+    #   (b) Mid-session peek ("이 필터 유지하면서 UGMG34919 좀 보여줘"):
+    #       keep the carried filters and surface the EDP as a side panel
+    #       via intent.reference_lookup / reference_products. This matches
+    #       the user-requested "두 층" UX — prior ranked list on top,
+    #       independent peek below.
     detected_edp = _detect_product_code(req.message) if req.message else None
-    if detected_edp:
-        session.current_filters.clear()
+    has_prior_filters = bool(getattr(session, "current_filters", None))
+    if detected_edp and not has_prior_filters:
+        session.current_filters.clear()  # preserved for safety; no-op in fresh sessions
     else:
         # Fill unset intent fields from the session's carried context so
         # abbreviated follow-ups still know the material/diameter from turn 1.
         carry_forward_intent(session, intent)
+        if detected_edp:
+            # Peek mode — don't let edp_no hijack the main filter dict; the
+            # reference_lookup path handles surfacing the card.
+            detected_edp = None
 
     # Anaphoric follow-up override — "이 중에서 …" after a result-bearing turn
     # is always a recommendation narrow, even when the parser misroutes the
@@ -1531,12 +1542,17 @@ async def products_stream(req: ProductsRequest):
 
         # EDP-code shortcut (see sync /products for the full rationale).
         # Detected here so the stream path also short-circuits carry-forward
-        # when the user types an explicit product code.
+        # when the user types an explicit product code. Mid-session peek
+        # (prior filters carried) keeps the carried filters and routes the
+        # EDP through reference_lookup instead of hijacking the main list.
         detected_edp = _detect_product_code(req.message) if req.message else None
-        if detected_edp:
+        has_prior_filters_stream = bool(getattr(session, "current_filters", None))
+        if detected_edp and not has_prior_filters_stream:
             session.current_filters.clear()
         else:
             carry_forward_intent(session, intent)
+            if detected_edp:
+                detected_edp = None
 
         # Anaphoric follow-up override — see sync /products for rationale.
         _force_recommendation_on_followup(intent, req.message, session)
@@ -1759,25 +1775,33 @@ async def products_stream(req: ProductsRequest):
                     })
                     yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
             else:
+                # Light path — stream the LLM output token-by-token so the
+                # user sees typing start in ~1.5s instead of a 5–10s blank.
+                # stream_light_cot mirrors stream_strong_cot: emits
+                # ("partial_answer", …) frames periodically while the model
+                # writes, then exactly one terminal ("answer", …) frame.
+                from chat import stream_light_cot
                 try:
-                    chat_result = await asyncio.to_thread(
-                        generate_response,
+                    async for ev_type, payload in stream_light_cot(
                         req.message, intent,
                         [c for c, _, _ in ranked[:TOP_K]],
-                        knowledge,
-                        len(ranked),
-                        None,
-                        None,
+                        knowledge, len(ranked), None, None,
                         clarify_payload_stream,
-                        stock_summary_stream,
-                        cutting_range_stream,
-                        session,
-                        req_filters_dump,
-                    )
+                        stock_summary_stream, cutting_range_stream,
+                        session, req_filters_dump,
+                    ):
+                        if ev_type == "answer":
+                            chat_result = _merge_series_chips(payload)
+                            yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+                        else:
+                            yield f"event: {ev_type}\ndata: {_json.dumps(payload, ensure_ascii=False)}\n\n"
                 except Exception:
-                    chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
-                chat_result = _merge_series_chips(chat_result)
-                yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+                    chat_result = _merge_series_chips({
+                        "answer": _build_answer(intent, ranked),
+                        "chips": [], "reasoning": "", "refined_filters": None,
+                        "cot_level": "light",
+                    })
+                    yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
         else:
             # No user message — deterministic answer, no CoT round-trip.
             if series_chips_stream:
