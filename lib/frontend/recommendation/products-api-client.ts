@@ -67,6 +67,8 @@ export interface ProductCard {
   rationale?: string | null
   // Match-reason chips ("소재 N군 적합", "형상 Square 일치").
   matched_fields?: string[] | null
+  // Brand × workpiece affinity tier. "EXCELLENT" | "GOOD" | "FAIR" | null.
+  material_rating?: "EXCELLENT" | "GOOD" | "FAIR" | string | null
   cutting_conditions?: Array<Record<string, unknown>> | null
   score: number
   score_breakdown: Record<string, number>
@@ -80,6 +82,7 @@ export interface ProductSummary {
   flutes?: string | null
   coating?: string | null
   stock_status?: string | null
+  material_rating?: "EXCELLENT" | "GOOD" | "FAIR" | string | null
   score: number
 }
 
@@ -100,6 +103,10 @@ export interface ProductsResponse {
   route: string
   availableFilters?: Record<string, FilterOption[]> | null
   session_id?: string | null
+  // Python's SCORING_CONFIG max-per-axis dict. toScoreBreakdown() prefers
+  // this over the hardcoded PY_WEIGHTS fallback so UI bars auto-track
+  // weight changes without a frontend deploy.
+  score_breakdown_max?: Record<string, number> | null
 }
 
 export interface FilterOptionsResponse {
@@ -198,30 +205,58 @@ function parseCoolantHole(raw: string | boolean | null | undefined): boolean | n
 // plus total/maxTotal/matchPct — so translate once here. Dimensions missing
 // from the Python dict collapse to "미지정" rows so the bar chart renders
 // with a consistent 8 axes.
-const PY_WEIGHTS = { diameter: 40, flutes: 15, material: 20, shape: 15, coating: 5 }
+// Fallback max values when Python doesn't ship score_breakdown_max.
+// Mirrors scoring.SCORING_CONFIG at the time of writing; any drift is
+// self-healing once the response starts including the max dict.
+const PY_WEIGHTS_FALLBACK: Record<string, number> = {
+  diameter: 40, flutes: 15, material: 20, shape: 15, coating: 5,
+  operation: 15, affinity: 15, flagship: 10, material_pref: 5,
+  stock: 3, hrc_match: 5, specialty: 20,
+}
 const _num = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) ? x : 0)
 
 function toScoreBreakdown(
   flat: Record<string, number> | null | undefined,
   cardScore: number,
+  maxDict?: Record<string, number> | null,
 ): RecommendationCandidateDto["scoreBreakdown"] {
   if (!flat || typeof flat !== "object") return null
+  const mx = (key: string, fallback: number): number => {
+    if (maxDict && typeof maxDict[key] === "number" && maxDict[key] > 0) return maxDict[key]
+    return PY_WEIGHTS_FALLBACK[key] ?? fallback
+  }
   // Python's scoring.py redistributes missing-intent weight across the
   // remaining active dimensions, so an individual axis can exceed its
   // static weight ("diameter=67/40"). Cap each score to its weight so
   // the UI bar chart stays inside its max — the matchPct below still
   // reflects the true total via cardScore.
-  const cap = (v: number, mx: number) => Math.min(Math.round(v), mx)
-  const d = cap(_num(flat.diameter), PY_WEIGHTS.diameter)
-  const f = cap(_num(flat.flutes), PY_WEIGHTS.flutes)
-  const m = cap(_num(flat.material), PY_WEIGHTS.material)
-  const s = cap(_num(flat.shape), PY_WEIGHTS.shape)
-  const c = cap(_num(flat.coating), PY_WEIGHTS.coating)
+  const cap = (v: number, w: number) => Math.min(Math.round(v), w)
+  const W = {
+    diameter: mx("diameter", 40),
+    flutes: mx("flutes", 15),
+    material: mx("material", 20),
+    shape: mx("shape", 15),
+    coating: mx("coating", 5),
+    operation: mx("operation", 15),
+    affinity: mx("affinity", 15),
+    flagship: mx("flagship", 10),
+    materialPref: mx("material_pref", 5),
+    stock: mx("stock", 3),
+    hrc: mx("hrc_match", 5),
+    specialty: mx("specialty", 20),
+  }
+  const d = cap(_num(flat.diameter), W.diameter)
+  const f = cap(_num(flat.flutes), W.flutes)
+  const m = cap(_num(flat.material), W.material)
+  const s = cap(_num(flat.shape), W.shape)
+  const c = cap(_num(flat.coating), W.coating)
+  const op = cap(_num(flat.operation), W.operation)
   const affinity = _num(flat.affinity)
   const flagship = _num(flat.flagship)
   const materialPref = _num(flat.material_pref)
   const stock = _num(flat.stock)
   const hrc = _num(flat.hrc_match)
+  const specialty = _num(flat.specialty)
 
   const bonusBits: string[] = []
   if (affinity) bonusBits.push(`affinity +${affinity.toFixed(1)}`)
@@ -229,23 +264,28 @@ function toScoreBreakdown(
   if (materialPref) bonusBits.push(`material-pref +${materialPref.toFixed(1)}`)
   if (stock) bonusBits.push(`stock +${stock.toFixed(1)}`)
   if (hrc) bonusBits.push(`HRC match +${hrc.toFixed(1)}`)
+  if (specialty) bonusBits.push(`specialty +${specialty.toFixed(1)}`)
   const evidenceDetail = bonusBits.length > 0 ? bonusBits.join(" · ") : "증거 보조 미매칭"
-  const evidenceScore = Math.round(affinity + hrc + materialPref + stock)
-  const evidenceMax = 40 // affinity(15) + hrc(5) + material_pref(5) + stock(3) + flagship(10) ≈ 38, cap 40.
+  const evidenceScore = Math.round(affinity + hrc + materialPref + stock + specialty)
+  // Evidence axis's max = sum of all bonus axes (affinity/flagship/...).
+  const evidenceMax = W.affinity + W.flagship + W.materialPref + W.stock + W.hrc + W.specialty
 
-  const total = Math.round(d + f + m + s + c + affinity + flagship + materialPref + stock + hrc)
-  const maxTotal = PY_WEIGHTS.diameter + PY_WEIGHTS.flutes + PY_WEIGHTS.material + PY_WEIGHTS.shape + PY_WEIGHTS.coating + evidenceMax + 5
+  const total = Math.round(d + f + m + s + c + op + affinity + flagship + materialPref + stock + hrc + specialty)
+  const maxTotal = W.diameter + W.flutes + W.material + W.shape + W.coating + W.operation + evidenceMax + 5
   // Card score is already 0–100 normalized on the Python side.
   const matchPct = Math.max(0, Math.min(100, Math.round(cardScore)))
 
   return {
-    diameter: { score: Math.round(d), max: PY_WEIGHTS.diameter, detail: `${d.toFixed(1)} / ${PY_WEIGHTS.diameter}` },
-    flutes: { score: Math.round(f), max: PY_WEIGHTS.flutes, detail: `${f.toFixed(1)} / ${PY_WEIGHTS.flutes}` },
-    materialTag: { score: Math.round(m), max: PY_WEIGHTS.material, detail: `${m.toFixed(1)} / ${PY_WEIGHTS.material}` },
-    // Python has no dedicated "operation" (machining category) scorer today.
-    operation: { score: 0, max: 15, detail: "가공 방식 미지정" },
-    toolShape: { score: Math.round(s), max: PY_WEIGHTS.shape, detail: `${s.toFixed(1)} / ${PY_WEIGHTS.shape}` },
-    coating: { score: Math.round(c), max: PY_WEIGHTS.coating, detail: `${c.toFixed(1)} / ${PY_WEIGHTS.coating}` },
+    diameter: { score: Math.round(d), max: W.diameter, detail: `${d.toFixed(1)} / ${W.diameter}` },
+    flutes: { score: Math.round(f), max: W.flutes, detail: `${f.toFixed(1)} / ${W.flutes}` },
+    materialTag: { score: Math.round(m), max: W.material, detail: `${m.toFixed(1)} / ${W.material}` },
+    operation: {
+      score: Math.round(op),
+      max: W.operation,
+      detail: op > 0 ? `${op.toFixed(1)} / ${W.operation}` : "가공 방식 미지정",
+    },
+    toolShape: { score: Math.round(s), max: W.shape, detail: `${s.toFixed(1)} / ${W.shape}` },
+    coating: { score: Math.round(c), max: W.coating, detail: `${c.toFixed(1)} / ${W.coating}` },
     completeness: { score: 5, max: 5, detail: "데이터 완성도 100%" },
     evidence: { score: evidenceScore, max: evidenceMax, detail: evidenceDetail },
     total,
@@ -266,7 +306,23 @@ function deriveMatchStatus(card: ProductCard): "exact" | "approximate" | "none" 
   return "none"
 }
 
-function adaptProductCard(card: ProductCard, rank: number): RecommendationCandidateDto {
+function _coerceRating(v: unknown): "EXCELLENT" | "GOOD" | "NULL" | null {
+  if (typeof v !== "string") return null
+  const s = v.trim().toUpperCase()
+  if (s === "EXCELLENT") return "EXCELLENT"
+  if (s === "GOOD") return "GOOD"
+  // FAIR is emitted by Python but the DTO shape uses "NULL" to mean
+  // "known but below EXCELLENT/GOOD"; treat FAIR as NULL so the UI's
+  // rating badge doesn't misclassify it as top-tier.
+  if (s === "FAIR") return "NULL"
+  return null
+}
+
+function adaptProductCard(
+  card: ProductCard,
+  rank: number,
+  maxDict?: Record<string, number> | null,
+): RecommendationCandidateDto {
   const totalStock = typeof card.total_stock === "number" && Number.isFinite(card.total_stock)
     ? card.total_stock : null
   const stockStatus = (card.stock_status ?? null) || (totalStock === null ? "unknown" : totalStock > 0 ? "instock" : "outofstock")
@@ -313,9 +369,13 @@ function adaptProductCard(card: ProductCard, rank: number): RecommendationCandid
     materialTags: Array.isArray(card.material_tags)
       ? card.material_tags.filter((t): t is string => typeof t === "string")
       : [],
-    materialRating: null,
+    materialRating: _coerceRating(card.material_rating),
     score: typeof card.score === "number" && Number.isFinite(card.score) ? card.score : 0,
-    scoreBreakdown: toScoreBreakdown(card.score_breakdown ?? null, typeof card.score === "number" ? card.score : 0),
+    scoreBreakdown: toScoreBreakdown(
+      card.score_breakdown ?? null,
+      typeof card.score === "number" ? card.score : 0,
+      maxDict,
+    ),
     matchStatus: deriveMatchStatus(card),
     stockStatus,
     totalStock,
@@ -354,7 +414,7 @@ function adaptProductSummary(row: ProductSummary, rank: number): RecommendationC
     description: null,
     featureText: null,
     materialTags: [],
-    materialRating: null,
+    materialRating: _coerceRating(row.material_rating),
     score: typeof row.score === "number" && Number.isFinite(row.score) ? row.score : 0,
     scoreBreakdown: null,
     matchStatus: "approximate",
@@ -449,7 +509,8 @@ export function adaptProductsToRecommendationDto(
 ): RecommendationResponseDto {
   const pageSize = opts.pageSize ?? 20
 
-  const detailed = (payload.products ?? []).slice(0, DETAIL_LIMIT).map((c, i) => adaptProductCard(c, i + 1))
+  const maxDict = (payload.score_breakdown_max ?? null) as Record<string, number> | null
+  const detailed = (payload.products ?? []).slice(0, DETAIL_LIMIT).map((c, i) => adaptProductCard(c, i + 1, maxDict))
   // Top-N get full detail; the rest of the first page comes from the compact
   // allProducts rows so the candidate panel sees a full page.
   const detailedCodes = new Set(detailed.map(c => c.productCode))

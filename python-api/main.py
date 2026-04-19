@@ -36,7 +36,8 @@ from search import (
     get_filter_options,
 )
 from scoring import rank_candidates
-from affinity import list_excellent_brands
+from affinity import list_excellent_brands, get_affinity_rating
+from scoring import SCORING_CONFIG as _SCORING_CONFIG
 from guard import scrub
 from rag import search_knowledge
 from chat import generate_response
@@ -237,6 +238,25 @@ def _build_answer(intent, ranked: list) -> str:
         f"{head} 조건으로 {len(ranked)}건 추천합니다. "
         f"1위: {top.get('brand') or '-'} / {top.get('series') or '-'} (EDP {top['edp_no']})."
     )
+
+
+# The UI bar chart reads a `score_breakdown_max` dict keyed the same way
+# as each card's score_breakdown. Pre-materialized from SCORING_CONFIG so
+# we don't recompute per response — the scorer's weight table is the SSOT.
+SCORE_BREAKDOWN_MAX: dict[str, float] = {
+    "diameter": float(_SCORING_CONFIG["diameter"]),
+    "flutes": float(_SCORING_CONFIG["flutes"]),
+    "material": float(_SCORING_CONFIG["material"]),
+    "shape": float(_SCORING_CONFIG["subtype"]),
+    "coating": float(_SCORING_CONFIG["coating"]),
+    "operation": float(_SCORING_CONFIG.get("operation", 0)),
+    "affinity": float(_SCORING_CONFIG["affinity_excellent"]),
+    "flagship": float(_SCORING_CONFIG["flagship_boost"]),
+    "material_pref": float(_SCORING_CONFIG["material_pref"]),
+    "stock": float(_SCORING_CONFIG["stock_boost"]),
+    "hrc_match": float(_SCORING_CONFIG["hrc_match"]),
+    "specialty": float(_SCORING_CONFIG.get("specialty", 0)),
+}
 
 
 def _derive_matched_fields(card: dict, intent) -> list[str]:
@@ -612,6 +632,7 @@ def _empty_products_response(session_id: str | None = None) -> ProductsResponse:
         session_id=session.session_id,
         broadened=False,
         sources=[],
+        score_breakdown_max=SCORE_BREAKDOWN_MAX,
     )
 
 
@@ -645,7 +666,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         )
         route = "manual"
         if req.message:
-            llm_task = asyncio.to_thread(parse_intent, req.message)
+            # Pass session so parse_intent can (a) resolve demonstratives via
+            # the last 2 user turns and (b) pick adaptive few-shot exemplars
+            # keyed on the multi-turn signature rather than the bare query.
+            llm_task = asyncio.to_thread(parse_intent, req.message, session)
             rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
             llm_res, rag_res = await asyncio.gather(llm_task, rag_task, return_exceptions=True)
             if not isinstance(llm_res, BaseException):
@@ -656,7 +680,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             if not isinstance(rag_res, BaseException):
                 knowledge = rag_res or []
     elif req.message:
-        intent_task = asyncio.to_thread(parse_intent, req.message)
+        intent_task = asyncio.to_thread(parse_intent, req.message, session)
         rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
         intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
         if isinstance(intent_res, BaseException):
@@ -786,6 +810,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             sources=sources,
             cot_level=chat_result_skip.get("cot_level"),
             verified=chat_result_skip.get("verified"),
+            score_breakdown_max=SCORE_BREAKDOWN_MAX,
         )
 
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
@@ -956,6 +981,11 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             warehouse_count=_coerce_int(c.get("warehouse_count")),
             stock_status=_derive_stock_status(stock_qty),
             matched_fields=_derive_matched_fields(c, intent) or None,
+            material_rating=get_affinity_rating(
+                c.get("brand"),
+                workpiece_name=getattr(intent, "workpiece_name", None),
+                material_tag=getattr(intent, "material_tag", None),
+            ),
             score=s,
             score_breakdown=b,
         ))
@@ -969,6 +999,11 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             flutes=c.get("flutes"),
             coating=c.get("coating"),
             stock_status=_derive_stock_status(_coerce_int(c.get("total_stock"))),
+            material_rating=get_affinity_rating(
+                c.get("brand"),
+                workpiece_name=getattr(intent, "workpiece_name", None),
+                material_tag=getattr(intent, "material_tag", None),
+            ),
             score=s,
         )
         for c, s, _ in ranked
@@ -1155,6 +1190,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         cutting_range=cutting_range,
         cot_level=(chat_result.get("cot_level") if isinstance(chat_result, dict) else None),
         verified=(chat_result.get("verified") if isinstance(chat_result, dict) else None),
+        score_breakdown_max=SCORE_BREAKDOWN_MAX,
     )
 
 
@@ -1231,6 +1267,11 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
             warehouse_count=_coerce_int(c.get("warehouse_count")),
             stock_status=_derive_stock_status(stock_qty),
             matched_fields=_derive_matched_fields(c, intent) or None,
+            material_rating=get_affinity_rating(
+                c.get("brand"),
+                workpiece_name=getattr(intent, "workpiece_name", None),
+                material_tag=getattr(intent, "material_tag", None),
+            ),
             score=s,
             score_breakdown=b,
         ))
@@ -1298,7 +1339,7 @@ async def products_stream(req: ProductsRequest):
             )
             route = "manual"
             if req.message:
-                llm_task = asyncio.to_thread(parse_intent, req.message)
+                llm_task = asyncio.to_thread(parse_intent, req.message, session)
                 rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
                 llm_res, rag_res = await asyncio.gather(llm_task, rag_task, return_exceptions=True)
                 if not isinstance(llm_res, BaseException):
@@ -1309,11 +1350,11 @@ async def products_stream(req: ProductsRequest):
                 if not isinstance(rag_res, BaseException):
                     knowledge = rag_res or []
         else:
-            intent_task = asyncio.to_thread(parse_intent, req.message or "")
+            intent_task = asyncio.to_thread(parse_intent, req.message or "", session)
             rag_task = asyncio.to_thread(search_knowledge, req.message or "", 3)
             intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
             if isinstance(intent_res, BaseException):
-                intent = await asyncio.to_thread(parse_intent, req.message or "")
+                intent = await asyncio.to_thread(parse_intent, req.message or "", session)
             else:
                 intent = intent_res
             knowledge = [] if isinstance(rag_res, BaseException) else (rag_res or [])
@@ -1493,12 +1534,17 @@ async def products_stream(req: ProductsRequest):
                 "warehouse_count": _coerce_int(c.get("warehouse_count")),
                 "stock_status": _derive_stock_status(stock_qty_stream),
                 "matched_fields": _derive_matched_fields(c, intent) or None,
+                "material_rating": get_affinity_rating(
+                    c.get("brand"),
+                    workpiece_name=getattr(intent, "workpiece_name", None),
+                    material_tag=getattr(intent, "material_tag", None),
+                ),
                 "score": s,
                 "score_breakdown": b,
             })
         yield (
             f"event: products\ndata: "
-            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream}, ensure_ascii=False)}\n\n"
+            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX}, ensure_ascii=False)}\n\n"
         )
 
         # 3. CoT answer — `knowledge` is already populated from the parallel

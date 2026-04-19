@@ -115,10 +115,12 @@ interface StreamProductsEvent {
     warehouse_count?: number | null
     stock_status?: string | null
     matched_fields?: string[] | null
+    material_rating?: string | null
     score: number
     score_breakdown?: Record<string, number>
   }>
   broadened?: boolean
+  score_breakdown_max?: Record<string, number> | null
 }
 
 interface StreamAnswerEvent {
@@ -171,6 +173,7 @@ function streamTopToProductCards(top10: StreamProductsEvent["top10"]): ProductCa
     warehouse_count: row.warehouse_count ?? null,
     stock_status: row.stock_status ?? null,
     matched_fields: row.matched_fields ?? null,
+    material_rating: row.material_rating ?? null,
     score: typeof row.score === "number" ? row.score : 0,
     score_breakdown: row.score_breakdown ?? {},
   }))

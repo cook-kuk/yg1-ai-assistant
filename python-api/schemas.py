@@ -209,6 +209,9 @@ class ProductCard(BaseModel):
     # Derived server-side so every candidate surfaces the same evidence the
     # scorer actually rewarded — cheaper than re-deriving in the UI.
     matched_fields: Optional[List[str]] = None
+    # Brand × workpiece affinity tier. "EXCELLENT" (≥80) / "GOOD" (40..79)
+    # / "FAIR" (10..39) / None below. Drives the card's rating badge.
+    material_rating: Optional[str] = None
     score: float
     score_breakdown: Dict[str, float]
 
@@ -222,6 +225,7 @@ class ProductSummary(BaseModel):
     flutes: Optional[str] = None
     coating: Optional[str] = None
     stock_status: Optional[str] = None
+    material_rating: Optional[str] = None
     score: float
 
 
@@ -268,6 +272,12 @@ class ProductsResponse(BaseModel):
     # verifier/draft exception. Paired with cot_level so the UI can show
     # "심층 분석 + 검증 완료" only when both signals line up.
     verified: Optional[bool] = None
+    # Per-axis max values for ProductCard.score_breakdown. Shared across
+    # all candidates in the response (every card scores against the same
+    # weight table), so shipped once at response level — the UI adapter
+    # merges this with each card's flat score dict to render the bar chart
+    # without hard-coded magic numbers.
+    score_breakdown_max: Optional[Dict[str, float]] = None
 
 
 class ProductsPageRequest(BaseModel):

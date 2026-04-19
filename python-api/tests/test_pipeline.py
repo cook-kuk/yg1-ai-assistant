@@ -39,11 +39,16 @@ def test_recommend_returns_top5_with_scores(api_client, db_conn, anthropic_clien
     assert score_values[0] == max(score_values)
     assert all(0.0 <= s <= 100.0 for s in score_values)
 
-    # breakdown keys: base weight schema + affinity + flagship + material_pref + stock + hrc_match
-    assert set(body["scores"][0]["breakdown"].keys()) == {
+    # breakdown keys: base weight schema + operation + affinity + flagship +
+    # material_pref + stock + hrc_match (+ optional specialty when brand_specialty
+    # module ships a match). Assertion uses subset to allow the scorer to
+    # grow bonus axes (specialty, future ones) without breaking the test.
+    required = {
         "diameter", "flutes", "material", "shape", "coating",
-        "affinity", "flagship", "material_pref", "stock", "hrc_match",
+        "operation", "affinity", "flagship", "material_pref",
+        "stock", "hrc_match",
     }
+    assert required.issubset(set(body["scores"][0]["breakdown"].keys()))
 
 
 @pytest.mark.slow

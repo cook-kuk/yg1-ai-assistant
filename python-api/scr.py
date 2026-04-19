@@ -14,6 +14,7 @@ import json
 import re
 import csv as csv_mod
 from pathlib import Path
+from typing import Any
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -363,20 +364,38 @@ def reset_prompt_cache() -> None:
     _MATERIAL_LOOKUP = None
 
 
-def _system_prompt() -> str:
+def _system_prompt(
+    message: str | None = None,
+    session: Any = None,
+) -> str:
     """Render SYSTEM_PROMPT_TEMPLATE with live brand list interpolated in,
     then append any persisted few-shot examples. Brand substitution is
     cached (stable per process); few-shots re-read on each call since they
-    can change at runtime when add_few_shot() is invoked."""
+    can change at runtime when add_few_shot() is invoked.
+
+    `message` + `session` are optional — when present, the few-shot picker
+    embeds the query (plus the session's raw-history signature) and ranks
+    the FIFO-20 pool by cosine similarity so multi-turn follow-ups pull
+    different exemplars than cold queries. Missing args or an embedding
+    failure falls back to the legacy FIFO-tail suffix."""
     global _PROMPT_CACHE
     if _PROMPT_CACHE is None:
         brands = ", ".join(_get_brands())
         _PROMPT_CACHE = SYSTEM_PROMPT_TEMPLATE.replace("«BRANDS»", brands)
+    suffix = ""
     try:
-        from few_shot import render_prompt_suffix
-        suffix = render_prompt_suffix()
+        if message:
+            from few_shot import render_adaptive_suffix
+            suffix = render_adaptive_suffix(message, session=session)
+        else:
+            from few_shot import render_prompt_suffix
+            suffix = render_prompt_suffix()
     except Exception:
-        suffix = ""
+        try:
+            from few_shot import render_prompt_suffix
+            suffix = render_prompt_suffix()
+        except Exception:
+            suffix = ""
     return _PROMPT_CACHE + suffix
 
 
@@ -809,7 +828,18 @@ def _embed_resolve(field: str, raw: str | None, threshold: float = 0.75) -> str 
         return None
 
 
-def parse_intent(message: str) -> SCRIntent:
+def parse_intent(message: str, session: Any = None) -> SCRIntent:
+    """Extract structured SCRIntent from the user message.
+
+    `session` is optional; when supplied, the LAST two user turns are
+    prepended to the user content as a short "참고만, 재검색 금지" block
+    so demonstratives ("아까 그거", "그 중에서") can be resolved. The
+    deterministic slot carry-forward (`session.carry_forward_intent`) is
+    unchanged — this is purely a reference block for the LLM, not a
+    filter override.
+
+    Return schema is identical to the single-arg form (golden-test
+    protected). No keys added, no keys dropped."""
     # Preprocess Korean-word flute counts into digits so the LLM always
     # sees "2날" regardless of how the user spelled it ("두날"/"두 날"/"2날").
     message = _normalize_korean(message)
@@ -822,11 +852,32 @@ def parse_intent(message: str) -> SCRIntent:
     # directly covers that gap.
     pre_brand = _pre_resolve_brand(message)
     client = _get_client()
+
+    # Build the user content — optionally prefix a compact reference block
+    # drawn from the last two user turns. Only pasted as context for
+    # demonstrative resolution; the LLM is still extracting from `message`.
+    user_content = message
+    if session is not None:
+        try:
+            from session import get_raw_history
+            recent = get_raw_history(session, max_turns=2, role_filter="user")
+            joined = " / ".join(
+                (t.get("message") or "").strip() for t in recent
+                if t.get("message")
+            )
+            if joined:
+                user_content = (
+                    f"직전 사용자 발화(참고만, 재검색 금지): {joined}\n"
+                    f"현재 발화: {message}"
+                )
+        except Exception:
+            pass
+
     resp = client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": _system_prompt()},
-            {"role": "user", "content": message},
+            {"role": "system", "content": _system_prompt(message, session)},
+            {"role": "user", "content": user_content},
         ],
         response_format={"type": "json_object"},
         reasoning_effort="low",

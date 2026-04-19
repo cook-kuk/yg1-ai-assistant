@@ -271,6 +271,32 @@ def get_affinity(brand: Optional[str], key: Optional[str]) -> float:
     return 0.0
 
 
+def get_affinity_rating(
+    brand: Optional[str],
+    workpiece_name: Optional[str] = None,
+    material_tag: Optional[str] = None,
+) -> Optional[str]:
+    """Return the public tier label for (brand, workpiece|iso) affinity:
+    "EXCELLENT" (≥80), "GOOD" (40..79), "FAIR" (10..39), None below.
+
+    Mirrors _score_to_tier_bonus thresholds in scoring.py so the UI badge
+    aligns with the scorer's tier-bonus bands. Prefers workpiece_name
+    (higher resolution) with ISO fallback — same precedence as
+    get_affinity_boost."""
+    score = 0.0
+    if brand and workpiece_name:
+        score = get_affinity(brand, workpiece_name)
+    if score <= 0 and brand and material_tag:
+        score = get_affinity(brand, material_tag)
+    if score >= 80.0:
+        return "EXCELLENT"
+    if score >= 40.0:
+        return "GOOD"
+    if score >= 10.0:
+        return "FAIR"
+    return None
+
+
 def list_excellent_brands(
     workpiece_name: Optional[str] = None,
     material_tag: Optional[str] = None,

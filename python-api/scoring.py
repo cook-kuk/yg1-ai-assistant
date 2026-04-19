@@ -7,6 +7,7 @@ skipped (weight is redistributed proportionally so partial intents still rank).
 
 from typing import Optional
 from affinity import get_affinity, hrc_covers
+from brand_specialty import specialty_boost
 from db import fetch_all
 
 # Central scoring config — sub-field weights + affinity tier bonuses. Kept as
@@ -33,6 +34,18 @@ SCORING_CONFIG: dict[str, float] = {
     # brand is cataloged for HRC 55–62" hit is stronger than an ISO-group
     # affinity guess, so we give it a discrete boost on top.
     "hrc_match": 5,
+    # Application shape (Side Milling / Roughing / Helical Interpolation /
+    # Slotting / Facing / Profiling / …). Independent signal from subtype
+    # (Square/Ball) — the same tool can be "Square + Roughing" or
+    # "Square + Side Milling". Matches on product.series_application_shape.
+    "operation": 15,
+    # Brand × sub-material specialty — DB affinity only keys by ISO group,
+    # so this discriminates within N (copper vs aluminum vs graphite) and
+    # within H (tool vs mold vs hardened). Magnitude matches
+    # affinity_excellent so the specialty signal dominates ISO-group ties.
+    # Negative pole (wrong-specialty) lives in
+    # brand_specialty.SPECIALTY_WEIGHTS.
+    "specialty": 20,
 }
 
 # Sum of every possible contribution — used to normalize final score into
@@ -41,13 +54,16 @@ SCORING_CONFIG: dict[str, float] = {
 # output well-bounded.
 MAX_POSSIBLE_SCORE: float = float(sum(SCORING_CONFIG.values()))
 
-# Kept for backward compat with earlier tests (keys: diameter/flutes/material/shape/coating).
+# Kept for backward compat with earlier tests (keys: diameter/flutes/material/
+# shape/coating). `operation` was added later and shares the sub-score
+# machinery so gets its own weight key here.
 WEIGHTS = {
     "diameter": SCORING_CONFIG["diameter"],
     "flutes": SCORING_CONFIG["flutes"],
     "material": SCORING_CONFIG["material"],
     "shape": SCORING_CONFIG["subtype"],
     "coating": SCORING_CONFIG["coating"],
+    "operation": SCORING_CONFIG["operation"],
 }
 
 # Tier bonuses applied on the final ranked score. Flagship lines are the
@@ -255,8 +271,38 @@ def _coating_score(intent: Optional[str], actual: Optional[str]) -> Optional[flo
     return 1.0 if intent.lower() in actual.lower() else 0.0
 
 
+def _operation_score(intent_op: Optional[str], actual: Optional[str]) -> Optional[float]:
+    """Match the user's application-shape intent (Roughing / Side Milling /
+    Helical Interpolation / Slotting / Profiling / Facing) against the
+    product's series_application_shape. Returns None when intent side is
+    unset so score_candidate skips the axis — consistent with the rest
+    of the sub-scorers."""
+    if not intent_op:
+        return None
+    if not actual:
+        return 0.0
+    a = str(actual).lower()
+    i = str(intent_op).lower()
+    if i in a or a in i:
+        return 1.0
+    # Products often carry comma-separated shapes ("Side_Milling,Facing,
+    # Slotting"), so any meaningful token overlap counts as partial.
+    itoks = {t for t in i.replace(",", " ").replace("_", " ").split() if len(t) >= 3}
+    atoks = {t for t in a.replace(",", " ").replace("_", " ").split() if len(t) >= 3}
+    if itoks & atoks:
+        return 0.7
+    return 0.0
+
+
 def score_candidate(candidate: dict, intent) -> tuple[float, dict[str, float]]:
     wp_name = getattr(intent, "workpiece_name", None)
+    # Application-shape intent source: SCRIntent.application_shape is the
+    # primary field; ManualFilters.machining_category is the UI-form
+    # analogue. Either feeds _operation_score.
+    intent_op = (
+        getattr(intent, "application_shape", None)
+        or getattr(intent, "machining_category", None)
+    )
     subs: dict[str, Optional[float]] = {
         "diameter": _diameter_score(intent.diameter, _safe_float(candidate.get("diameter"))),
         "flutes": _flutes_score(intent.flute_count, candidate.get("flutes")),
@@ -266,6 +312,7 @@ def score_candidate(candidate: dict, intent) -> tuple[float, dict[str, float]]:
         ),
         "shape": _shape_score(intent.subtype, candidate.get("subtype")),
         "coating": _coating_score(intent.coating, candidate.get("coating")),
+        "operation": _operation_score(intent_op, candidate.get("series_application_shape")),
     }
 
     active_weight = sum(WEIGHTS[k] for k, v in subs.items() if v is not None)
@@ -309,6 +356,16 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
             if hardness_hrc is not None and hrc_covers(c.get("brand"), hardness_hrc)
             else 0.0
         )
+        # Specialty boost also returns a reason tag (primary / wrong /
+        # name_hit / …) — not surfaced in the numeric breakdown so
+        # downstream consumers that assume dict[str, float] stay happy.
+        specialty, _specialty_tag = specialty_boost(
+            c.get("brand"),
+            workpiece_name=wp_name,
+            material_tag=mat_tag,
+            series=c.get("series"),
+            product_name=c.get("description") or c.get("name"),
+        )
         breakdown = {
             **breakdown,
             "affinity": round(affinity, 2),
@@ -316,9 +373,13 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
             "material_pref": round(material_pref, 2),
             "stock": round(stock, 2),
             "hrc_match": round(hrc, 2),
+            "specialty": round(specialty, 2),
         }
-        raw = base + flagship + affinity + material_pref + stock + hrc
-        normalized = min(100.0, round(raw / MAX_POSSIBLE_SCORE * 100, 1))
+        raw = base + flagship + affinity + material_pref + stock + hrc + specialty
+        # Negative pole from wrong-specialty penalty can push `raw` below
+        # zero on a brand that's clearly targeting a different sub-material
+        # — clamp so the normalized score stays on [0, 100].
+        normalized = min(100.0, max(0.0, round(raw / MAX_POSSIBLE_SCORE * 100, 1)))
         scored.append((c, normalized, breakdown))
     scored.sort(key=lambda x: x[1], reverse=True)
     # Diversity shuffle: keeps #1 put, nudges later ranks away from repeats.

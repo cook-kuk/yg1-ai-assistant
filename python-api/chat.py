@@ -302,7 +302,11 @@ def _build_conversation_memory_safe(session: Any) -> str:
     """Wrap session.build_conversation_memory with a session→None guard and
     graceful import fallback. Returns "" when the session has no history
     or the helper import fails, so the CoT prompt stays well-formed even
-    when the caller forgot to pass a session (e.g. /recommend path)."""
+    when the caller forgot to pass a session (e.g. /recommend path).
+
+    NOTE: Retained for any caller that still wants the stringified block;
+    the chat CoT path now uses `_raw_history_messages` + the messages[]
+    array instead. Both remain available."""
     if session is None:
         return ""
     try:
@@ -310,6 +314,20 @@ def _build_conversation_memory_safe(session: Any) -> str:
         return build_conversation_memory(session) or ""
     except Exception:
         return ""
+
+
+def _raw_history_messages(session: Any, max_turns: int = 6) -> list[dict]:
+    """Return the last `max_turns` turns in Anthropic/OpenAI messages[]
+    shape — [{role, content}, …] — for prepending to the CoT call.
+    No summarization, no reformatting. Falls back to [] when the session
+    is None or the helper import fails, so the prompt stays well-formed."""
+    if session is None:
+        return []
+    try:
+        from session import format_history_for_llm
+        return format_history_for_llm(session, max_turns=max_turns)
+    except Exception:
+        return []
 
 
 def _build_ui_context(
@@ -518,11 +536,10 @@ def _generate_light_cot(
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
     )
-    memory_block = _build_conversation_memory_safe(session)
 
     # [meta] is now the "LLM-only needs this" slice — top_products (for
-    # principle 8 stock rules) and relaxed_fields. Everything else lives
-    # in [UI 컨텍스트] / [대화 히스토리].
+    # principle 8 stock rules) and relaxed_fields. Multi-turn memory rides
+    # as raw messages[] below, not as a stringified block.
     meta_lines = [f"total_count: {total_count}"]
     if relaxed_fields:
         meta_lines.append(f"relaxed_fields: {relaxed_fields}")
@@ -531,8 +548,6 @@ def _generate_light_cot(
     meta_block = "\n".join(meta_lines)
 
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
-    if memory_block:
-        parts.append(memory_block)
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
     if facets_str:
@@ -549,13 +564,19 @@ def _generate_light_cot(
     parts.append(f"[질문]\n{message}")
     user_turn = "\n\n".join(parts)
 
+    # Prepend raw conversation history as literal messages[] entries —
+    # Anthropic/OpenAI convention. No summarization, no "[대화 히스토리]"
+    # text block. Bounded by max_turns=6 to keep token cost flat.
+    history_msgs = _raw_history_messages(session, max_turns=6)
+
     client = _get_client()
     resp = client.chat.completions.create(
         model=OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_turn},
-        ],
+        messages=(
+            [{"role": "system", "content": SYSTEM_PROMPT}]
+            + history_msgs
+            + [{"role": "user", "content": user_turn}]
+        ),
         response_format={"type": "json_object"},
         reasoning_effort="low",
     )
@@ -769,7 +790,6 @@ def _generate_strong_cot(
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
     )
-    memory_block = _build_conversation_memory_safe(session)
 
     meta_lines = [f"total_count: {total_count}"]
     if relaxed_fields:
@@ -779,8 +799,6 @@ def _generate_strong_cot(
     meta_block = "\n".join(meta_lines)
 
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
-    if memory_block:
-        parts.append(memory_block)
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
     if product_ground_truth:
@@ -799,14 +817,18 @@ def _generate_strong_cot(
     parts.append(f"[질문]\n{message}")
     user_turn = "\n\n".join(parts)
 
+    # Raw messages[] history — same convention as the light path.
+    history_msgs = _raw_history_messages(session, max_turns=6)
+
     client = _get_client()
     try:
         draft_resp = client.chat.completions.create(
             model=OPENAI_STRONG_MODEL,
-            messages=[
-                {"role": "system", "content": STRONG_SYSTEM_PROMPT},
-                {"role": "user", "content": user_turn},
-            ],
+            messages=(
+                [{"role": "system", "content": STRONG_SYSTEM_PROMPT}]
+                + history_msgs
+                + [{"role": "user", "content": user_turn}]
+            ),
             response_format={"type": "json_object"},
             reasoning_effort="medium",
         )
@@ -997,7 +1019,6 @@ def _build_strong_user_turn(
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
     )
-    memory_block = _build_conversation_memory_safe(session)
 
     meta_lines = [f"total_count: {total_count}"]
     if relaxed_fields:
@@ -1007,8 +1028,6 @@ def _build_strong_user_turn(
     meta_block = "\n".join(meta_lines)
 
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
-    if memory_block:
-        parts.append(memory_block)
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
     if product_ground_truth:
@@ -1097,13 +1116,16 @@ async def stream_strong_cot(
     partial = ""
     last_emit = 0
     draft_ok = False
+    # Raw messages[] history — same convention as sync strong path.
+    history_msgs = _raw_history_messages(session, max_turns=6)
     try:
         stream = await aclient.chat.completions.create(
             model=OPENAI_STRONG_MODEL,
-            messages=[
-                {"role": "system", "content": STRONG_SYSTEM_PROMPT},
-                {"role": "user", "content": user_turn},
-            ],
+            messages=(
+                [{"role": "system", "content": STRONG_SYSTEM_PROMPT}]
+                + history_msgs
+                + [{"role": "user", "content": user_turn}]
+            ),
             response_format={"type": "json_object"},
             reasoning_effort="medium",
             stream=True,

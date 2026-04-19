@@ -9,6 +9,14 @@ Each session holds the dialogue history + the last effective filter set
   - let the chat layer show coherent chips across turns.
 
 Expires after SESSION_TTL seconds of inactivity, swept by a daemon Timer.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Memory design principle:
+We keep raw conversation history verbatim, mirroring the Anthropic/OpenAI
+messages[] convention. No summarization, no compression, no structured
+rewrites. The LLM's native context understanding is the source of truth
+for multi-turn coherence. TTL and max_turns windowing handle bounds.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 from __future__ import annotations
 
@@ -221,3 +229,57 @@ def carry_forward_intent(session: Session, intent: Any) -> Any:
                     continue
                 setattr(intent, field_name, carried)
     return intent
+
+
+# ── Raw history access ────────────────────────────────────────────────
+# Per the module-level "Memory design principle" above, downstream callers
+# (chat.py, few_shot.py, scr.py) read history through these helpers rather
+# than through any summarization layer. The goal is for the LLM to see the
+# turns exactly as they happened — same role/content shape it sees elsewhere.
+
+
+def get_raw_history(
+    session: Optional[Session],
+    max_turns: int = 10,
+    role_filter: Optional[str] = None,
+) -> list[dict]:
+    """Return the most-recent `max_turns` from the session as raw turn
+    dicts (no summarization). `role_filter` optionally restricts to
+    "user" or "assistant" turns only."""
+    if session is None or not session.turns:
+        return []
+    turns = session.turns[-max_turns:]
+    if role_filter:
+        turns = [t for t in turns if t.get("role") == role_filter]
+    return turns
+
+
+def format_history_for_llm(
+    session: Optional[Session],
+    max_turns: int = 6,
+) -> list[dict]:
+    """Convert raw turns into the Anthropic/OpenAI messages[] shape —
+    a list of {role, content} dicts that callers can prepend to the
+    current turn. Skips turns whose message is empty (e.g. a manual-
+    filter request with no NL text)."""
+    history = get_raw_history(session, max_turns=max_turns)
+    out: list[dict] = []
+    for t in history:
+        role = t.get("role")
+        content = t.get("message")
+        if role not in ("user", "assistant"):
+            continue
+        if not content:
+            continue
+        out.append({"role": role, "content": content})
+    return out
+
+
+def get_session_signature(session: Optional[Session]) -> str:
+    """Concatenation of the last 5 user messages, newline-separated. Used
+    by few_shot.select_adaptive_examples as the embedding signature so
+    multi-turn queries pull different exemplars than single-turn ones.
+    Empty string when the session is empty."""
+    user_turns = get_raw_history(session, max_turns=5, role_filter="user")
+    msgs = [t.get("message") or "" for t in user_turns]
+    return "\n".join(m for m in msgs if m)

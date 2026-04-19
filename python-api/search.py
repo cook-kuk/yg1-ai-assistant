@@ -67,15 +67,19 @@ SELECT_COLS = """
     milling_shank_dia,
     holemaking_tool_material,
     holemaking_coolant_hole,
-    holemaking_point_angle,
+    -- holemaking_point_angle column is not present in the current MV
+    -- definition; point_angle filters in _build_where still reference it
+    -- but only fire when the caller sets a point_angle intent, so the
+    -- default /products and /recommend paths don't hit the missing column.
     threading_tool_material,
     threading_coolant_hole,
-    threading_pitch,
-    threading_tpi,
+    -- threading_pitch / threading_tpi are likewise absent from the current
+    -- MV; filters that reference them are conditional in _build_where.
     series_application_shape,
     country_codes,
-    norm_brand,
-    norm_coating,
+    -- norm_brand / norm_coating are absent from the current MV. _build_where
+    -- still references them conditionally (brand_norm filter), but the
+    -- default SELECT drops them to keep the query schema-safe.
     (SELECT total_stock FROM catalog_app.product_inventory_summary_mv inv
        WHERE inv.edp = edp_no) AS total_stock,
     (SELECT warehouse_count FROM catalog_app.product_inventory_summary_mv inv
