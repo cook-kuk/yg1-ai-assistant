@@ -66,6 +66,7 @@ function useTypingAnimation() {
   return { start, stop }
 }
 import { cn } from "@/lib/utils"
+import { msg } from "@/lib/i18n/messages"
 import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
 import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
 
@@ -111,12 +112,12 @@ interface ExtractedField {
 }
 
 const STEPS = [
-  { id: 0, label: "문의 접수", icon: MessageSquare },
-  { id: 1, label: "장비 조건", icon: Settings },
-  { id: 2, label: "소재 분석", icon: Layers },
-  { id: 3, label: "가공 목적", icon: Target },
-  { id: 4, label: "형상/제약", icon: Ruler },
-  { id: 5, label: "추천/실행", icon: Package },
+  { id: 0, label: msg("step.intake"), icon: MessageSquare },
+  { id: 1, label: msg("step.equipment"), icon: Settings },
+  { id: 2, label: msg("step.material"), icon: Layers },
+  { id: 3, label: msg("step.purpose"), icon: Target },
+  { id: 4, label: msg("step.constraints"), icon: Ruler },
+  { id: 5, label: msg("step.recommend"), icon: Package },
 ]
 
 // ===== COMPONENT =====
@@ -160,8 +161,13 @@ export default function AssistantNewPage() {
     } else {
       setMessages([{
         id: "ai-welcome", role: "ai",
-        text: "안녕하세요. YG-1 AI 추천 에이전트입니다.\n\n가공 관련 문의를 자유롭게 입력해주세요.\n경쟁사 품번, 소재, 가공 조건 등 어떤 형태든 가능합니다.",
-        chips: ["가공 품질 개선이 필요해요", "경쟁사 제품 대체", "SUS304 엔드밀 추천", "이번 주 출고 가능한 것만"],
+        text: `${msg("assistant.welcome.title")}\n\n${msg("assistant.welcome.body")}`,
+        chips: [
+          msg("assistant.welcome.chip.quality"),
+          msg("assistant.welcome.chip.substitute"),
+          msg("assistant.welcome.chip.sus304"),
+          msg("assistant.welcome.chip.in_stock"),
+        ],
         timestamp: new Date().toISOString()
       }])
     }
@@ -568,7 +574,7 @@ export default function AssistantNewPage() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
-                placeholder="가공 조건이나 문의사항을 입력하세요..."
+                placeholder={msg("chat.placeholder")}
                 className="flex-1"
               />
               <Button onClick={() => handleSend()} className="bg-yg1 hover:bg-yg1-hover">
@@ -612,10 +618,10 @@ export default function AssistantNewPage() {
           <div className="p-3 border-b">
             <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
-              추출된 조건
+              {msg("chat.extracted_conditions")}
             </h4>
             {extracted.length === 0 ? (
-              <p className="text-xs text-muted-foreground">대화를 시작하면 조건이 추출됩니다</p>
+              <p className="text-xs text-muted-foreground">{msg("chat.no_conditions_yet")}</p>
             ) : (
               <div className="space-y-1.5">
                 {extracted.map((f) => (
@@ -767,7 +773,7 @@ export default function AssistantNewPage() {
 
                     {/* Actions */}
                     <div className="flex gap-1">
-                      <Button size="sm" className="flex-1 text-[10px] h-7 bg-yg1 hover:bg-yg1-hover">견적요청</Button>
+                      <Button size="sm" className="flex-1 text-[10px] h-7 bg-yg1 hover:bg-yg1-hover">{msg("recommendation.send_quote")}</Button>
                       <Button size="sm" variant="outline" className="flex-1 text-[10px] h-7 bg-transparent">비교함</Button>
                     </div>
                   </CardContent>

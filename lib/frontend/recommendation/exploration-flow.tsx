@@ -568,20 +568,18 @@ function ReasoningBlock({
 
   // Claude-style auto behavior:
   //   * streaming (isLoading=true) → auto-expand so tokens are visible.
+  //     Also clears the "user toggled" latch so each new turn gets a
+  //     fresh auto cycle (otherwise one manual click would freeze the
+  //     block open for the rest of the session).
   //   * stream ends (true→false transition) → auto-collapse exactly once
-  //     and show a summary badge. User click afterward overrides.
-  //   * user manually toggles → `userToggledRef` latches, disabling auto.
+  //     and show the summary badge — unless the user took control mid-
+  //     stream, in which case we stay out of the way.
   useEffect(() => {
-    if (userToggledRef.current) {
-      wasLoadingRef.current = isLoading
-      return
-    }
     if (isLoading) {
+      userToggledRef.current = false
       setOpen(true)
     } else if (wasLoadingRef.current && !isLoading) {
-      // Only collapse on the transition — don't fight a user click that
-      // re-opened the block before the next stream starts.
-      setOpen(false)
+      if (!userToggledRef.current) setOpen(false)
     }
     wasLoadingRef.current = isLoading
   }, [isLoading])
@@ -642,7 +640,7 @@ function ReasoningBlock({
       <button
         type="button"
         onClick={() => { userToggledRef.current = true; setOpen(v => !v) }}
-        className="group flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+        className="group flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 dark:bg-gray-900/40 dark:hover:bg-gray-800/60 dark:border-gray-700 transition-colors"
       >
         {isLoading ? (
           <span className="relative inline-flex items-center justify-center shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
@@ -665,7 +663,7 @@ function ReasoningBlock({
         ) : (
           <Brain size={12} className="text-blue-500 shrink-0" />
         )}
-        <span className={`text-[11px] font-medium text-gray-700 leading-none ${isLoading ? "shimmer-text" : ""}`}>
+        <span className={`text-[11px] font-medium text-gray-700 dark:text-gray-200 leading-none ${isLoading ? "shimmer-text" : ""}`}>
           {headlineText}
         </span>
         {/* During streaming we surface the live countdown alongside the
@@ -673,19 +671,19 @@ function ReasoningBlock({
             elapsed seconds at its tail, so we drop the duplicate timer
             to keep the pill compact (Claude-style). */}
         {isLoading && (
-          <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
+          <span className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400 leading-none font-mono">
             {timerLabel}
           </span>
         )}
         <ChevronRight
           size={12}
-          className={`text-gray-400 shrink-0 transition-transform ml-auto ${open ? "rotate-90" : ""}`}
+          className={`text-gray-400 dark:text-gray-500 shrink-0 transition-transform ml-auto ${open ? "rotate-90" : ""}`}
         />
       </button>
       {open && (
-        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap min-h-[1.6em]">
+        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900/60 rounded text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed whitespace-pre-wrap min-h-[1.6em]">
           {trail || (isLoading
-            ? <span className="text-amber-700/70 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
+            ? <span className="text-amber-700/70 dark:text-amber-300/60 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
             : null)}
         </div>
       )}
@@ -694,13 +692,13 @@ function ReasoningBlock({
           <button
             type="button"
             onClick={() => setDeepOpen(v => !v)}
-            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700"
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <ChevronRight size={10} className={`transition-transform ${deepOpen ? "rotate-90" : ""}`} />
             <span>{language === "ko" ? `🧠 상세 사고 과정 (${deep.length.toLocaleString()}자)` : `🧠 Full chain-of-thought (${deep.length.toLocaleString()} chars)`}</span>
           </button>
           {deepOpen && (
-            <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded text-[11px] text-indigo-900 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
+            <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-900/60 rounded text-[11px] text-indigo-900 dark:text-indigo-200 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
               {deep}
             </div>
           )}
@@ -711,13 +709,13 @@ function ReasoningBlock({
           <button
             type="button"
             onClick={() => setAgentOpen(v => !v)}
-            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700"
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <ChevronRight size={10} className={`transition-transform ${agentOpen ? "rotate-90" : ""}`} />
             <span>{language === "ko" ? `🔍 Agent 판단 과정` : `🔍 Agent decisions`}</span>
           </button>
           {agentOpen && (
-            <div className="mt-1 p-2 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-900 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
+            <div className="mt-1 p-2 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900/60 rounded text-[11px] text-emerald-900 dark:text-emerald-200 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
               {agent}
             </div>
           )}
