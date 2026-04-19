@@ -118,6 +118,64 @@ def _summarize_intent(intent) -> dict:
     }
 
 
+def _derive_top_rationale(products: list[dict], intent: Any, reasoning: str) -> str:
+    """Short, deterministic "why this product" line for the UI's xAI panel.
+
+    Strong path: the caller already set a verified reasoning paragraph — reuse
+    that if it mentions the top-1 EDP, else fall back to a template. Light
+    path: always template, since the light prompt doesn't earn the cost of
+    an LLM rationale and the spec fields alone tell most of the story.
+
+    The template deliberately sticks to DB facts (brand / series / coating /
+    flute count / material tag) and avoids any Vc/fz claim so we stay in
+    principle 5 ("no made-up numbers")."""
+    if not products:
+        return ""
+    top = products[0] if isinstance(products[0], dict) else {}
+    edp = str(top.get("edp_no") or "").strip()
+    if reasoning and edp and edp in reasoning:
+        # Verifier mentioned the top-1 by code; trust the paragraph as-is.
+        return reasoning.strip()[:600]
+    brand = str(top.get("brand") or "").strip() or "이 시리즈"
+    series = str(top.get("series") or "").strip()
+    coating = str(top.get("coating") or "").strip()
+    flutes_raw = top.get("flutes")
+    try:
+        flutes = int(float(flutes_raw)) if flutes_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        flutes = None
+    subtype = str(top.get("subtype") or "").strip()
+    diameter = top.get("diameter")
+    mat_tag = getattr(intent, "material_tag", None) if intent is not None else None
+    wp = getattr(intent, "workpiece_name", None) if intent is not None else None
+
+    bits: list[str] = []
+    head = f"{brand}{' ' + series if series else ''}"
+    bits.append(f"{head}{' (EDP ' + edp + ')' if edp else ''}는")
+    if wp or mat_tag:
+        target = wp or f"ISO {mat_tag}군"
+        bits.append(f"{target} 가공에")
+    else:
+        bits.append("현재 조건에")
+    body: list[str] = []
+    if flutes:
+        body.append(f"{flutes}날 구조")
+    if subtype:
+        body.append(f"{subtype} 형상")
+    if coating:
+        body.append(f"{coating} 코팅")
+    if diameter:
+        body.append(f"Ø{diameter}mm")
+    if body:
+        bits.append(", ".join(body) + "로 적합합니다.")
+    else:
+        bits.append("DB 수치 기준으로 부합합니다.")
+    stock = top.get("total_stock")
+    if isinstance(stock, (int, float)) and stock and stock > 0:
+        bits.append(f"현재 재고 {int(stock)}개 확보 상태로 즉시 검토 가능합니다.")
+    return " ".join(bits)
+
+
 def _stock_status_for_prompt(total_stock) -> str | None:
     """Mirror main._derive_stock_status so the prompt sees the same buckets
     the UI card does. Kept here (not imported) to avoid a chat→main cycle."""
@@ -767,13 +825,26 @@ def _generate_strong_cot(
     # Self-verify — mini model rechecks the draft against the ground-truth
     # product block. Only commits corrections it can defend; otherwise
     # returns the draft unchanged.
+    #
+    # The rubric is intentionally narrow — style/tone/ordering changes are
+    # NOT correction triggers, which used to flip verified=False on clean
+    # drafts and rewrite them needlessly. Only factual mismatches against
+    # [매칭 제품] (invented product names, wrong specs, bogus stock) flip
+    # verified=False.
     verify_system = (
-        "당신은 YG-1 카탈로그 사실검증자입니다. [초안]이 [매칭 제품]과 "
-        "[meta]를 벗어나 수치·제품명·재고를 지어냈는지 검사하세요. "
-        "제품 근거 이상의 과도한 단정은 '카탈로그 확인 필요'로 완화하세요. "
-        "출력은 {answer,chips,verified,corrections} JSON. answer/chips는 "
-        "교정 후 최종값, verified=false면 corrections에 무엇을 바꿨는지 "
-        "한 줄로 쓰세요."
+        "당신은 YG-1 카탈로그 사실검증자입니다.\n\n"
+        "검증 기준 (이것만 체크):\n"
+        "1. 초안에 언급된 제품명/시리즈가 [매칭 제품]에 실제로 있는가?\n"
+        "2. 직경/날수/코팅 수치가 [매칭 제품]과 일치하는가?\n"
+        "3. 재고 수량이 [매칭 제품]과 일치하는가?\n"
+        "4. [매칭 제품]에 없는 제품을 지어냈는가?\n\n"
+        "판정:\n"
+        "- verified=true : 위 4개에서 사실 오류 없음. 표현/어투 차이는 오류 아님.\n"
+        "- verified=false: 사실과 다른 수치/제품명 있음. corrections 에 구체적으로 명시.\n\n"
+        "중요: 표현 다듬기, 어투 변경, 문장 순서 조정은 수정 사유가 아닙니다. "
+        "사실 오류 없으면 반드시 verified=true + answer 는 초안 그대로 반환. "
+        "제품 근거 이상의 과도한 단정은 '카탈로그 확인 필요' 로 완화하되, 그 완화가 필요하지 않으면 건드리지 마세요.\n\n"
+        "출력은 {answer, chips, verified, corrections} JSON."
     )
     verify_user = (
         f"[초안]\n{draft_text}\n\n"
@@ -864,6 +935,13 @@ def generate_response(
             session, req_filters,
         )
         result.setdefault("cot_level", "strong")
+        # Re-use the Strong verifier's reasoning paragraph as the top-1
+        # rationale — it was already produced against ground-truth products,
+        # so the UI's "왜 이 제품이 최적인가" block has verified content.
+        if not result.get("rationale"):
+            result["rationale"] = _derive_top_rationale(
+                products or [], intent, result.get("reasoning") or "",
+            )
         return result
     result = _generate_light_cot(
         message, intent, products, knowledge, total_count,
@@ -872,6 +950,7 @@ def generate_response(
         session, req_filters,
     )
     result["cot_level"] = "light"
+    result["rationale"] = _derive_top_rationale(products or [], intent, result.get("reasoning") or "")
     return result
 
 
@@ -1071,10 +1150,19 @@ async def stream_strong_cot(
     })
 
     verify_system = (
-        "당신은 YG-1 카탈로그 사실검증자입니다. [초안]이 [매칭 제품]을 벗어나 "
-        "수치·제품명·재고를 지어냈는지 검사하세요. 제품 근거 이상의 과도한 "
-        "단정은 '카탈로그 확인 필요'로 완화하세요. 출력은 "
-        "{answer,chips,verified,corrections} JSON."
+        "당신은 YG-1 카탈로그 사실검증자입니다.\n\n"
+        "검증 기준 (이것만 체크):\n"
+        "1. 초안에 언급된 제품명/시리즈가 [매칭 제품]에 실제로 있는가?\n"
+        "2. 직경/날수/코팅 수치가 [매칭 제품]과 일치하는가?\n"
+        "3. 재고 수량이 [매칭 제품]과 일치하는가?\n"
+        "4. [매칭 제품]에 없는 제품을 지어냈는가?\n\n"
+        "판정:\n"
+        "- verified=true : 위 4개에서 사실 오류 없음. 표현/어투 차이는 오류 아님.\n"
+        "- verified=false: 사실과 다른 수치/제품명 있음. corrections 에 구체적으로 명시.\n\n"
+        "중요: 표현 다듬기, 어투 변경, 문장 순서 조정은 수정 사유가 아닙니다. "
+        "사실 오류 없으면 반드시 verified=true + answer 는 초안 그대로 반환. "
+        "제품 근거 이상의 과도한 단정만 '카탈로그 확인 필요' 로 완화하고, 아닐 경우 건드리지 마세요.\n\n"
+        "출력은 {answer, chips, verified, corrections} JSON."
     )
     verify_user = (
         f"[초안]\n{partial}\n\n"

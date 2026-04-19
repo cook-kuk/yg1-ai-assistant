@@ -200,6 +200,15 @@ class ProductCard(BaseModel):
     total_stock: Optional[int] = None
     warehouse_count: Optional[int] = None
     stock_status: Optional[str] = None   # "instock" | "limited" | "outofstock"
+    # xAI narrative — short paragraph explaining "왜 이 제품이 최적인가".
+    # Populated only on the top-1 card so the UI's ScoreBreakdownPanel has
+    # something to quote verbatim; the rest stay None. Strong CoT reuses
+    # its verifier output; Light CoT falls back to a deterministic template.
+    rationale: Optional[str] = None
+    # Human-facing match-reason chips ("소재 N군 적합", "형상 Square 일치").
+    # Derived server-side so every candidate surfaces the same evidence the
+    # scorer actually rewarded — cheaper than re-deriving in the UI.
+    matched_fields: Optional[List[str]] = None
     score: float
     score_breakdown: Dict[str, float]
 

@@ -59,6 +59,15 @@ export interface ProductCard {
   helix_angle?: string | null
   coolant_hole?: string | null
   shank_type?: string | null
+  // Inventory summary forwarded from product_inventory_summary_mv.
+  total_stock?: number | null
+  warehouse_count?: number | null
+  stock_status?: string | null   // "instock" | "limited" | "outofstock" | null
+  // xAI narrative for the #1 card only.
+  rationale?: string | null
+  // Match-reason chips ("소재 N군 적합", "형상 Square 일치").
+  matched_fields?: string[] | null
+  cutting_conditions?: Array<Record<string, unknown>> | null
   score: number
   score_breakdown: Record<string, number>
 }
@@ -70,6 +79,7 @@ export interface ProductSummary {
   diameter?: string | null
   flutes?: string | null
   coating?: string | null
+  stock_status?: string | null
   score: number
 }
 
@@ -183,7 +193,92 @@ function parseCoolantHole(raw: string | boolean | null | undefined): boolean | n
   return null
 }
 
+// Python's scoring.py rank_candidates emits a flat { dimension: points } dict.
+// The UI expects the legacy ScoreBreakdown shape — per-axis {score,max,detail}
+// plus total/maxTotal/matchPct — so translate once here. Dimensions missing
+// from the Python dict collapse to "미지정" rows so the bar chart renders
+// with a consistent 8 axes.
+const PY_WEIGHTS = { diameter: 40, flutes: 15, material: 20, shape: 15, coating: 5 }
+const _num = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) ? x : 0)
+
+function toScoreBreakdown(
+  flat: Record<string, number> | null | undefined,
+  cardScore: number,
+): RecommendationCandidateDto["scoreBreakdown"] {
+  if (!flat || typeof flat !== "object") return null
+  const d = _num(flat.diameter)
+  const f = _num(flat.flutes)
+  const m = _num(flat.material)
+  const s = _num(flat.shape)
+  const c = _num(flat.coating)
+  const affinity = _num(flat.affinity)
+  const flagship = _num(flat.flagship)
+  const materialPref = _num(flat.material_pref)
+  const stock = _num(flat.stock)
+  const hrc = _num(flat.hrc_match)
+
+  const bonusBits: string[] = []
+  if (affinity) bonusBits.push(`affinity +${affinity.toFixed(1)}`)
+  if (flagship) bonusBits.push(`flagship +${flagship.toFixed(1)}`)
+  if (materialPref) bonusBits.push(`material-pref +${materialPref.toFixed(1)}`)
+  if (stock) bonusBits.push(`stock +${stock.toFixed(1)}`)
+  if (hrc) bonusBits.push(`HRC match +${hrc.toFixed(1)}`)
+  const evidenceDetail = bonusBits.length > 0 ? bonusBits.join(" · ") : "증거 보조 미매칭"
+  const evidenceScore = Math.round(affinity + hrc + materialPref + stock)
+  const evidenceMax = 40 // affinity(15) + hrc(5) + material_pref(5) + stock(3) + flagship(10) ≈ 38, cap 40.
+
+  const total = Math.round(d + f + m + s + c + affinity + flagship + materialPref + stock + hrc)
+  const maxTotal = PY_WEIGHTS.diameter + PY_WEIGHTS.flutes + PY_WEIGHTS.material + PY_WEIGHTS.shape + PY_WEIGHTS.coating + evidenceMax + 5
+  // Card score is already 0–100 normalized on the Python side.
+  const matchPct = Math.max(0, Math.min(100, Math.round(cardScore)))
+
+  return {
+    diameter: { score: Math.round(d), max: PY_WEIGHTS.diameter, detail: `${d.toFixed(1)} / ${PY_WEIGHTS.diameter}` },
+    flutes: { score: Math.round(f), max: PY_WEIGHTS.flutes, detail: `${f.toFixed(1)} / ${PY_WEIGHTS.flutes}` },
+    materialTag: { score: Math.round(m), max: PY_WEIGHTS.material, detail: `${m.toFixed(1)} / ${PY_WEIGHTS.material}` },
+    // Python has no dedicated "operation" (machining category) scorer today.
+    operation: { score: 0, max: 15, detail: "가공 방식 미지정" },
+    toolShape: { score: Math.round(s), max: PY_WEIGHTS.shape, detail: `${s.toFixed(1)} / ${PY_WEIGHTS.shape}` },
+    coating: { score: Math.round(c), max: PY_WEIGHTS.coating, detail: `${c.toFixed(1)} / ${PY_WEIGHTS.coating}` },
+    completeness: { score: 5, max: 5, detail: "데이터 완성도 100%" },
+    evidence: { score: evidenceScore, max: evidenceMax, detail: evidenceDetail },
+    total,
+    maxTotal,
+    matchPct,
+  }
+}
+
+function deriveMatchStatus(card: ProductCard): "exact" | "approximate" | "none" {
+  // Cheap heuristic: if the card has a concrete diameter + flute count and
+  // at least one matched-field chip, call it exact. Everything else drops
+  // to approximate so the UI badge stays informative without over-promising.
+  const hasDia = parseNumeric(card.diameter ?? null) !== null
+  const hasFlutes = parseIntTok(card.flutes ?? null) !== null
+  const hasMatch = Array.isArray(card.matched_fields) && card.matched_fields.length > 0
+  if (hasDia && hasFlutes && hasMatch) return "exact"
+  if (hasDia || hasFlutes || hasMatch) return "approximate"
+  return "none"
+}
+
 function adaptProductCard(card: ProductCard, rank: number): RecommendationCandidateDto {
+  const totalStock = typeof card.total_stock === "number" && Number.isFinite(card.total_stock)
+    ? card.total_stock : null
+  const stockStatus = (card.stock_status ?? null) || (totalStock === null ? "unknown" : totalStock > 0 ? "instock" : "outofstock")
+  const warehouseCount = typeof card.warehouse_count === "number" && card.warehouse_count > 0
+    ? card.warehouse_count : null
+  // Python's inventory_summary_mv gives {total_stock, warehouse_count} but no
+  // per-warehouse breakdown; materialize a single location row so the UI's
+  // "전체 지역 합산 재고" card has something to render.
+  const inventoryLocations = totalStock !== null && totalStock > 0
+    ? [{
+        warehouseOrRegion: warehouseCount ? `GLC · ${warehouseCount}곳 합산` : "GLC 합산",
+        quantity: totalStock,
+      }]
+    : []
+  const bestCondition = Array.isArray(card.cutting_conditions) && card.cutting_conditions[0]
+    ? (card.cutting_conditions[0] as unknown as RecommendationCandidateDto["bestCondition"])
+    : null
+
   return {
     rank,
     productCode: card.edp_no,
@@ -214,14 +309,15 @@ function adaptProductCard(card: ProductCard, rank: number): RecommendationCandid
       : [],
     materialRating: null,
     score: typeof card.score === "number" && Number.isFinite(card.score) ? card.score : 0,
-    scoreBreakdown: (card.score_breakdown ?? null) as unknown as RecommendationCandidateDto["scoreBreakdown"],
-    matchStatus: "none",
-    stockStatus: "unknown",
-    totalStock: null,
+    scoreBreakdown: toScoreBreakdown(card.score_breakdown ?? null, typeof card.score === "number" ? card.score : 0),
+    matchStatus: deriveMatchStatus(card),
+    stockStatus,
+    totalStock,
     inventorySnapshotDate: null,
-    inventoryLocations: [],
-    hasEvidence: false,
-    bestCondition: null,
+    inventoryLocations,
+    hasEvidence: Array.isArray(card.cutting_conditions) && card.cutting_conditions.length > 0,
+    bestCondition,
+    xaiNarrative: card.rationale ?? null,
   }
 }
 

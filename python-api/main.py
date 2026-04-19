@@ -239,6 +239,52 @@ def _build_answer(intent, ranked: list) -> str:
     )
 
 
+def _derive_matched_fields(card: dict, intent) -> list[str]:
+    """Generate match-reason chips for the UI ("소재 N군 적합", "형상 Square
+    일치") from the scored row dict + SCR intent. Mirrors the legacy
+    hybrid-retrieval.ts logic (lines 763–775) so the Python path surfaces
+    the same evidence breadcrumbs the legacy UI trained its users on.
+
+    Conservative: only emit a chip when both sides are non-null and the
+    match is exact/substring — no chip for "coating unspecified" etc."""
+    if not isinstance(card, dict):
+        return []
+    out: list[str] = []
+    dia = card.get("diameter")
+    intent_dia = getattr(intent, "diameter", None) if intent is not None else None
+    if dia and intent_dia:
+        try:
+            if abs(float(dia) - float(intent_dia)) < 0.5:
+                out.append(f"직경 {intent_dia}mm 일치")
+        except (TypeError, ValueError):
+            pass
+    flutes = card.get("flutes")
+    intent_flutes = getattr(intent, "flute_count", None) if intent is not None else None
+    if flutes and intent_flutes:
+        try:
+            if int(float(flutes)) == int(intent_flutes):
+                out.append(f"{intent_flutes}날 일치")
+        except (TypeError, ValueError):
+            pass
+    tags = card.get("material_tags") or []
+    intent_tag = getattr(intent, "material_tag", None) if intent is not None else None
+    if intent_tag and tags and intent_tag in tags:
+        out.append(f"소재 {intent_tag}군 적합")
+    subtype = card.get("subtype")
+    intent_subtype = getattr(intent, "subtype", None) if intent is not None else None
+    if intent_subtype and subtype and str(intent_subtype).lower() in str(subtype).lower():
+        out.append(f"형상 {subtype} 일치")
+    coating = card.get("coating")
+    intent_coating = getattr(intent, "coating", None) if intent is not None else None
+    if intent_coating and coating and str(intent_coating).lower() in str(coating).lower():
+        out.append(f"코팅 {coating} 일치")
+    brand = card.get("brand")
+    intent_brand = getattr(intent, "brand", None) if intent is not None else None
+    if intent_brand and brand and str(intent_brand).lower() in str(brand).lower():
+        out.append(f"브랜드 {brand} 일치")
+    return out[:5]
+
+
 def _route_intent(message: str):
     """Single-tier SCR pipeline — the LLM parser handles everything.
     Returns (intent, route_label)."""
@@ -882,6 +928,9 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         ))
 
     top10: list[ProductCard] = []
+    # `chat_result` is generated further down (after the CoT round-trip),
+    # so rationale gets patched post-hoc below. matched_fields can be set
+    # inline since the scorer has everything it needs.
     for c, s, b in ranked[:10]:
         edp = str(c.get("edp_no") or "")
         stock_qty = _coerce_int(c.get("total_stock"))
@@ -906,6 +955,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
             stock_status=_derive_stock_status(stock_qty),
+            matched_fields=_derive_matched_fields(c, intent) or None,
             score=s,
             score_breakdown=b,
         ))
@@ -1022,6 +1072,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             chips = chat_result.get("chips") or []
         except Exception:
             raw_answer = _build_answer(intent, ranked)
+        # Patch the #1 card's rationale post-CoT. Kept here (not inside the
+        # try/except) so Light/Strong paths both feed the xAI panel.
+        if top10 and isinstance(chat_result, dict):
+            top10[0].rationale = chat_result.get("rationale") or top10[0].rationale
         # CoT attribution — note if web search contributed.
         has_web = any(s.type == "web_search" for s in sources)
         sources.append(SourceAttribution(
@@ -1176,6 +1230,7 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
             stock_status=_derive_stock_status(stock_qty),
+            matched_fields=_derive_matched_fields(c, intent) or None,
             score=s,
             score_breakdown=b,
         ))
@@ -1416,14 +1471,28 @@ async def products_stream(req: ProductsRequest):
 
         top10_payload = []
         for c, s, b in ranked[:10]:
+            stock_qty_stream = _coerce_int(c.get("total_stock"))
             top10_payload.append({
                 "edp_no": c.get("edp_no"),
                 "brand": c.get("brand"),
                 "series": c.get("series"),
+                "tool_type": c.get("tool_type"),
                 "subtype": c.get("subtype"),
                 "diameter": c.get("diameter"),
                 "flutes": c.get("flutes"),
                 "coating": c.get("coating"),
+                "material_tags": c.get("material_tags"),
+                "description": c.get("series_description"),
+                "feature": c.get("series_feature"),
+                "oal": c.get("milling_overall_length"),
+                "loc": c.get("milling_length_of_cut"),
+                "helix_angle": c.get("milling_helix_angle"),
+                "coolant_hole": c.get("milling_coolant_hole"),
+                "shank_type": c.get("search_shank_type"),
+                "total_stock": stock_qty_stream,
+                "warehouse_count": _coerce_int(c.get("warehouse_count")),
+                "stock_status": _derive_stock_status(stock_qty_stream),
+                "matched_fields": _derive_matched_fields(c, intent) or None,
                 "score": s,
                 "score_breakdown": b,
             })
