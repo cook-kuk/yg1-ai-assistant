@@ -820,19 +820,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             ),
             confidence="medium",
         ))
-        intent_dict_skip = {
-            "intent": intent.intent,
-            "diameter": intent.diameter,
-            "flute_count": intent.flute_count,
-            "material_tag": intent.material_tag,
-            "workpiece_name": intent.workpiece_name,
-            "subtype": intent.subtype,
-            "brand": intent.brand,
-            "coating": intent.coating,
-            "tool_type": intent.tool_type,
-            "tool_material": intent.tool_material,
-            "shank_type": intent.shank_type,
-        }
+        # Full intent persistence — same rationale as the main path. Drop
+        # the hand-picked subset so adding a new SCRIntent field doesn't
+        # require remembering to update three separate dicts.
+        intent_dict_skip = intent.model_dump()
         add_turn(
             session,
             role="user",
@@ -1147,18 +1138,15 @@ async def products(req: ProductsRequest) -> ProductsResponse:
 
     # Persist the turn so the next follow-up can narrow/carry state.
     edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
+    # Persist the EFFECTIVE filter dict (the same one the search ran on),
+    # not just SCRIntent fields. session.current_filters needs to carry
+    # UI-only ManualFilter fields (country, stock_min, machining_category,
+    # coolant_hole …) too — otherwise /products/page can't replay them on
+    # pagination and silently drops whatever the UI scoped by.
     intent_dict = {
         "intent": intent.intent,
-        "diameter": intent.diameter,
-        "flute_count": intent.flute_count,
-        "material_tag": intent.material_tag,
-        "workpiece_name": intent.workpiece_name,
-        "subtype": intent.subtype,
-        "brand": intent.brand,
-        "coating": intent.coating,
-        "tool_type": intent.tool_type,
-        "tool_material": intent.tool_material,
-        "shank_type": intent.shank_type,
+        **intent.model_dump(exclude_none=True),
+        **{k: v for k, v in filter_dict.items() if v is not None},
     }
     add_turn(
         session,
@@ -1229,8 +1217,16 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
     page = max(0, int(req.page))
     page_size = max(1, min(int(req.pageSize), _CFG_MAX_PAGE_SIZE))
 
-    filters = dict(session.current_filters)
-    rows = search_products_fast(filters, limit=SEARCH_LIMIT)
+    # Reconstruct the SCRIntent from the carried filter dict — keeps
+    # matched_fields / affinity rating wired up downstream, AND feeds the
+    # shared _filters_to_dict helper so pagination applies the same
+    # cutting_edge_shape → subtype alias / shank_diameter range expansion
+    # that the initial turn did. Without this, session.current_filters was
+    # used raw and any helper-level normalization silently dropped.
+    intent = SCRIntent(**{
+        k: v for k, v in session.current_filters.items() if k in SCRIntent.model_fields
+    })
+    filters = _filters_to_dict(None, intent)
 
     # No narrow-by-previous-products here — current_filters already encodes
     # whatever the last turn narrowed down to (carry_forward_intent merges
@@ -1238,13 +1234,18 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
     # pagination at the top-50 from the last turn, so users clicking "다음
     # 20개" could only ever see 50 items even when the universe is 78k.
 
-    # Reconstruct the SCRIntent from carried filters so downstream helpers
-    # (matched_fields / affinity rating) get the same signal the original
-    # turn did. filters is a plain dict, not an SCRIntent, so strip keys
-    # the model doesn't know about first.
-    intent = SCRIntent(**{
-        k: v for k, v in filters.items() if k in SCRIntent.model_fields
-    })
+    # Route to the DB path when stock / drill / thread gates are active —
+    # in-memory index can't enforce them. Previously pagination always hit
+    # the fast path, which silently dropped stock_min / in_stock_only
+    # filters and returned the wrong page universe.
+    if needs_db_path(filters):
+        rows = search_products(
+            **{k: v for k, v in filters.items() if k in search_products.__code__.co_varnames},
+            limit=SEARCH_LIMIT,
+        )
+    else:
+        rows = search_products_fast(filters, limit=SEARCH_LIMIT)
+
     ranked = rank_candidates(rows, intent, top_k=len(rows) or 1)
 
     total = len(ranked)
@@ -1452,55 +1453,13 @@ async def products_stream(req: ProductsRequest):
 
         # 2. search + rank
         def _search_and_rank():
-            filters = {
-                "diameter": intent.diameter,
-                "flute_count": intent.flute_count,
-                "material_tag": intent.material_tag,
-                "tool_type": intent.tool_type,
-                "subtype": intent.subtype,
-                "brand": intent.brand,
-                "coating": intent.coating,
-                "tool_material": intent.tool_material,
-                "shank_type": intent.shank_type,
-                "helix_angle": getattr(intent, "helix_angle", None),
-                "point_angle": getattr(intent, "point_angle", None),
-                "thread_pitch": getattr(intent, "thread_pitch", None),
-                "thread_tpi": getattr(intent, "thread_tpi", None),
-                "diameter_tolerance": getattr(intent, "diameter_tolerance", None),
-                "ball_radius": getattr(intent, "ball_radius", None),
-                "unit_system": getattr(intent, "unit_system", None),
-                "in_stock_only": getattr(intent, "in_stock_only", None),
-                # Stock-quantity thresholds — carrying these triggers
-                # needs_db_path(), which routes to search_products so the
-                # EXISTS + total_stock filter actually runs. Without them
-                # here the stream path silently ignored "재고 N개 이상"
-                # and returned low-stock products that match other axes.
-                "stock_min": getattr(intent, "stock_min", None),
-                "stock_max": getattr(intent, "stock_max", None),
-            }
-            if req.filters:
-                for fld in (
-                    "machining_category", "application_shape", "country", "coolant_hole",
-                    "diameter_min", "diameter_max",
-                    "overall_length_min", "overall_length_max",
-                    "length_of_cut_min", "length_of_cut_max",
-                    "shank_diameter_min", "shank_diameter_max",
-                    "flute_count_min", "flute_count_max",
-                    "helix_angle_min", "helix_angle_max",
-                    "point_angle_min", "point_angle_max",
-                    "thread_pitch_min", "thread_pitch_max",
-                    "tpi_min", "tpi_max",
-                    "diameter_tolerance",
-                    "ball_radius_min", "ball_radius_max",
-                    "neck_diameter_min", "neck_diameter_max",
-                    "effective_length_min", "effective_length_max",
-                    "holemaking_coolant_hole", "threading_coolant_hole",
-                    "unit_system", "brand_norm",
-                    "in_stock_only", "stock_min", "stock_max", "warehouse",
-                ):
-                    v = getattr(req.filters, fld, None)
-                    if v is not None:
-                        filters[fld] = v
+            # SSOT — same helper the sync /products path and filter-options
+            # endpoint call, so field coverage (workpiece_name, stock_min,
+            # length_of_cut ranges, cutting_edge_shape → subtype alias, …)
+            # stays uniform across every search surface. Previously the
+            # stream branch maintained its own inline dict that drifted
+            # behind _filters_to_dict.
+            filters = _filters_to_dict(req.filters, intent)
             if needs_db_path(filters):
                 rows = search_products(
                     **{k: v for k, v in filters.items()
@@ -1666,8 +1625,16 @@ async def products_stream(req: ProductsRequest):
             yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
 
         # Persist the turn so subsequent stream calls keep state.
+        # Same rationale as sync /products: persist the effective filter
+        # dict (SCRIntent + merged ManualFilter fields) so pagination /
+        # carry-forward doesn't silently drop UI-only scopes.
         edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
-        intent_dump = intent.model_dump()
+        stream_effective_filters = _filters_to_dict(req.filters, intent)
+        intent_dump = {
+            "intent": intent.intent,
+            **intent.model_dump(exclude_none=True),
+            **{k: v for k, v in stream_effective_filters.items() if v is not None},
+        }
         add_turn(
             session, role="user",
             message=req.message or "(manual filters)",
