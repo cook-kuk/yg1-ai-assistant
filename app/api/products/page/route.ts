@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server"
-import { proxyJson, MAX_DURATION } from "../../_lib/python-proxy"
+import { proxyJson } from "../../_lib/python-proxy"
 
-export const maxDuration = MAX_DURATION
+// Next 16 segment config must be a literal — cannot import. Keep in sync
+// with the comment in app/api/_lib/python-proxy.ts.
+export const maxDuration = 120
 
 export async function POST(req: NextRequest) {
   return proxyJson(req, "/products/page")

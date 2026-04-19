@@ -8,11 +8,12 @@ import { NextRequest, NextResponse } from "next/server"
 
 export const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://127.0.0.1:8010"
 
-// Conservative upper bound for a Python round-trip that may include a CoT
-// LLM call. Longer than the client's 60s budget so a stall surfaces as
-// the client's timeout, not ours. Stream routes reuse this too since the
-// SSE body still has to start within this window.
-export const MAX_DURATION = 120
+// Upper bound for a Python round-trip that may include a CoT LLM call —
+// longer than the client's 60s so a stall surfaces as the client's timeout.
+// The value is inlined as `export const maxDuration = 120` in each route
+// under app/api/products* and app/api/filter-options: Next 16 requires
+// segment configs to be literals and rejects imported constants. Change
+// this budget in all five places together.
 
 // Single line emitter so ops can grep `[python-proxy]` for every
 // upstream incident without code changes per route. Wrapped in a try
