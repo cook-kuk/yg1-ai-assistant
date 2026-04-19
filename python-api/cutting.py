@@ -19,6 +19,8 @@ from typing import Optional
 
 import pandas as pd
 
+from config import CUTTING_DEFAULT_LIMIT, CUTTING_PER_PRODUCT_LIMIT
+
 _CSV_PATH = Path(__file__).resolve().parent / "data" / "cutting_conditions.csv"
 
 _NUMERIC_COLS = ("Vc", "Fz", "RPM", "Feed", "Ap", "Ae")
@@ -56,7 +58,7 @@ def get_cutting_conditions(
     series: Optional[str] = None,
     iso: Optional[str] = None,
     workpiece: Optional[str] = None,
-    limit: int = 20,
+    limit: int = CUTTING_DEFAULT_LIMIT,
 ) -> list[dict]:
     """Filter the condition chart. All filters are optional and AND-combined.
     Brand/series/iso match exactly (case-insensitive); workpiece does a
@@ -140,7 +142,7 @@ def get_cutting_range_for_material(
 def get_conditions_for_products(
     products: list[dict],
     iso: Optional[str] = None,
-    per_product_limit: int = 5,
+    per_product_limit: int = CUTTING_PER_PRODUCT_LIMIT,
 ) -> dict[str, list[dict]]:
     """Bulk lookup for ranked product cards. Keys are edp_no strings; value
     is up to `per_product_limit` condition rows matching the product's

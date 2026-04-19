@@ -54,7 +54,7 @@ _MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
 
 
 # ── known-set cache ─────────────────────────────────────────────────
-_CACHE_TTL_SEC = 3600.0
+from config import CACHE_TTL_SEC as _CACHE_TTL_SEC
 _cache: dict[str, object] = {
     "brands": None,
     "series": None,

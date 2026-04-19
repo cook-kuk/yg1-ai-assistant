@@ -7,11 +7,15 @@ import pytest
 
 
 def test_health(api_client, db_conn):
+    """The default minimal shape returns `{alive: true}`. Detailed shape
+    (ARIA_HEALTH_DETAILED=true) adds product_count + uptime — accept
+    either so the test runs regardless of env."""
     r = api_client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["status"] == "ok"
-    assert body["product_count"] > 100_000
+    assert body.get("alive") is True
+    if "product_count" in body:
+        assert body["product_count"] > 100_000
 
 
 @pytest.mark.slow

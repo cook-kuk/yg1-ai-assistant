@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 from config import (
     DIAMETER_TOLERANCE as _DIAMETER_TOLERANCE_CFG,
+    FILTER_OPTION_LIMIT,
     PRODUCT_INDEX_REFRESH_SEC as _REFRESH_INTERVAL_SEC_CFG,
     SEARCH_LIMIT as _SEARCH_LIMIT_CFG,
 )
@@ -398,7 +399,7 @@ _OPTION_FIELDS: dict[str, tuple[str, bool]] = {
 def get_filter_options_fast(
     field: str,
     current_filters: dict,
-    limit: int = 50,
+    limit: int = FILTER_OPTION_LIMIT,
 ) -> list[dict]:
     """In-memory GROUP BY + COUNT for a single filter field. Matches the
     DB-backed `search.get_filter_options` contract: returns up to `limit`

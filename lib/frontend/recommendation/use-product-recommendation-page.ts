@@ -159,6 +159,12 @@ function normalizeCandidateFromSnapshot(raw: unknown): RecommendationCandidateDt
     taperAngleDeg: normalizeNullableNumber(raw.taperAngleDeg),
     pointAngleDeg: normalizeNullableNumber(raw.pointAngleDeg),
     threadPitchMm: normalizeNullableNumber(raw.threadPitchMm),
+    neckDiameterMm: normalizeNullableNumber(raw.neckDiameterMm),
+    neckLengthMm: normalizeNullableNumber(raw.neckLengthMm),
+    effectiveLengthMm: normalizeNullableNumber(raw.effectiveLengthMm),
+    cornerRadiusMm: normalizeNullableNumber(raw.cornerRadiusMm),
+    diameterTolerance: normalizeNullableString(raw.diameterTolerance),
+    edpUnit: normalizeNullableString(raw.edpUnit),
     description: normalizeNullableString(raw.description),
     featureText: normalizeNullableString(raw.featureText),
     materialTags,
@@ -317,6 +323,12 @@ export function useProductRecommendationPage({
   const [engineSessionState, setEngineSessionState] = useState<ExplorationSessionState | null>(null)
   const [candidateSnapshot, setCandidateSnapshot] = useState<RecommendationCandidateDto[] | null>(null)
   const [candidatePagination, setCandidatePagination] = useState<RecommendationPaginationDto | null>(null)
+  // "조회한 상품" peek — independent lookup that ignores the live filter
+  // session, rendered as a separate CandidatePanel section below the main
+  // ranked list. Updated alongside candidateSnapshot so every stream / sync
+  // refresh keeps the two in lockstep.
+  const [referenceSnapshot, setReferenceSnapshot] = useState<RecommendationCandidateDto[] | null>(null)
+  const [referenceQuery, setReferenceQuery] = useState<string | null>(null)
   const [isCandidatePageLoading, setIsCandidatePageLoading] = useState(false)
   const [capabilities, setCapabilities] = useState<RecommendationCapabilityDto>(DEFAULT_RECOMMENDATION_CAPABILITIES)
 
@@ -593,6 +605,8 @@ export function useProductRecommendationPage({
           // (and the awaited final DTO) finishes.
           if (partial.candidates) setCandidateSnapshot(partial.candidates)
           if (partial.pagination) setCandidatePagination(partial.pagination)
+          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
+          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -616,6 +630,8 @@ export function useProductRecommendationPage({
       setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCandidateSnapshot(data.candidates ?? null)
       setCandidatePagination(data.pagination ?? null)
+      setReferenceSnapshot(data.referenceCandidates ?? null)
+      setReferenceQuery(data.referenceQuery ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
 
       setChatMessages(prev => {
@@ -647,9 +663,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
-          cotLevel: (data as any).cotLevel ?? null,
-          cotElapsedSec: (data as any).cotElapsedSec ?? null,
-          verified: (data as any).verified ?? null,
+          cotLevel: data.cotLevel ?? null,
+          cotElapsedSec: data.cotElapsedSec ?? null,
+          verified: data.verified ?? null,
         } as ChatMsg
         return updated
       })
@@ -724,6 +740,8 @@ export function useProductRecommendationPage({
           // (and the awaited final DTO) finishes.
           if (partial.candidates) setCandidateSnapshot(partial.candidates)
           if (partial.pagination) setCandidatePagination(partial.pagination)
+          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
+          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -747,6 +765,8 @@ export function useProductRecommendationPage({
       setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCandidateSnapshot(data.candidates ?? null)
       setCandidatePagination(data.pagination ?? null)
+      setReferenceSnapshot(data.referenceCandidates ?? null)
+      setReferenceQuery(data.referenceQuery ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
 
       setChatMessages(prev => {
@@ -778,9 +798,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
-          cotLevel: (data as any).cotLevel ?? null,
-          cotElapsedSec: (data as any).cotElapsedSec ?? null,
-          verified: (data as any).verified ?? null,
+          cotLevel: data.cotLevel ?? null,
+          cotElapsedSec: data.cotElapsedSec ?? null,
+          verified: data.verified ?? null,
         } as ChatMsg
         return updated
       })
@@ -888,6 +908,8 @@ export function useProductRecommendationPage({
           // (and the awaited final DTO) finishes.
           if (partial.candidates) setCandidateSnapshot(partial.candidates)
           if (partial.pagination) setCandidatePagination(partial.pagination)
+          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
+          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -940,6 +962,10 @@ export function useProductRecommendationPage({
 
       if (data.candidates) setCandidateSnapshot(data.candidates)
       if (data.pagination) setCandidatePagination(data.pagination)
+      // Keep the "조회한 상품" peek in lockstep with candidates so the
+      // panel shows/hides the side section on every refresh.
+      setReferenceSnapshot(data.referenceCandidates ?? null)
+      setReferenceQuery(data.referenceQuery ?? null)
 
       setChatMessages(prev => {
         const updated = [...prev]
@@ -974,9 +1000,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
-          cotLevel: (data as any).cotLevel ?? null,
-          cotElapsedSec: (data as any).cotElapsedSec ?? null,
-          verified: (data as any).verified ?? null,
+          cotLevel: data.cotLevel ?? null,
+          cotElapsedSec: data.cotElapsedSec ?? null,
+          verified: data.verified ?? null,
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
@@ -1220,6 +1246,8 @@ export function useProductRecommendationPage({
     engineSessionState,
     candidateSnapshot,
     candidatePagination,
+    referenceSnapshot,
+    referenceQuery,
     isCandidatePageLoading,
     capabilities,
     handleFieldChange,

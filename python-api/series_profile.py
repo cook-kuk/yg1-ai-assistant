@@ -11,10 +11,8 @@ import re
 import time
 from typing import Any, Optional
 
+from config import CACHE_TTL_SEC as _CACHE_TTL_SEC
 from db import fetch_all
-
-
-_CACHE_TTL_SEC = 3600.0
 
 # {normalized_series_name: profile_dict}. Normalized form is lower-cased
 # with spaces/hyphens stripped so "V7 PLUS" / "v7plus" / "v7-plus" all

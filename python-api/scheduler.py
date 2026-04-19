@@ -13,6 +13,8 @@ import threading
 import time
 from typing import Callable
 
+from config import SCHEDULER_TICK_SEC
+
 
 class PipelineScheduler:
     def __init__(self) -> None:
@@ -44,7 +46,7 @@ class PipelineScheduler:
             for name, task in self._tasks.items():
                 if now - task["last_run"] >= task["interval"]:
                     self._run_safe(name, task)
-            time.sleep(60)
+            time.sleep(SCHEDULER_TICK_SEC)
 
     def _run_safe(self, name: str, task: dict) -> None:
         """Dispatch one job and record status. Never let an exception kill

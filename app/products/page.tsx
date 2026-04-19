@@ -34,6 +34,8 @@ export default function ProductRecommendPage() {
     engineSessionState,
     candidateSnapshot,
     candidatePagination,
+    referenceSnapshot,
+    referenceQuery,
     isCandidatePageLoading,
     capabilities,
     handleFieldChange,
@@ -171,6 +173,8 @@ export default function ProductRecommendPage() {
             engineSessionState={engineSessionState}
             candidateSnapshot={candidateSnapshot}
             candidatePagination={candidatePagination}
+            referenceSnapshot={referenceSnapshot}
+            referenceQuery={referenceQuery}
             isCandidatePageLoading={isCandidatePageLoading}
             capabilities={getSessionCapabilities(sessionState, capabilities)}
             onSend={handleChatSend}

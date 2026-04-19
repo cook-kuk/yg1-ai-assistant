@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional
 
+from config import CLARIFY_MAX_FIELDS, CLARIFY_MIN_CANDIDATES
 from product_index import load_index, _matches
 
 # Fields the clarifier considers as candidates to surface chips for. Kept
@@ -93,8 +94,8 @@ def _bucket_rows(
 def suggest_clarifying_chips(
     current_filters: dict,
     *,
-    min_candidates: int = 30,
-    max_fields: int = 2,
+    min_candidates: int = CLARIFY_MIN_CANDIDATES,
+    max_fields: int = CLARIFY_MAX_FIELDS,
 ) -> dict[str, Any]:
     """Return a dict shaped for the chat layer's chip-groups mechanism.
 

@@ -21,7 +21,13 @@ from dotenv import load_dotenv
 
 from schemas import SCRIntent
 from db import fetch_all
-from config import OPENAI_LIGHT_MODEL, NEGATION_PROXIMITY_CHARS, SCR_TIMEOUT
+from config import (
+    FUZZY_LEV_MAX,
+    FUZZY_LEV_MIN_TARGET_LEN,
+    NEGATION_PROXIMITY_CHARS,
+    OPENAI_LIGHT_MODEL,
+    SCR_TIMEOUT,
+)
 from canonical_values import SHANK_CANONICAL, COATING_CANONICAL
 from patterns import (
     NEG_CUE_KR_AFTER,
@@ -147,8 +153,8 @@ def _fuzzy_resolve(
     raw: str | None,
     canonical: list[str],
     *,
-    lev_max: int = 2,
-    lev_min_target_len: int = 4,
+    lev_max: int = FUZZY_LEV_MAX,
+    lev_min_target_len: int = FUZZY_LEV_MIN_TARGET_LEN,
 ) -> str | None:
     """Generic normalizer for small canonical vocabularies. Stages:
       1) exact

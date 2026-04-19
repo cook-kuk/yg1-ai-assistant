@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from config import RAG_TOP_K
+
 # Symptoms/aliases in the knowledge base often bundle multiple terms in one
 # string ("떨림/진동", "칩 엉킴, 감김"). Split on these separators so each
 # atomic term can substring-match against the query individually.
@@ -295,7 +297,7 @@ _SCORERS = {
 }
 
 
-def _keyword_search(query: str, top_k: int = 3) -> list[dict]:
+def _keyword_search(query: str, top_k: int = RAG_TOP_K) -> list[dict]:
     """Phase-1 substring match across the registered knowledge types."""
     if not query:
         return []
@@ -416,7 +418,7 @@ def _build_embeddings() -> list[tuple[str, list[float], dict]]:
     return _EMBEDDINGS
 
 
-def search_knowledge_semantic(query: str, top_k: int = 3) -> list[dict]:
+def search_knowledge_semantic(query: str, top_k: int = RAG_TOP_K) -> list[dict]:
     """Embedding-space cosine similarity. Returns [{type,data,similarity}]
     sorted desc, filtered by `_MIN_SEMANTIC_SIM`."""
     if not query:
@@ -446,7 +448,7 @@ def search_knowledge_semantic(query: str, top_k: int = 3) -> list[dict]:
 
 # ── Phase 3: live web search (Tavily) for long-tail questions ──────────
 
-def search_knowledge_web(query: str, top_k: int = 3) -> list[dict]:
+def search_knowledge_web(query: str, top_k: int = RAG_TOP_K) -> list[dict]:
     """Tavily web search as a last-resort RAG source. Requires TAVILY_API_KEY.
     Results come back as `{type: 'web_search', data: {title, url, content}}`
     so the downstream CoT prompt can cite them with low confidence."""
@@ -512,7 +514,7 @@ def search_series_profile(query: str, top_k: int = 1) -> list[dict]:
     }][:top_k]
 
 
-def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
+def search_knowledge(query: str, top_k: int = RAG_TOP_K) -> list[dict]:
     """Three-stage cascade:
       Phase 1  glossary (DB, term definitions) → series_profile (DB,
                series spec ranges) → industry + material guide lookup

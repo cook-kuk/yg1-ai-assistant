@@ -319,24 +319,6 @@ def _summarize_facets(available_filters: dict | None, top_n: int = 4) -> str:
     return "\n".join(lines)
 
 
-def _build_conversation_memory_safe(session: Any) -> str:
-    """Wrap session.build_conversation_memory with a session→None guard and
-    graceful import fallback. Returns "" when the session has no history
-    or the helper import fails, so the CoT prompt stays well-formed even
-    when the caller forgot to pass a session (e.g. /recommend path).
-
-    NOTE: Retained for any caller that still wants the stringified block;
-    the chat CoT path now uses `_raw_history_messages` + the messages[]
-    array instead. Both remain available."""
-    if session is None:
-        return ""
-    try:
-        from session import build_conversation_memory
-        return build_conversation_memory(session) or ""
-    except Exception:
-        return ""
-
-
 def _raw_history_messages(session: Any, max_turns: int | None = None) -> list[dict]:
     """Return the last `max_turns` turns in Anthropic/OpenAI messages[]
     shape — [{role, content}, …] — for prepending to the CoT call.

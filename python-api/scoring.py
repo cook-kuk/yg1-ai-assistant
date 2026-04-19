@@ -9,6 +9,11 @@ from typing import Optional
 from affinity import get_affinity, hrc_covers
 from brand_specialty import specialty_boost, SPECIALTY_WEIGHTS
 from canonical_values import FLAGSHIP_BRANDS, MICRO_BRANDS, MATERIAL_SERIES_PREF
+from config import (
+    AFFINITY_EXCELLENT_THRESHOLD,
+    AFFINITY_FAIR_THRESHOLD,
+    AFFINITY_GOOD_THRESHOLD,
+)
 from db import fetch_all
 
 # Central scoring config — sub-field weights + affinity tier bonuses. Kept as
@@ -149,11 +154,11 @@ def _score_to_tier_bonus(score: float) -> float:
     """Map a unified 0..100 affinity score to the tier bonus. Thresholds mirror
     the TS side (brand-material-affinity-repo + series-material-status): ≥80
     is EXCELLENT, 40..79 GOOD, 10..39 FAIR, below is no boost."""
-    if score >= 80.0:
+    if score >= AFFINITY_EXCELLENT_THRESHOLD:
         return float(SCORING_CONFIG["affinity_excellent"])
-    if score >= 40.0:
+    if score >= AFFINITY_GOOD_THRESHOLD:
         return float(SCORING_CONFIG["affinity_good"])
-    if score >= 10.0:
+    if score >= AFFINITY_FAIR_THRESHOLD:
         return float(SCORING_CONFIG["affinity_fair"])
     return 0.0
 

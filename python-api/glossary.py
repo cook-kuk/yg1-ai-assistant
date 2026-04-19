@@ -10,10 +10,8 @@ import re
 import time
 from typing import Optional
 
+from config import CACHE_TTL_SEC as _CACHE_TTL_SEC
 from db import fetch_all
-
-
-_CACHE_TTL_SEC = 3600.0
 
 _ROWS: list[dict] = []
 _LOADED_AT: float = 0.0

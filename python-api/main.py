@@ -301,6 +301,11 @@ def _build_reference_peek(
             total_stock=stock_qty,
             warehouse_count=_coerce_int(row.get("warehouse_count")),
             stock_status=_derive_stock_status(stock_qty),
+            # Peek cards sit outside the scoring pipeline — emit neutral
+            # values so ProductCard's required `score` / `score_breakdown`
+            # fields don't fail validation.
+            score=0.0,
+            score_breakdown={},
         ))
     return peek, token
 

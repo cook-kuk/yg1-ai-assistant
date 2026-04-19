@@ -15,10 +15,13 @@ import re
 import time
 from typing import Optional
 
+from config import (
+    AFFINITY_EXCELLENT_THRESHOLD,
+    AFFINITY_FAIR_THRESHOLD,
+    AFFINITY_GOOD_THRESHOLD,
+    CACHE_TTL_SEC as _CACHE_TTL_SEC,
+)
 from db import fetch_all
-
-
-_CACHE_TTL_SEC = 3600.0
 
 # Cache shape:
 #   { normalized_brand : { "workpiece": {KEY: score}, "iso_group": {CODE: score} } }
@@ -317,11 +320,11 @@ def get_affinity_rating(
         score = get_affinity(brand, workpiece_name)
     if score <= 0 and brand and material_tag:
         score = get_affinity(brand, material_tag)
-    if score >= 80.0:
+    if score >= AFFINITY_EXCELLENT_THRESHOLD:
         return "EXCELLENT"
-    if score >= 40.0:
+    if score >= AFFINITY_GOOD_THRESHOLD:
         return "GOOD"
-    if score >= 10.0:
+    if score >= AFFINITY_FAIR_THRESHOLD:
         return "FAIR"
     return None
 
@@ -329,7 +332,7 @@ def get_affinity_rating(
 def list_excellent_brands(
     workpiece_name: Optional[str] = None,
     material_tag: Optional[str] = None,
-    threshold: float = 80.0,
+    threshold: float = AFFINITY_EXCELLENT_THRESHOLD,
 ) -> list[str]:
     """Return the normalized brand keys whose affinity score for the given
     (workpiece_name | material_tag) is ≥ threshold. Prefers workpiece

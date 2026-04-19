@@ -321,8 +321,8 @@ export default function AssistantNewPage() {
                     </div>
                     {stepFields.length > 0 && (
                       <div className="ml-5 space-y-0.5">
-                        {stepFields.map((f, i) => (
-                          <div key={i} className="text-[10px] flex items-center gap-1">
+                        {stepFields.map((f) => (
+                          <div key={`${step.id}-${f.label}`} className="text-[10px] flex items-center gap-1">
                             <span className={cn(
                               "w-1.5 h-1.5 rounded-full",
                               f.confidence === "high" ? "bg-green-500" : f.confidence === "medium" ? "bg-amber-500" : "bg-red-400"
@@ -498,7 +498,7 @@ export default function AssistantNewPage() {
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {normalChips.map((chip, i) => (
                             <Button
-                              key={i}
+                              key={`chip-${msg.id}-${i}-${chip}`}
                               variant="outline"
                               size="sm"
                               className={cn(
@@ -518,7 +518,7 @@ export default function AssistantNewPage() {
                           <div className="flex gap-2 mt-2">
                             {ctaChips.map((chip, i) => (
                               <button
-                                key={`cta-${i}`}
+                                key={`cta-${msg.id}-${i}-${chip}`}
                                 onClick={() => handleSend(chip)}
                                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
                                   chip.includes("제품 보기")
@@ -618,8 +618,8 @@ export default function AssistantNewPage() {
               <p className="text-xs text-muted-foreground">대화를 시작하면 조건이 추출됩니다</p>
             ) : (
               <div className="space-y-1.5">
-                {extracted.map((f, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs bg-background rounded px-2 py-1.5 border">
+                {extracted.map((f) => (
+                  <div key={`${f.label}-${f.value}`} className="flex items-center justify-between text-xs bg-background rounded px-2 py-1.5 border">
                     <span className="text-muted-foreground">{f.label}</span>
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium truncate max-w-[120px]">{f.value}</span>
@@ -731,8 +731,8 @@ export default function AssistantNewPage() {
                         { l: "수명", v: cp.metrics.toolLife },
                         { l: "비용", v: cp.metrics.costIndex },
                         { l: "CO2", v: cp.metrics.co2Index },
-                      ].map((m, j) => (
-                        <div key={j} className="bg-muted/50 rounded p-1 text-center">
+                      ].map((m) => (
+                        <div key={`${cp.id}-${m.l}`} className="bg-muted/50 rounded p-1 text-center">
                           <p className="text-[9px] text-muted-foreground">{m.l}</p>
                           <p className="text-[10px] font-bold">{m.v}</p>
                         </div>
@@ -742,7 +742,7 @@ export default function AssistantNewPage() {
                     {/* Reasons */}
                     <div className="space-y-0.5 mb-2">
                       {cp.reasons.slice(0, 2).map((r, j) => (
-                        <div key={j} className="flex items-start gap-1 text-[10px]">
+                        <div key={`${cp.id}-reason-${j}`} className="flex items-start gap-1 text-[10px]">
                           <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0 mt-0.5" />
                           <span>{r}</span>
                         </div>

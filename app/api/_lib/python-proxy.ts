@@ -14,6 +14,27 @@ export const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://127.0.0.1:80
 // SSE body still has to start within this window.
 export const MAX_DURATION = 120
 
+// Single line emitter so ops can grep `[python-proxy]` for every
+// upstream incident without code changes per route. Wrapped in a try
+// so a logger import failure never masks the original error.
+function logProxyError(
+  kind: "json" | "sse",
+  path: string,
+  status: number,
+  message: string,
+  detail?: string,
+): void {
+  try {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[python-proxy] ${kind} ${path} status=${status} msg=${JSON.stringify(message)}` +
+      (detail ? ` detail=${JSON.stringify(detail.slice(0, 500))}` : ""),
+    )
+  } catch {
+    /* swallow logging failures — original error already returned to caller */
+  }
+}
+
 /** Forward a JSON POST to FastAPI and mirror the response as JSON. */
 export async function proxyJson(req: NextRequest, path: string): Promise<NextResponse> {
   try {
@@ -24,12 +45,19 @@ export async function proxyJson(req: NextRequest, path: string): Promise<NextRes
       body: JSON.stringify(body),
     })
     if (!resp.ok) {
-      return NextResponse.json({ error: `Python API error: ${resp.status}` }, { status: resp.status })
+      const detail = await resp.text().catch(() => "")
+      logProxyError("json", path, resp.status, `upstream non-2xx`, detail)
+      return NextResponse.json(
+        { error: `Python API error: ${resp.status}`, detail: detail.slice(0, 500) },
+        { status: resp.status },
+      )
     }
     return NextResponse.json(await resp.json())
   } catch (e: any) {
+    const msg = e?.message ?? String(e)
+    logProxyError("json", path, 502, msg)
     return NextResponse.json(
-      { error: `Python API unreachable: ${e?.message ?? e}` },
+      { error: `Python API unreachable: ${msg}` },
       { status: 502 },
     )
   }
@@ -52,6 +80,7 @@ export async function proxySse(req: NextRequest, path: string): Promise<Response
     })
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text().catch(() => "")
+      logProxyError("sse", path, upstream.status, "upstream non-2xx or empty body", detail)
       return new Response(
         JSON.stringify({ error: `Python stream error: ${upstream.status}`, detail }),
         { status: upstream.status, headers: { "Content-Type": "application/json" } },
@@ -67,8 +96,10 @@ export async function proxySse(req: NextRequest, path: string): Promise<Response
       },
     })
   } catch (e: any) {
+    const msg = e?.message ?? String(e)
+    logProxyError("sse", path, 502, msg)
     return new Response(
-      JSON.stringify({ error: `Python stream unreachable: ${e?.message ?? e}` }),
+      JSON.stringify({ error: `Python stream unreachable: ${msg}` }),
       { status: 502, headers: { "Content-Type": "application/json" } },
     )
   }

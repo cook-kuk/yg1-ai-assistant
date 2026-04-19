@@ -26,7 +26,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from config import SESSION_TTL_SEC as _SESSION_TTL_SEC_CFG, SESSION_CLEANUP_INTERVAL_SEC as _CLEANUP_INTERVAL_SEC_CFG
+from config import (
+    HISTORY_MAX_TURNS,
+    SESSION_CLEANUP_INTERVAL_SEC as _CLEANUP_INTERVAL_SEC_CFG,
+    SESSION_TTL_SEC as _SESSION_TTL_SEC_CFG,
+)
 from canonical_values import INVALID_BRANDS as _INVALID_BRANDS_CFG
 
 # Module-level aliases sourced from config/canonical_values (SSOT). Kept
@@ -113,7 +117,7 @@ def add_turn(
                 session.current_filters[k] = v
 
 
-def build_conversation_memory(session: Optional[Session], max_turns: int = 5) -> str:
+def build_conversation_memory(session: Optional[Session], max_turns: int = HISTORY_MAX_TURNS) -> str:
     """Render the last `max_turns` dialogue turns as a compact block the CoT
     prompt can reason over. The block shows each turn's role, message,
     extracted filters, total_count, and a trimmed answer preview — plus a
@@ -255,7 +259,7 @@ def get_raw_history(
 
 def format_history_for_llm(
     session: Optional[Session],
-    max_turns: int = 6,
+    max_turns: int = HISTORY_MAX_TURNS,
 ) -> list[dict]:
     """Convert raw turns into the Anthropic/OpenAI messages[] shape —
     a list of {role, content} dicts that callers can prepend to the

@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 from config import (
     FEW_SHOT_MAX_SHOTS as _CFG_MAX_SHOTS,
+    FEW_SHOT_NEAREST_K,
     FEW_SHOT_PROMPT_SHOTS as _CFG_PROMPT_SHOTS,
     OPENAI_EMBED_MODEL as _CFG_EMBED_MODEL,
 )
@@ -176,7 +177,7 @@ def _embed_shots(shots: list[dict]) -> list[tuple[dict, list[float]]]:
 def select_adaptive_examples(
     query: str,
     session: Optional["Session"] = None,
-    top_k: int = 3,
+    top_k: int = FEW_SHOT_NEAREST_K,
 ) -> list[dict]:
     """Pick up to `top_k` few-shot exemplars ranked by embedding cosine
     similarity against (query + session signature). When a session is

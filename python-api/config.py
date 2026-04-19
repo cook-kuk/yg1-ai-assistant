@@ -116,6 +116,80 @@ GOLDEN_INTER_CASE_SLEEP_SEC = envNum("GOLDEN_INTER_CASE_SLEEP_SEC", 0.3)
 # short enough to dodge unrelated negations elsewhere in the sentence.
 NEGATION_PROXIMITY_CHARS = envInt("NEGATION_PROXIMITY_CHARS", 15)
 
+# ── Shared cache TTL (affinity / glossary / guard / series_profile) ──
+# In-process caches that hydrate once on first read and refresh after
+# TTL expires. 1h hits a reasonable balance between staleness and
+# avoiding per-request DB hits; override via ARIA_CACHE_TTL_SEC.
+CACHE_TTL_SEC = envNum("ARIA_CACHE_TTL_SEC", 3600.0)
+
+# ── Affinity tier thresholds (affinity.py / scoring.py) ──────────────
+# DB scores are 0..100 (iso_group rows rescaled). ≥80 EXCELLENT,
+# 40..79 GOOD, 10..39 FAIR, below 10 no boost. Matches the TS side
+# in lib/data/repos/brand-material-affinity-repo.ts.
+AFFINITY_EXCELLENT_THRESHOLD = envNum("ARIA_AFFINITY_EXCELLENT", 80.0)
+AFFINITY_GOOD_THRESHOLD = envNum("ARIA_AFFINITY_GOOD", 40.0)
+AFFINITY_FAIR_THRESHOLD = envNum("ARIA_AFFINITY_FAIR", 10.0)
+
+# ── Scheduler tick ──────────────────────────────────────────────────
+# Scheduler daemon poll interval. 60s is long enough to avoid busy-loop
+# CPU but short enough that a newly-due task fires within a minute.
+SCHEDULER_TICK_SEC = envNum("ARIA_SCHEDULER_TICK_SEC", 60.0)
+
+# ── Clarify (DB-backed clarification chips) ─────────────────────────
+# Below this candidate count, no clarification chips are suggested —
+# the ranked list is already short enough that the user doesn't need
+# narrowing prompts. MAX_FIELDS caps how many chip groups to surface.
+CLARIFY_MIN_CANDIDATES = envInt("ARIA_CLARIFY_MIN_CANDIDATES", 30)
+CLARIFY_MAX_FIELDS = envInt("ARIA_CLARIFY_MAX_FIELDS", 2)
+
+# ── SCR fuzzy resolver (scr._fuzzy_resolve) ─────────────────────────
+# Edit-distance cap and minimum target length for Levenshtein matching.
+# 2 is generous enough for single-typo brand names ("CRXS" → "CRX S")
+# but tight enough to avoid false-matching unrelated short tokens.
+FUZZY_LEV_MAX = envInt("ARIA_FUZZY_LEV_MAX", 2)
+FUZZY_LEV_MIN_TARGET_LEN = envInt("ARIA_FUZZY_LEV_MIN_TARGET", 4)
+
+# ── Few-shot nearest neighbor (few_shot.select_adaptive_examples) ───
+# How many embedding-cosine-ranked exemplars to keep. Separate from
+# FEW_SHOT_PROMPT_SHOTS which counts exemplars actually surfaced in the
+# prompt (different pipeline stage, different tuning pressure).
+FEW_SHOT_NEAREST_K = envInt("FEW_SHOT_NEAREST_K", 3)
+
+# ── RAG retrieval (rag.search_knowledge*) ───────────────────────────
+# Nearest-neighbor rank cap for every flavor of knowledge retrieval
+# (keyword / semantic / web / unified). Different pool from few-shot;
+# kept separate so ops can tune them independently.
+RAG_TOP_K = envInt("ARIA_RAG_TOP_K", 3)
+
+# ── Cutting-condition chart lookups ─────────────────────────────────
+# Row cap for the general chart browser and per-product attach step.
+CUTTING_DEFAULT_LIMIT = envInt("ARIA_CUTTING_DEFAULT_LIMIT", 20)
+CUTTING_PER_PRODUCT_LIMIT = envInt("ARIA_CUTTING_PER_PRODUCT_LIMIT", 5)
+
+# ── Raw conversation history window (session.format_history_for_llm) ─
+# Distinct from MEMORY_MAX_TURNS (which gates the text-summary block
+# rendered by build_conversation_memory). This governs raw messages[]
+# pass-through for the OpenAI-compatible chat input.
+HISTORY_MAX_TURNS = envInt("ARIA_HISTORY_MAX_TURNS", 6)
+
+# ── Filter options facet cap (product_index.get_filter_options_fast) ─
+# Per-field distinct-value count before truncation in the filter UI.
+FILTER_OPTION_LIMIT = envInt("ARIA_FILTER_OPTION_LIMIT", 50)
+
+# ── Default per-call cap for search.search_products ─────────────────
+# Distinct from SEARCH_LIMIT (hard in-memory index bound). This is the
+# per-request slice the DB path returns when the caller didn't override.
+SEARCH_DEFAULT_LIMIT = envInt("ARIA_SEARCH_DEFAULT_LIMIT", 5000)
+
+# ── Dual CoT complexity signals (chat._assess_cot_level) ────────────
+# Sub-scores layered into the Strong-CoT routing decision. Threshold
+# tweaks should stay here so ops can dial the Strong-rate up/down
+# without recompiling the assessor.
+COT_FILLED_MANY_THRESHOLD = envInt("ARIA_COT_FILLED_MANY", 4)
+COT_FILLED_LONG_THRESHOLD = envInt("ARIA_COT_FILLED_LONG", 3)
+COT_LONG_MSG_CHARS = envInt("ARIA_COT_LONG_MSG_CHARS", 50)
+COT_KNOWLEDGE_MIN = envInt("ARIA_COT_KNOWLEDGE_MIN", 2)
+
 
 def reload_env() -> None:
     """Re-read env. Intended for tests that monkeypatch envs mid-process."""

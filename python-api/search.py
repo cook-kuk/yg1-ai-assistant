@@ -1,4 +1,5 @@
 from typing import Optional
+from config import SEARCH_DEFAULT_LIMIT
 from db import fetch_all, fetch_one
 
 # DB stores most "numeric" values as text (varchar) so a cast guard is needed
@@ -522,7 +523,7 @@ def search_products(
     stock_min: Optional[int] = None,
     stock_max: Optional[int] = None,
     warehouse: Optional[str] = None,
-    limit: int = 5000,
+    limit: int = SEARCH_DEFAULT_LIMIT,
 ) -> list[dict]:
     """Filter product_recommendation_mv on SCR intent + manual filter values."""
     filters = {
