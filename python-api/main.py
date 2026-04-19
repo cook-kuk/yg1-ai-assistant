@@ -1266,9 +1266,14 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
     # pagination at the top-50 from the last turn, so users clicking "다음
     # 20개" could only ever see 50 items even when the universe is 78k.
 
-    ranked = rank_candidates(rows, SCRIntent(**{
+    # Reconstruct the SCRIntent from carried filters so downstream helpers
+    # (matched_fields / affinity rating) get the same signal the original
+    # turn did. filters is a plain dict, not an SCRIntent, so strip keys
+    # the model doesn't know about first.
+    intent = SCRIntent(**{
         k: v for k, v in filters.items() if k in SCRIntent.model_fields
-    }), top_k=len(rows) or 1)
+    })
+    ranked = rank_candidates(rows, intent, top_k=len(rows) or 1)
 
     total = len(ranked)
     total_pages = max((total + page_size - 1) // page_size, 1)
