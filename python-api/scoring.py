@@ -24,6 +24,10 @@ SCORING_CONFIG: dict[str, float] = {
     "flagship_boost": 10,
     "micro_demote": -5,
     "material_pref": 5,
+    # Small nudge for rows that actually have stock. Avoids the case where
+    # two otherwise-equal candidates sort arbitrarily and the one the
+    # customer can't buy today wins the #1 slot.
+    "stock_boost": 3,
 }
 
 # Sum of every possible contribution — used to normalize final score into
@@ -288,13 +292,20 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
         # fallback. Preserves prior behavior when workpiece_name is absent.
         affinity = get_affinity_boost(c.get("brand"), wp_name, mat_tag)
         material_pref = _material_pref_boost(c.get("brand"), mat_tag)
+        stock_raw = c.get("total_stock")
+        try:
+            stock_qty = int(stock_raw) if stock_raw is not None else 0
+        except (TypeError, ValueError):
+            stock_qty = 0
+        stock = float(SCORING_CONFIG["stock_boost"]) if stock_qty > 0 else 0.0
         breakdown = {
             **breakdown,
             "affinity": round(affinity, 2),
             "flagship": round(flagship, 2),
             "material_pref": round(material_pref, 2),
+            "stock": round(stock, 2),
         }
-        raw = base + flagship + affinity + material_pref
+        raw = base + flagship + affinity + material_pref + stock
         normalized = min(100.0, round(raw / MAX_POSSIBLE_SCORE * 100, 1))
         scored.append((c, normalized, breakdown))
     scored.sort(key=lambda x: x[1], reverse=True)

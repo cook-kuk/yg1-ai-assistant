@@ -30,6 +30,12 @@ def _range_clause(
 # Extended SELECT — covers product-card display fields the /products endpoint
 # surfaces. /recommend paths only read the narrower subset so adding columns
 # here is backward-compatible.
+#
+# The two trailing scalar subqueries pull inventory from product_inventory_summary_mv
+# per EDP — a correlated lookup instead of a JOIN keeps the outer row cardinality
+# stable (no fan-out) and lets _build_where / get_filter_options / product_count_filtered
+# reuse the same SELECT without double-counting. NULL survives as NULL so the
+# client can distinguish "no snapshot" from "0 in stock".
 SELECT_COLS = """
     edp_no,
     edp_brand_name        AS brand,
@@ -69,7 +75,11 @@ SELECT_COLS = """
     series_application_shape,
     country_codes,
     norm_brand,
-    norm_coating
+    norm_coating,
+    (SELECT total_stock FROM catalog_app.product_inventory_summary_mv inv
+       WHERE inv.edp = edp_no) AS total_stock,
+    (SELECT warehouse_count FROM catalog_app.product_inventory_summary_mv inv
+       WHERE inv.edp = edp_no) AS warehouse_count
 """
 
 MV_TABLE = "catalog_app.product_recommendation_mv"

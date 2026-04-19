@@ -127,6 +127,33 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok", product_count=n)
 
 
+def _derive_stock_status(total_stock) -> Optional[str]:
+    """NULL = snapshot missing → no status (frontend hides the badge).
+    0 = outofstock, 1–4 = limited, 5+ = instock. Thresholds are intentionally
+    conservative: the snapshot is up to 24h old, so "limited" is a truer
+    signal than claiming fresh stock at single digits."""
+    if total_stock is None:
+        return None
+    try:
+        n = int(total_stock)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return "outofstock"
+    if n < 5:
+        return "limited"
+    return "instock"
+
+
+def _coerce_int(v) -> Optional[int]:
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _build_answer(intent, ranked: list) -> str:
     if not ranked:
         return "조건에 맞는 제품을 찾지 못했습니다."
@@ -452,7 +479,7 @@ def _empty_products_response(session_id: str | None = None) -> ProductsResponse:
 
 
 @app.post("/products", response_model=ProductsResponse)
-def products(req: ProductsRequest) -> ProductsResponse:
+async def products(req: ProductsRequest) -> ProductsResponse:
     if not req.message and not req.filters:
         return _empty_products_response(req.session_id)
 
@@ -460,7 +487,13 @@ def products(req: ProductsRequest) -> ProductsResponse:
     #    "이 중에서 4날" on turn 2 still remembers material+diameter.
     session = session_get_or_create(req.session_id)
 
+    # RAG knowledge fetched alongside SCR below — kept in outer scope so
+    # the recommendation branch reuses it instead of refetching.
+    knowledge: list[dict] = []
+
     # 1. Resolve intent — manual filters win, optional LLM fills the gaps.
+    #    When a message is present, fan out parse_intent + search_knowledge in
+    #    parallel so the ~2-3s SCR call and the ~1s RAG lookup overlap.
     if req.filters:
         intent = SCRIntent(
             diameter=req.filters.diameter,
@@ -475,18 +508,28 @@ def products(req: ProductsRequest) -> ProductsResponse:
         )
         route = "manual"
         if req.message:
-            try:
-                llm_intent = parse_intent(req.message)
+            llm_task = asyncio.to_thread(parse_intent, req.message)
+            rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
+            llm_res, rag_res = await asyncio.gather(llm_task, rag_task, return_exceptions=True)
+            if not isinstance(llm_res, BaseException):
                 for field in intent.__class__.model_fields:
-                    if getattr(intent, field) is None and getattr(llm_intent, field) is not None:
-                        setattr(intent, field, getattr(llm_intent, field))
+                    if getattr(intent, field) is None and getattr(llm_res, field) is not None:
+                        setattr(intent, field, getattr(llm_res, field))
                 route = "manual+llm"
-            except Exception:
-                # LLM failure is non-fatal when manual filters are provided.
-                pass
-    else:
-        intent = parse_intent(req.message or "")
+            if not isinstance(rag_res, BaseException):
+                knowledge = rag_res or []
+    elif req.message:
+        intent_task = asyncio.to_thread(parse_intent, req.message)
+        rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
+        intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
+        if isinstance(intent_res, BaseException):
+            # SCR failure is fatal — no filters to fall back to.
+            raise HTTPException(status_code=502, detail=f"SCR parse failed: {intent_res}")
+        intent = intent_res
+        knowledge = [] if isinstance(rag_res, BaseException) else (rag_res or [])
         route = "llm"
+    else:
+        return _empty_products_response(req.session_id)
 
     # Process exclusions BEFORE carry_forward, so that when the user says
     # "JET-POWER 필요 없어요" we (a) drop it from session state and (b) don't
@@ -527,24 +570,18 @@ def products(req: ProductsRequest) -> ProductsResponse:
     # opened with it.
     intent_value = (getattr(intent, "intent", None) or "recommendation")
     if intent_value in ("general_question", "domain_knowledge"):
-        knowledge: list[dict] = []
-        if intent_value == "domain_knowledge" and req.message:
-            try:
-                knowledge = search_knowledge(req.message, top_k=3)
-            except Exception:
-                knowledge = []
+        # Knowledge was already fetched in parallel with parse_intent above.
+        # General-question prompts deliberately drop it so off-topic CoT
+        # doesn't get derailed by unrelated cutting tips.
+        effective_knowledge = knowledge if intent_value == "domain_knowledge" else []
         answer_text = ""
         chips: list[str] = []
         if req.message:
             try:
-                chat_result = generate_response(
-                    message=req.message,
-                    intent=intent,
-                    products=[],
-                    knowledge=knowledge,
-                    total_count=0,
-                    relaxed_fields=None,
-                    available_filters=None,
+                chat_result = await asyncio.to_thread(
+                    generate_response,
+                    req.message, intent, [], effective_knowledge,
+                    0, None, None,
                 )
                 answer_text = chat_result.get("answer") or ""
                 chips = chat_result.get("chips") or []
@@ -557,7 +594,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
         sources.append(SourceAttribution(
             type="domain_knowledge" if intent_value == "domain_knowledge" else "llm_reasoning",
             detail=(
-                f"도메인 지식 {len(knowledge)}건 + CoT 응답"
+                f"도메인 지식 {len(effective_knowledge)}건 + CoT 응답"
                 if intent_value == "domain_knowledge"
                 else "카탈로그 외 질문 — CoT 응답"
             ),
@@ -739,6 +776,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
     top10: list[ProductCard] = []
     for c, s, b in ranked[:10]:
         edp = str(c.get("edp_no") or "")
+        stock_qty = _coerce_int(c.get("total_stock"))
         top10.append(ProductCard(
             edp_no=c["edp_no"],
             brand=c.get("brand"),
@@ -757,6 +795,9 @@ def products(req: ProductsRequest) -> ProductsResponse:
             coolant_hole=c.get("milling_coolant_hole"),
             shank_type=c.get("search_shank_type"),
             cutting_conditions=conditions_map.get(edp) or None,
+            total_stock=stock_qty,
+            warehouse_count=_coerce_int(c.get("warehouse_count")),
+            stock_status=_derive_stock_status(stock_qty),
             score=s,
             score_breakdown=b,
         ))
@@ -769,6 +810,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
             diameter=c.get("diameter"),
             flutes=c.get("flutes"),
             coating=c.get("coating"),
+            stock_status=_derive_stock_status(_coerce_int(c.get("total_stock"))),
             score=s,
         )
         for c, s, _ in ranked
@@ -789,12 +831,9 @@ def products(req: ProductsRequest) -> ProductsResponse:
     #    - Natural-language message → RAG lookup + GPT-5.4-mini (CoT).
     #    - Manual-only request → deterministic template (no LLM round-trip).
     chips: list[str] = []
-    knowledge: list[dict] = []
     if req.message:
-        try:
-            knowledge = search_knowledge(req.message, top_k=3)
-        except Exception:
-            knowledge = []
+        # `knowledge` was already fetched in parallel with parse_intent at the
+        # top of the handler — reuse it here instead of issuing a second call.
         for k in knowledge:
             k_type = k.get("type") or ""
             data = k.get("data") or {}
@@ -821,19 +860,20 @@ def products(req: ProductsRequest) -> ProductsResponse:
         # unspecified fields under the current filters. Runs only when the
         # candidate pool is big enough that narrowing is actually useful.
         try:
-            clarify_payload = suggest_clarifying_chips(filter_dict)
+            clarify_payload = await asyncio.to_thread(suggest_clarifying_chips, filter_dict)
         except Exception:
             clarify_payload = None
         try:
-            chat_result = generate_response(
-                message=req.message,
-                intent=intent,
-                products=[c for c, _, _ in ranked[:10]],
-                knowledge=knowledge,
-                total_count=len(ranked),
-                relaxed_fields=relaxed_fields or None,
-                available_filters=available or None,
-                clarify=clarify_payload,
+            chat_result = await asyncio.to_thread(
+                generate_response,
+                req.message,
+                intent,
+                [c for c, _, _ in ranked[:10]],
+                knowledge,
+                len(ranked),
+                relaxed_fields or None,
+                available or None,
+                clarify_payload,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
             chips = chat_result.get("chips") or []
@@ -946,6 +986,7 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
     products: list[ProductCard] = []
     for c, s, b in slice_:
         edp = str(c.get("edp_no") or "")
+        stock_qty = _coerce_int(c.get("total_stock"))
         products.append(ProductCard(
             edp_no=c["edp_no"],
             brand=c.get("brand"),
@@ -964,6 +1005,9 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
             coolant_hole=c.get("milling_coolant_hole"),
             shank_type=c.get("search_shank_type"),
             cutting_conditions=conditions_map.get(edp) or None,
+            total_stock=stock_qty,
+            warehouse_count=_coerce_int(c.get("warehouse_count")),
+            stock_status=_derive_stock_status(stock_qty),
             score=s,
             score_breakdown=b,
         ))
@@ -1011,7 +1055,11 @@ async def products_stream(req: ProductsRequest):
     async def generate():
         session = session_get_or_create(req.session_id)
 
-        # 1. intent
+        # Knowledge comes back from a parallel RAG lookup — hoisted above the
+        # intent-routing block so recommendation/domain branches share it.
+        knowledge: list[dict] = []
+
+        # 1. intent + RAG in parallel — overlap the ~2-3s SCR with the ~1s RAG.
         if req.filters:
             intent = SCRIntent(
                 diameter=req.filters.diameter,
@@ -1027,16 +1075,25 @@ async def products_stream(req: ProductsRequest):
             )
             route = "manual"
             if req.message:
-                try:
-                    llm_intent = await asyncio.to_thread(parse_intent, req.message)
+                llm_task = asyncio.to_thread(parse_intent, req.message)
+                rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
+                llm_res, rag_res = await asyncio.gather(llm_task, rag_task, return_exceptions=True)
+                if not isinstance(llm_res, BaseException):
                     for field in intent.__class__.model_fields:
-                        if getattr(intent, field) is None and getattr(llm_intent, field) is not None:
-                            setattr(intent, field, getattr(llm_intent, field))
+                        if getattr(intent, field) is None and getattr(llm_res, field) is not None:
+                            setattr(intent, field, getattr(llm_res, field))
                     route = "manual+llm"
-                except Exception:
-                    pass
+                if not isinstance(rag_res, BaseException):
+                    knowledge = rag_res or []
         else:
-            intent = await asyncio.to_thread(parse_intent, req.message or "")
+            intent_task = asyncio.to_thread(parse_intent, req.message or "")
+            rag_task = asyncio.to_thread(search_knowledge, req.message or "", 3)
+            intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
+            if isinstance(intent_res, BaseException):
+                intent = await asyncio.to_thread(parse_intent, req.message or "")
+            else:
+                intent = intent_res
+            knowledge = [] if isinstance(rag_res, BaseException) else (rag_res or [])
             route = "llm"
 
         # Mirror /products: handle brand exclusions before carry_forward so
@@ -1059,17 +1116,14 @@ async def products_stream(req: ProductsRequest):
         # endpoint for rationale.
         intent_value = (getattr(intent, "intent", None) or "recommendation")
         if intent_value in ("general_question", "domain_knowledge"):
-            knowledge = []
-            if intent_value == "domain_knowledge" and req.message:
-                try:
-                    knowledge = await asyncio.to_thread(search_knowledge, req.message, 3)
-                except Exception:
-                    knowledge = []
+            # Knowledge was already fetched in parallel with parse_intent above.
+            # Drop it for general_question so off-topic CoT stays clean.
+            effective_knowledge = knowledge if intent_value == "domain_knowledge" else []
             if req.message:
                 try:
                     chat_result = await asyncio.to_thread(
                         generate_response,
-                        req.message, intent, [], knowledge, 0, None, None,
+                        req.message, intent, [], effective_knowledge, 0, None, None,
                     )
                 except Exception:
                     chat_result = {
@@ -1184,12 +1238,9 @@ async def products_stream(req: ProductsRequest):
             f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened}, ensure_ascii=False)}\n\n"
         )
 
-        # 3. CoT answer
+        # 3. CoT answer — `knowledge` is already populated from the parallel
+        # RAG fetch at the top of this coroutine.
         if req.message:
-            try:
-                knowledge = await asyncio.to_thread(search_knowledge, req.message, 3)
-            except Exception:
-                knowledge = []
             try:
                 # Clarification chips — same as sync /products path. Runs on
                 # the current filter dict so the LLM sees which fields the DB

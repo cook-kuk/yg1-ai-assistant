@@ -172,6 +172,12 @@ class ProductCard(BaseModel):
     coolant_hole: Optional[str] = None
     shank_type: Optional[str] = None
     cutting_conditions: Optional[List[Dict[str, Any]]] = None
+    # Inventory summary — populated from product_inventory_summary_mv via the
+    # correlated subquery in SELECT_COLS. NULL means "no snapshot row" (not
+    # the same as stock_status='outofstock'), so keep all three optional.
+    total_stock: Optional[int] = None
+    warehouse_count: Optional[int] = None
+    stock_status: Optional[str] = None   # "instock" | "limited" | "outofstock"
     score: float
     score_breakdown: Dict[str, float]
 
@@ -184,6 +190,7 @@ class ProductSummary(BaseModel):
     diameter: Optional[str] = None
     flutes: Optional[str] = None
     coating: Optional[str] = None
+    stock_status: Optional[str] = None
     score: float
 
 
