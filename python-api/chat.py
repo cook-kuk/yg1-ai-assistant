@@ -335,13 +335,19 @@ def _build_conversation_memory_safe(session: Any) -> str:
         return ""
 
 
-def _raw_history_messages(session: Any, max_turns: int = 6) -> list[dict]:
+def _raw_history_messages(session: Any, max_turns: int | None = None) -> list[dict]:
     """Return the last `max_turns` turns in Anthropic/OpenAI messages[]
     shape — [{role, content}, …] — for prepending to the CoT call.
     No summarization, no reformatting. Falls back to [] when the session
-    is None or the helper import fails, so the prompt stays well-formed."""
+    is None or the helper import fails, so the prompt stays well-formed.
+
+    `max_turns` defaults to config.MEMORY_MAX_TURNS when omitted — callers
+    that need a different window can override explicitly."""
     if session is None:
         return []
+    if max_turns is None:
+        from config import MEMORY_MAX_TURNS
+        max_turns = MEMORY_MAX_TURNS
     try:
         from session import format_history_for_llm
         return format_history_for_llm(session, max_turns=max_turns)
@@ -586,7 +592,7 @@ def _generate_light_cot(
     # Prepend raw conversation history as literal messages[] entries —
     # Anthropic/OpenAI convention. No summarization, no "[대화 히스토리]"
     # text block. Bounded by max_turns=6 to keep token cost flat.
-    history_msgs = _raw_history_messages(session, max_turns=6)
+    history_msgs = _raw_history_messages(session)
 
     client = _get_client()
     resp = client.chat.completions.create(
@@ -665,6 +671,16 @@ _DISSAT_SIGNALS = DISSAT_SIGNALS
 _STRONG_THRESHOLD = _CFG_STRONG_THRESHOLD
 
 
+def _session_has_prior(session: Any) -> bool:
+    """True iff the session carries at least one prior turn. Used to gate
+    signals (dissat / 0건) that are only meaningful as *follow-up* cues —
+    on a fresh turn-1 they over-escalate and burn latency for nothing."""
+    if session is None:
+        return False
+    turns = getattr(session, "turns", None)
+    return bool(turns)
+
+
 def _assess_cot_level(
     message: str,
     intent: Any,
@@ -672,24 +688,35 @@ def _assess_cot_level(
     knowledge: list,
     total_count: int,
     relaxed_fields: list | None,
+    session: Any = None,
 ) -> str:
     """Return "strong" when the composite signal score crosses
     _STRONG_THRESHOLD, else "light". Signals are orthogonal — compare+why
-    can co-occur and add independently."""
+    can co-occur and add independently.
+
+    `session` (optional) lets two signals stay gated to follow-up turns
+    only: (1) the 0건 escalation skips for short fresh queries where the
+    user just hasn't given enough detail yet; (2) DISSAT needs a prior
+    turn to be meaningful ("아니" on turn-1 is noise, not a complaint)."""
     if not message:
         return "light"
 
     msg = message.lower()
     score = 0
     reasons: list[str] = []
+    has_prior = _session_has_prior(session)
 
     # Signal weights tuned so each "primary" signal (compare / why /
     # trouble / S·H material / dissat / 0건) crosses _STRONG_THRESHOLD=3
     # on its own, while pure spec queries ("수스 10mm 4날") that only
     # raise the "filter-richness" booster stay on light.
 
-    # Signal 1 — uncertainty in the result set.
-    if total_count == 0:
+    # Signal 1 — uncertainty in the result set. Gated off for short,
+    # fresh queries (no prior turn + ≤15 chars) because those are usually
+    # the user warming up ("sus", "10mm") — they don't need Strong, they
+    # need carry_forward to catch more context on the next turn.
+    is_fresh_short = (not has_prior) and len(message) <= 15
+    if total_count == 0 and not is_fresh_short:
         score += 3
         reasons.append("0건")
     if relaxed_fields:
@@ -738,8 +765,10 @@ def _assess_cot_level(
         reasons.append(f"knowledge={len(knowledge)}")
 
     # Signal 7 — dissatisfaction in a follow-up turn. User is asking us
-    # to reconsider; the extra reasoning pays for itself.
-    if any(k in msg for k in _DISSAT_SIGNALS):
+    # to reconsider; the extra reasoning pays for itself. Requires a prior
+    # turn to exist; otherwise "아니 ..." on turn-1 is likely just speech
+    # noise ("아니 그게 아니고 sus로 …") and escalation burns latency.
+    if has_prior and any(k in msg for k in _DISSAT_SIGNALS):
         score += 3
         reasons.append("dissat")
 
@@ -842,7 +871,7 @@ def _generate_strong_cot(
     user_turn = "\n\n".join(parts)
 
     # Raw messages[] history — same convention as the light path.
-    history_msgs = _raw_history_messages(session, max_turns=6)
+    history_msgs = _raw_history_messages(session)
 
     client = _get_client()
     try:
@@ -980,6 +1009,7 @@ def generate_response(
     without a session store."""
     level = _assess_cot_level(
         message, intent, products or [], knowledge or [], total_count, relaxed_fields,
+        session=session,
     )
     if level == "strong":
         result = _generate_strong_cot(
@@ -1147,7 +1177,7 @@ async def stream_strong_cot(
     last_emit = 0
     draft_ok = False
     # Raw messages[] history — same convention as sync strong path.
-    history_msgs = _raw_history_messages(session, max_turns=6)
+    history_msgs = _raw_history_messages(session)
     try:
         stream = await aclient.chat.completions.create(
             model=OPENAI_STRONG_MODEL,
