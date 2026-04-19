@@ -32,14 +32,17 @@ def test_recommend_returns_top5_with_scores(api_client, db_conn, anthropic_clien
     assert 0 < len(body["candidates"]) <= 5
     assert len(body["candidates"]) == len(body["scores"])
 
-    # scores must be monotonically non-increasing
+    # diversity_rerank (scoring.py) intentionally reshuffles #2-#10 for brand
+    # diversity while locking #1. So strict descending no longer holds — but
+    # #1 must still carry the global max and every score must be in [0,100].
     score_values = [s["score"] for s in body["scores"]]
-    assert score_values == sorted(score_values, reverse=True)
+    assert score_values[0] == max(score_values)
+    assert all(0.0 <= s <= 100.0 for s in score_values)
 
-    # breakdown keys: base weight schema + affinity + flagship + material_pref
+    # breakdown keys: base weight schema + affinity + flagship + material_pref + stock
     assert set(body["scores"][0]["breakdown"].keys()) == {
         "diameter", "flutes", "material", "shape", "coating",
-        "affinity", "flagship", "material_pref",
+        "affinity", "flagship", "material_pref", "stock",
     }
 
 
