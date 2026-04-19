@@ -50,19 +50,48 @@ def _normalize_key(value: Optional[str]) -> str:
 # actually appear in public.brand_material_affinity (material_kind='workpiece')
 # need to resolve; everything else falls through to the ISO group path.
 _WORKPIECE_ALIAS: dict[str, str] = {
-    # Copper group
-    "구리": "COPPER", "copper": "COPPER", "황동": "COPPER", "brass": "COPPER",
+    # ─ Copper group ─────────────────────────────────────────────
+    # Pure copper, alloys, and the related non-ferrous variants users
+    # commonly call out by Korean/industry slang.
+    "구리": "COPPER", "copper": "COPPER",
+    "동": "COPPER",                       # 동(銅) — bare Sino-Korean form
+    "적동": "COPPER",                     # 적동(red copper)
+    "백동": "COPPER",                     # 백동(cupronickel)
+    "무산소동": "COPPER", "ofc": "COPPER",  # OFC = oxygen-free copper
+    "황동": "COPPER", "brass": "COPPER",
+    "놋쇠": "COPPER",                     # 놋쇠 = brass (older form)
     "청동": "COPPER", "bronze": "COPPER",
-    # Aluminum group
+    "인청동": "COPPER",                   # phosphor bronze
+    "베릴륨동": "COPPER", "berylliumcopper": "COPPER", "becu": "COPPER",
+    # ─ Aluminum group ───────────────────────────────────────────
+    # Standard alloys + the magnesium / zinc / tin family that share
+    # ALU-CUT/ALU-POWER's recommended cutting envelope (light non-ferrous).
     "알루미늄": "ALUMINUM", "알미늄": "ALUMINUM", "aluminum": "ALUMINUM",
-    "aluminium": "ALUMINUM", "두랄루민": "ALUMINUM", "duralumin": "ALUMINUM",
-    "a2024": "ALUMINUM", "a5052": "ALUMINUM", "a6061": "ALUMINUM", "a7075": "ALUMINUM",
-    # Titanium group (includes common nickel superalloys that map here in the
-    # DB seed — TitaNox-Power is rated EXCELLENT for all "titanium-like" jobs)
-    "티타늄": "TITANIUM", "titanium": "TITANIUM", "ti6al4v": "TITANIUM", "ti": "TITANIUM",
-    "인코넬": "TITANIUM", "inconel": "TITANIUM", "in718": "TITANIUM", "in625": "TITANIUM",
+    "aluminium": "ALUMINUM", "알": "ALUMINUM",
+    "두랄루민": "ALUMINUM", "duralumin": "ALUMINUM",
+    "마그네슘": "ALUMINUM", "magnesium": "ALUMINUM", "mg": "ALUMINUM",
+    "아연": "ALUMINUM", "zinc": "ALUMINUM",
+    "주석": "ALUMINUM", "tin": "ALUMINUM",
+    "a2024": "ALUMINUM", "a5052": "ALUMINUM", "a6061": "ALUMINUM",
+    "a7075": "ALUMINUM", "ad12": "ALUMINUM", "ac4ch": "ALUMINUM",
+    # ─ Titanium / superalloy group ──────────────────────────────
+    # Ti and the nickel/cobalt-based superalloys that map to TitaNox-Power's
+    # recommendation envelope. The DB doesn't break these out separately;
+    # all roll into TITANIUM affinity bucket.
+    "티타늄": "TITANIUM", "titanium": "TITANIUM",
+    "ti6al4v": "TITANIUM", "ti-6al-4v": "TITANIUM", "ti": "TITANIUM",
+    "인코넬": "TITANIUM", "inconel": "TITANIUM",
+    "in718": "TITANIUM", "in625": "TITANIUM",
     "하스텔로이": "TITANIUM", "hastelloy": "TITANIUM",
-    "내열합금": "TITANIUM", "초내열": "TITANIUM",
+    "모넬": "TITANIUM", "monel": "TITANIUM",
+    "스텔라이트": "TITANIUM", "stellite": "TITANIUM",
+    "와스팔로이": "TITANIUM", "waspaloy": "TITANIUM",
+    "니모닉": "TITANIUM", "nimonic": "TITANIUM",
+    "니켈": "TITANIUM", "nickel": "TITANIUM",
+    "니켈합금": "TITANIUM", "ni합금": "TITANIUM",
+    "코발트": "TITANIUM", "cobalt": "TITANIUM", "co-cr": "TITANIUM",
+    "내열합금": "TITANIUM", "초내열": "TITANIUM", "초내열합금": "TITANIUM",
+    "superalloy": "TITANIUM",
 }
 
 

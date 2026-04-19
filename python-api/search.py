@@ -284,8 +284,18 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
 
     country = filters.get("country")
     if country and not _skip("country"):
-        where.append("country_codes @> ARRAY[%s]::text[]")
-        params.append(country)
+        # MV stores country_codes mixed case (KOREA / AMERICA / America /
+        # EUROPE / Europe / ASIA / Asia). User input is free-form Korean
+        # ("한국/미국/유럽/아시아") or any case English ("usa", "EU", "us").
+        # Canonicalize via country_alias.expand_country which returns all
+        # MV literal forms for the resolved region; OR-match the array.
+        from country_alias import expand_country
+        expanded = expand_country(country)
+        if expanded:
+            where.append("country_codes && ARRAY[%s]::text[]" % ", ".join(["%s"] * len(expanded)))
+            params.extend(expanded)
+        # else: unresolvable input → drop the filter rather than return 0
+        # (better to widen than to misleadingly empty the result set).
 
     coolant_hole = filters.get("coolant_hole")
     if coolant_hole and not _skip("coolant_hole"):
@@ -422,15 +432,20 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
     # an aggregate total_stock ≥ N automatically implies positive stock so
     # both gates don't need to fire together. The SCR regex enforces the
     # mutual exclusion upstream (numeric threshold ⇒ in_stock_only=null).
+    #
+    # NULL handling — NULL total_stock means "we don't know the quantity".
+    # For ≥N the column must be NOT NULL AND >= N; for ≤N likewise (otherwise
+    # unknown-stock rows would spuriously pass "재고 10개 이하" and confuse
+    # the user). The IS NOT NULL gate is added to BOTH bounds for symmetry.
     stock_min = filters.get("stock_min")
     stock_max = filters.get("stock_max")
     if (stock_min is not None or stock_max is not None) and not _skip("stock_range"):
-        cond = ["inv.edp = edp_no"]
+        cond = ["inv.edp = edp_no", "inv.total_stock IS NOT NULL"]
         if stock_min is not None:
-            cond.append("COALESCE(inv.total_stock, 0) >= %s")
+            cond.append("inv.total_stock >= %s")
             params.append(int(stock_min))
         if stock_max is not None:
-            cond.append("COALESCE(inv.total_stock, 0) <= %s")
+            cond.append("inv.total_stock <= %s")
             params.append(int(stock_max))
         where.append(
             f"EXISTS (SELECT 1 FROM {INVENTORY_MV} inv WHERE " + " AND ".join(cond) + ")"

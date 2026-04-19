@@ -197,7 +197,34 @@ def build_cases() -> list[tuple[str, dict, str, callable]]:
         ("F02", {"msg": "고경도강 2날 러핑 30mm DLC"}, "극한2", lambda r: True),
         ("F03", {"msg": "추천해줘"}, "빈쿼리 유도", lambda r: True),
     ]
-    return A + B + C + D + E + F
+    # G. COUNTRY + workpiece extras (audit follow-up)
+    G = [
+        # Country alias — Korean
+        ("G01", {"msg": "한국 재고 있는 수스 10mm"}, "country=한국→KOREA",
+         lambda r: r["appliedFilters"].get("country") in ("한국", "KOREA")),
+        ("G02", {"msg": "유럽에서 알루미늄 10mm 볼"}, "country=유럽→EUROPE",
+         lambda r: r["appliedFilters"].get("country") in ("유럽", "EUROPE")),
+        ("G03", {"msg": "미국 재고 수스 6mm"}, "country=미국→AMERICA",
+         lambda r: r["appliedFilters"].get("country") in ("미국", "AMERICA")),
+        ("G04", {"msg": "아시아 위주 V7 PLUS 10mm"}, "country=아시아→ASIA",
+         lambda r: r["appliedFilters"].get("country") in ("아시아", "ASIA")),
+        # Country alias — Manual filter (already-canonical Korean form)
+        ("G05", {"filters": {"country": "한국", "material_tag": "M"}}, "country 수동 한국",
+         lambda r: r["totalCount"] > 0),
+        ("G06", {"filters": {"country": "Europe", "material_tag": "N"}}, "country 수동 Europe",
+         lambda r: r["totalCount"] > 0),
+        # Workpiece extras — non-3-key materials should still resolve via
+        # the expanded affinity map (not zero out the result, just yield
+        # candidates with an ISO-group fallback).
+        ("G07", {"msg": "놋쇠 6mm 2날"}, "놋쇠→COPPER",
+         lambda r: r["totalCount"] > 0),
+        ("G08", {"msg": "베릴륨동 4mm 볼"}, "베릴륨동→COPPER", lambda r: r["totalCount"] >= 0),
+        ("G09", {"msg": "마그네슘 8mm"}, "마그네슘→ALUMINUM", lambda r: r["totalCount"] >= 0),
+        ("G10", {"msg": "니켈 합금 10mm 5날"}, "니켈→TITANIUM", lambda r: r["totalCount"] >= 0),
+        ("G11", {"msg": "하스텔로이 8mm"}, "하스텔로이→TITANIUM", lambda r: r["totalCount"] >= 0),
+        ("G12", {"msg": "Monel 6mm"}, "Monel→TITANIUM", lambda r: r["totalCount"] >= 0),
+    ]
+    return A + B + C + D + E + F + G
 
 
 async def run_one(session, sem, case, results):

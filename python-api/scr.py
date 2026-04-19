@@ -230,6 +230,70 @@ def _resolve_coating(raw: str | None) -> str | None:
 _MATERIAL_LOOKUP: dict[str, str] | None = None
 
 
+# Known non-EDP uppercase tokens that _detect_reference_lookup must not
+# mistake for a product code. Covers the industrial-material and coating
+# vocabulary the user is most likely to type in place of a real EDP.
+_REFERENCE_LOOKUP_EXCLUDE: frozenset[str] = frozenset({
+    "SUS304", "SUS316", "SUS316L", "SUS430",
+    "S45C", "S50C", "SM45C", "SCM415", "SCM440", "SCM415H", "SNCM439",
+    "SKD11", "SKD61", "SKH51", "SKH59",
+    "NAK80", "STAVAX", "HPM38", "P20",
+    "A2024", "A5052", "A6061", "A7075",
+    "FC200", "FC250", "FC300", "GC200", "GC250", "GC300",
+    "H13", "D2", "M2",
+    "TIALN", "ALTIN", "ALCRN", "TICN", "TIN", "DLC",
+    "CBN", "PCD", "HSS", "CARBIDE", "HSSE",
+    "AISI", "ASTM", "DIN", "JIS", "KOREA", "USA",
+})
+
+_REFERENCE_LOOKUP_RE = re.compile(r"\b([A-Z][A-Z0-9]*\d[A-Z0-9]*)\b")
+
+# Korean verbs/phrases that signal "show me THIS specific thing" — used to
+# promote a series_name match to a reference peek when no full EDP was typed.
+_REFERENCE_LOOKUP_HINTS: tuple[str, ...] = (
+    "보여", "알려", "설명", "뭐", "스펙", "이에요", "이라고", "인가", "찾아",
+    "궁금", "봐줘",
+)
+
+
+def _detect_reference_lookup(
+    message: str,
+    llm_series_name: str | None,
+) -> str | None:
+    """Pick up a specific EDP/series token the user is pointing at.
+
+    Fires when the user is asking about ONE concrete product family while a
+    broader filter session is already in play ("UGMG34919 보여줘",
+    "GMF52 스펙 어때?"). main.py uses this to run an independent DB lookup
+    and surface a separate `reference_products` card — filter session and
+    ranked list are NOT touched.
+
+    Returns the matched token, or None.
+    """
+    if not message:
+        return llm_series_name or None
+
+    msg_upper = message.upper()
+
+    # Stage 1 — EDP-shaped token in the raw message. Require ≥6 chars with
+    # a digit so we don't pick up "ALUMINUM"/"ROUGHING"/"SQUARE". Skip known
+    # material/coating vocab so "SUS304 10mm" doesn't trigger a peek.
+    for m in _REFERENCE_LOOKUP_RE.finditer(msg_upper):
+        tok = m.group(1)
+        if len(tok) < 6:
+            continue
+        if tok in _REFERENCE_LOOKUP_EXCLUDE:
+            continue
+        return tok
+
+    # Stage 2 — LLM-extracted series_name + a "show me" verb. Covers the
+    # "V7 PLUS 설명해줘" shape where the token is a brand/family, not an EDP.
+    if llm_series_name and any(h in message for h in _REFERENCE_LOOKUP_HINTS):
+        return llm_series_name
+
+    return None
+
+
 def _normalize_code(value: str) -> str:
     """Alphanumeric-only lowercase key. Strips whitespace + Korean +
     punctuation so 'GB 규격 20' and 'GB 20' both collapse to 'gb20'."""
@@ -420,7 +484,8 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "shank_diameter_min": number|null,  // 샹크 하한 mm
   "shank_diameter_max": number|null,  // 샹크 상한 mm
   "cutting_edge_shape": string|null,   // 절삭날 형상. subtype 과 같은 값을 가리키지만, **subtype 을 우선** 채울 것 — cutting_edge_shape 는 series_cutting_edge_shape 검색용 보조 필드.
-  "application_shape": string|null     // 가공 방식 / 적용 형상. 사용자가 **가공 목적·절삭 방식**을 말하면 추출. 예: "Side Milling"(측면가공), "Roughing"(황삭), "Facing"(페이싱), "Slotting"(슬로팅), "Profiling"(프로파일링), "Helical Interpolation"(헬리컬), "Trochoidal"(트로코이달), "Die-Sinking"(금형가공). subtype 과 독립적이라 둘 다 값이 있을 수 있음 (예: "Square + Side Milling"). 한글 입력은 canonical 영문으로 변환.
+  "application_shape": string|null,    // 가공 방식 / 적용 형상. 사용자가 **가공 목적·절삭 방식**을 말하면 추출. 예: "Side Milling"(측면가공), "Roughing"(황삭), "Facing"(페이싱), "Slotting"(슬로팅), "Profiling"(프로파일링), "Helical Interpolation"(헬리컬), "Trochoidal"(트로코이달), "Die-Sinking"(금형가공). subtype 과 독립적이라 둘 다 값이 있을 수 있음 (예: "Square + Side Milling"). 한글 입력은 canonical 영문으로 변환.
+  "country": string|null               // 판매 지역 / 재고 지역. 한국/미국/유럽/아시아 또는 KOREA/AMERICA/EUROPE/ASIA. "한국 재고", "미국에서", "유럽 위주로" 등에서 추출. 일본/중국/대만은 ASIA로 묶음. 매핑은 country_alias.py에서 정규화.
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -857,62 +922,107 @@ def _is_brand_excluded(message: str, brand: str) -> bool:
     return False
 
 
-# Stock-range regex patterns — match "재고 N개 이상/이하/초과/미만" and the
-# English "stock >= N" / "stock <= N" equivalents. Compiled once at import.
-# Parses what the LLM reliably mis-classifies ("재고 200개 이상만" → true)
-# so stock_min/stock_max survive when the LLM drops them.
-#
-# Explicit inclusive/exclusive handling:
-#   이상 / 초과 / more than / >=      → min (이상·>=·↑ inclusive; 초과·more than exclusive → +1)
-#   이하 / 미만 / less than / <=      → max (이하·<=·↓ inclusive; 미만·less than exclusive → -1)
+# ── Stock-range vocab — single source of truth ─────────────────────
+# Both the regex patterns AND the inclusive/exclusive classifier share
+# the same token lists so adding a new phrase (e.g. "above", "초과해서")
+# only touches one place. `_compile_stock_patterns()` re-emits the regexes
+# from this dict; tests that poke the vocab will still pass because the
+# patterns are built at module load.
+_STOCK_VOCAB: dict[str, tuple[str, ...]] = {
+    # Noun tokens that anchor a stock expression. Anything preceding a
+    # number/op must match one of these to avoid false positives like
+    # "4mm 이상" (that's a diameter, not stock).
+    "nouns": (
+        "재고", "재고량", "수량",
+        "stock", "inventory", "qty", "quantity", "available",
+    ),
+    # Korean particles that optionally sit between the noun and the number.
+    "particles": ("는", "이", "가", "을", "를", "도", "만", "의", ":"),
+    # Counters / quantity units the user may append after the number.
+    "units": ("개", "ea", "pcs", "piece", "pieces", "건", "items", "box"),
+    # Range-form separators. "재고 50~200" / "stock 50 to 200".
+    "range_seps": ("~", "-", "—", "…", "부터", "에서", "between", "to", "및"),
+    # Comparative ops — ORDER MATTERS inside each tuple: compound tokens
+    # first so ">=" never loses to a bare ">". `_is_exclusive` checks the
+    # "inclusive" tuple before falling through to the "exclusive" one.
+    "min_inclusive": (">=", "≥", "at least", "↑", "+", "이상"),
+    "min_exclusive": ("초과", "over", "above", "more than", ">"),
+    "max_inclusive": ("<=", "≤", "at most", "↓", "이하"),
+    "max_exclusive": ("미만", "less than", "below", "under", "<"),
+}
 
-_STOCK_NUM_RE = re.compile(
-    r"(?:재고|stock|inventory|qty|quantity)\s*"
-    r"(?:는|이|가|을|를|:)?\s*"
-    r"(?P<n1>\d+)\s*(?:개|ea|pcs|piece|pieces)?"
-    r"\s*(?:~|-|부터|에서|between|to)\s*"
-    r"(?P<n2>\d+)\s*(?:개|ea|pcs|piece|pieces)?",
-    re.IGNORECASE,
-)
-_STOCK_MIN_RE = re.compile(
-    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
-    r"(?P<n>\d+)\s*(?:개|ea|pcs|piece|pieces)?\s*"
-    r"(?P<op>이상|초과|over|more\s+than|at\s+least|>=|>|↑|\+)",
-    re.IGNORECASE,
-)
-_STOCK_MAX_RE = re.compile(
-    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
-    r"(?P<n>\d+)\s*(?:개|ea|pcs|piece|pieces)?\s*"
-    r"(?P<op>이하|미만|under|less\s+than|at\s+most|<=|<|↓)",
-    re.IGNORECASE,
-)
-# English-first order: "stock >= 200"
-_STOCK_MIN_EN_FIRST = re.compile(
-    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
-    r"(?P<op>>=|>|at\s+least|more\s+than|over)\s*"
-    r"(?P<n>\d+)",
-    re.IGNORECASE,
-)
-_STOCK_MAX_EN_FIRST = re.compile(
-    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
-    r"(?P<op><=|<|at\s+most|less\s+than|under)\s*"
-    r"(?P<n>\d+)",
-    re.IGNORECASE,
-)
 
-# "or equal" variants first so ">=" isn't misread as exclusive ">".
-_INCLUSIVE_MIN_TOKS = (">=", "at least", "↑", "+", "이상")
-_EXCLUSIVE_MIN_TOKS = ("초과", "over", "more than", ">")
-_INCLUSIVE_MAX_TOKS = ("<=", "at most", "↓", "이하")
-_EXCLUSIVE_MAX_TOKS = ("미만", "less than", "under", "<")
+def _alt(tokens: tuple[str, ...]) -> str:
+    """Build a regex alternation from a token tuple, longest-first so that
+    ">=" wins over ">" during NFA matching. Escapes each token so "+" / "↑"
+    / ">=" stay literal."""
+    ordered = sorted(tokens, key=len, reverse=True)
+    return "|".join(re.escape(t).replace(r"\ ", r"\s+") for t in ordered)
+
+
+def _compile_stock_patterns() -> dict[str, re.Pattern]:
+    """Regex factory — emits all four stock patterns from _STOCK_VOCAB.
+    Any vocab edit immediately propagates through the compiled patterns."""
+    nouns = _alt(_STOCK_VOCAB["nouns"])
+    part = _alt(_STOCK_VOCAB["particles"])
+    units = _alt(_STOCK_VOCAB["units"])
+    range_sep = _alt(_STOCK_VOCAB["range_seps"])
+    min_ops = _alt(_STOCK_VOCAB["min_inclusive"] + _STOCK_VOCAB["min_exclusive"])
+    max_ops = _alt(_STOCK_VOCAB["max_inclusive"] + _STOCK_VOCAB["max_exclusive"])
+    # For English-first ops the inclusive/exclusive split is by direction.
+    min_ops_en_first = _alt(tuple(
+        t for t in _STOCK_VOCAB["min_inclusive"] + _STOCK_VOCAB["min_exclusive"]
+        if t not in ("↑", "+", "이상", "초과")
+    ))
+    max_ops_en_first = _alt(tuple(
+        t for t in _STOCK_VOCAB["max_inclusive"] + _STOCK_VOCAB["max_exclusive"]
+        if t not in ("↓", "이하", "미만")
+    ))
+    n_block = rf"(?P<n>\d+)\s*(?:{units})?"
+    noun_block = rf"(?:{nouns})\s*(?:{part})?\s*"
+    return {
+        "range": re.compile(
+            rf"{noun_block}(?P<n1>\d+)\s*(?:{units})?\s*(?:{range_sep})\s*(?P<n2>\d+)\s*(?:{units})?",
+            re.IGNORECASE,
+        ),
+        "min_num_first": re.compile(
+            rf"{noun_block}{n_block}\s*(?P<op>{min_ops})",
+            re.IGNORECASE,
+        ),
+        "max_num_first": re.compile(
+            rf"{noun_block}{n_block}\s*(?P<op>{max_ops})",
+            re.IGNORECASE,
+        ),
+        "min_op_first": re.compile(
+            rf"{noun_block}(?P<op>{min_ops_en_first})\s*(?P<n>\d+)",
+            re.IGNORECASE,
+        ),
+        "max_op_first": re.compile(
+            rf"{noun_block}(?P<op>{max_ops_en_first})\s*(?P<n>\d+)",
+            re.IGNORECASE,
+        ),
+    }
+
+
+_STOCK_PATTERNS = _compile_stock_patterns()
+_STOCK_NUM_RE = _STOCK_PATTERNS["range"]
+_STOCK_MIN_RE = _STOCK_PATTERNS["min_num_first"]
+_STOCK_MAX_RE = _STOCK_PATTERNS["max_num_first"]
+_STOCK_MIN_EN_FIRST = _STOCK_PATTERNS["min_op_first"]
+_STOCK_MAX_EN_FIRST = _STOCK_PATTERNS["max_op_first"]
 
 
 def _is_exclusive(op: str, inclusive: tuple[str, ...], exclusive: tuple[str, ...]) -> bool:
     """Return True only when the op matches an *exclusive* token and does
-    NOT match a longer inclusive token. Fixes the >=/>  ambiguity."""
-    if any(t in op for t in inclusive):
+    NOT match a longer inclusive token. Fixes the >=/>  ambiguity.
+
+    Case-insensitive on the operator string because the regex IGNORECASE
+    flag means the captured group can be any case.
+    """
+    o = op.lower()
+    if any(t.lower() in o for t in inclusive):
         return False
-    return any(t in op for t in exclusive)
+    return any(t.lower() in o for t in exclusive)
 
 
 def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
@@ -951,7 +1061,9 @@ def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
             except (TypeError, ValueError):
                 continue
             op = (m.group("op") or "").lower()
-            exclusive = _is_exclusive(op, _INCLUSIVE_MIN_TOKS, _EXCLUSIVE_MIN_TOKS)
+            exclusive = _is_exclusive(
+                op, _STOCK_VOCAB["min_inclusive"], _STOCK_VOCAB["min_exclusive"]
+            )
             out["stock_min"] = n + 1 if exclusive else n
             break
 
@@ -963,7 +1075,9 @@ def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
             except (TypeError, ValueError):
                 continue
             op = (m.group("op") or "").lower()
-            exclusive = _is_exclusive(op, _INCLUSIVE_MAX_TOKS, _EXCLUSIVE_MAX_TOKS)
+            exclusive = _is_exclusive(
+                op, _STOCK_VOCAB["max_inclusive"], _STOCK_VOCAB["max_exclusive"]
+            )
             out["stock_max"] = max(0, n - 1) if exclusive else n
             break
 
@@ -1176,4 +1290,8 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         shank_diameter_max=_as_float(data.get("shank_diameter_max")),
         cutting_edge_shape=(data.get("cutting_edge_shape") or None) or None,
         application_shape=(data.get("application_shape") or None) or None,
+        country=(data.get("country") or None) or None,
+        reference_lookup=_detect_reference_lookup(
+            message, (data.get("series_name") or None) or None
+        ),
     )

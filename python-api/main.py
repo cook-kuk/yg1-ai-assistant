@@ -239,6 +239,71 @@ def _stock_summary_from_ranked(ranked: list) -> Optional[dict]:
     return {"in_stock": in_stock, "total": total, "pct": pct}
 
 
+_REFERENCE_PEEK_LIMIT = 6  # upper bound on "조회한 상품" cards
+
+
+def _build_reference_peek(
+    token: str | None,
+    main_cards: list,
+) -> tuple[list, str | None]:
+    """Independent EDP/series lookup for the "조회한 상품" side panel.
+
+    Returns `(cards, token)`. Empty list when the token didn't resolve or
+    every hit already appears in the main ranked list (so we don't
+    duplicate). Filter-session is NOT consulted — this lookup deliberately
+    ignores material_tag/stock/flute filters so the user can peek at a
+    specific product mid-session without losing their narrowing state.
+    """
+    if not token:
+        return [], None
+    token = token.strip().upper()
+    if not token:
+        return [], None
+    try:
+        hits = search_products_fast({"edp_no": token}, limit=_REFERENCE_PEEK_LIMIT)
+    except Exception:
+        return [], token
+    if not hits:
+        return [], token
+    # De-dup against what's already in the main ranked list so we don't
+    # render the same card twice. The peek section is strictly *additional*
+    # context.
+    main_edps = {str(getattr(c, "edp_no", "") or "").upper() for c in main_cards}
+    peek: list = []
+    for row in hits:
+        edp = str(row.get("edp_no") or "").upper()
+        if edp in main_edps:
+            continue
+        stock_qty = _coerce_int(row.get("total_stock"))
+        peek.append(ProductCard(
+            edp_no=row["edp_no"],
+            brand=row.get("brand"),
+            series=row.get("series"),
+            tool_type=row.get("tool_type"),
+            subtype=row.get("subtype"),
+            diameter=row.get("diameter"),
+            flutes=row.get("flutes"),
+            coating=row.get("coating"),
+            material_tags=row.get("material_tags"),
+            description=row.get("series_description"),
+            feature=row.get("series_feature"),
+            oal=row.get("milling_overall_length"),
+            loc=row.get("milling_length_of_cut"),
+            helix_angle=row.get("milling_helix_angle"),
+            coolant_hole=row.get("milling_coolant_hole"),
+            shank_type=row.get("search_shank_type"),
+            edp_unit=row.get("edp_unit"),
+            shank_dia=row.get("milling_shank_dia"),
+            ball_radius=row.get("milling_ball_radius"),
+            neck_diameter=row.get("milling_neck_diameter"),
+            effective_length=row.get("milling_effective_length"),
+            total_stock=stock_qty,
+            warehouse_count=_coerce_int(row.get("warehouse_count")),
+            stock_status=_derive_stock_status(stock_qty),
+        ))
+    return peek, token
+
+
 def _build_answer(intent, ranked: list, cutting_range: dict | None = None) -> str:
     if not ranked:
         return "조건에 맞는 제품을 찾지 못했습니다."
@@ -1237,6 +1302,15 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         existing = set(chips)
         chips = series_chips + [c for c in chips if c not in series_chips and c not in existing]
 
+    # "조회한 상품" peek — when the user points at an EDP/series mid-session,
+    # we do an independent lookup that ignores the live filter session and
+    # ship the result as a separate reference_products list. The main ranked
+    # list and filter state are untouched, so the user can keep narrowing
+    # after inspecting the reference. See SCRIntent.reference_lookup.
+    reference_products, reference_query = _build_reference_peek(
+        getattr(intent, "reference_lookup", None), top10
+    )
+
     return ProductsResponse(
         text=cleaned_answer,
         chips=chips,
@@ -1254,6 +1328,8 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         cot_level=(chat_result.get("cot_level") if isinstance(chat_result, dict) else None),
         verified=(chat_result.get("verified") if isinstance(chat_result, dict) else None),
         score_breakdown_max=SCORE_BREAKDOWN_MAX,
+        reference_products=reference_products,
+        reference_query=reference_query,
     )
 
 
@@ -1605,9 +1681,21 @@ async def products_stream(req: ProductsRequest):
                 "score": s,
                 "score_breakdown": b,
             })
+        # Independent peek lookup for the "조회한 상품" side section. Runs
+        # outside the filter session so UGMG34919 shows up even when the
+        # user was narrowed to N군. De-dup against top10_payload (dicts)
+        # rather than the typed cards used by the sync path.
+        _main_edps_stream = {str(c.get("edp_no") or "").upper() for c in top10_payload}
+        _peek_cards, reference_query_stream = _build_reference_peek(
+            getattr(intent, "reference_lookup", None), []
+        )
+        reference_payload_stream = [
+            card.model_dump() for card in _peek_cards
+            if str(card.edp_no or "").upper() not in _main_edps_stream
+        ]
         yield (
             f"event: products\ndata: "
-            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX}, ensure_ascii=False)}\n\n"
+            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX, 'reference_products': reference_payload_stream, 'reference_query': reference_query_stream}, ensure_ascii=False)}\n\n"
         )
 
         # 3. CoT answer — `knowledge` is already populated from the parallel

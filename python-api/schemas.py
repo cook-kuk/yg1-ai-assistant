@@ -67,6 +67,17 @@ class SCRIntent(BaseModel):
     # / Profiling / Trochoidal / Die-Sinking. scoring._operation_score
     # substring-matches this against product.series_application_shape.
     application_shape: Optional[str] = None
+    # Region / sales country. Korean ("한국/미국/유럽/아시아") or any-case
+    # English ("usa", "EU", "us") — country_alias.canonicalize_country
+    # normalizes to KOREA / AMERICA / EUROPE / ASIA before the SQL filter.
+    country: Optional[str] = None
+    # "Peek" lookup — the user points at a specific EDP ("UGMG34919 보여줘")
+    # or series ("UGMG34 뭐에요?") while their filter session is still live.
+    # When set, main.py runs an independent DB query that ignores
+    # material_tag / stock / flute filters and attaches the result as
+    # `reference_products` on the response. Filter session and ranked list
+    # are untouched so the user can keep narrowing after the peek.
+    reference_lookup: Optional[str] = None
 
 
 class Candidate(BaseModel):
@@ -211,6 +222,15 @@ class ProductCard(BaseModel):
     helix_angle: Optional[str] = None
     coolant_hole: Optional[str] = None
     shank_type: Optional[str] = None
+    # Raw DB unit for this row (Metric/METRIC/Inch/INCH). The frontend adapter
+    # converts inch-stored numerics (diameter / loc / oal / shank_dia / ball
+    # radius) to mm before rendering so "3" never shows as "3mm" when the row
+    # actually means "3 인치".
+    edp_unit: Optional[str] = None
+    shank_dia: Optional[str] = None          # milling_shank_dia (text, may be "1/2" inch)
+    ball_radius: Optional[str] = None        # milling_ball_radius (text, e.g. "R.125")
+    neck_diameter: Optional[str] = None      # milling_neck_diameter
+    effective_length: Optional[str] = None   # milling_effective_length
     cutting_conditions: Optional[List[Dict[str, Any]]] = None
     # Inventory summary — populated from product_inventory_summary_mv via the
     # correlated subquery in SELECT_COLS. NULL means "no snapshot row" (not
@@ -296,6 +316,12 @@ class ProductsResponse(BaseModel):
     # merges this with each card's flat score dict to render the bar chart
     # without hard-coded magic numbers.
     score_breakdown_max: Optional[Dict[str, float]] = None
+    # "Peek" cards — populated when intent.reference_lookup matched an EDP
+    # or series. These bypass the current filter session entirely, so the
+    # UI renders them in a separate "조회한 상품" section below the main
+    # ranked list. Empty list when no peek was requested.
+    reference_products: List[ProductCard] = Field(default_factory=list)
+    reference_query: Optional[str] = None  # echo back the matched token (e.g. "UGMG34919")
 
 
 class ProductsPageRequest(BaseModel):
