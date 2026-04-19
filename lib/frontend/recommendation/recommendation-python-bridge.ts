@@ -272,6 +272,24 @@ async function streamProductsViaPython(
           onThinking(txt, { delta: false, kind: "stage" })
         }
         flushPartialCards()
+      } else if (event === "thinking") {
+        // Strong CoT progress marker. Python emits up to three of these
+        // (deep-analysis start / drafting / verifying) so the user sees
+        // the 30–50s wait is intentional. Payload: {step, total_steps,
+        // status, cot_level?}.
+        const payload = data as { status?: string; step?: number; total_steps?: number; cot_level?: string }
+        if (onThinking && typeof payload.status === "string") {
+          onThinking(payload.status, { delta: false, kind: "stage" })
+        }
+      } else if (event === "partial_answer") {
+        // Strong CoT draft token stream. Each frame carries the *whole*
+        // draft so far (not a delta), so just overwrite the deep-reasoning
+        // lane. ReasoningPanel already handles monotonic text growth.
+        const payload = data as { text?: string; status?: string }
+        const text = typeof payload.text === "string" ? payload.text : ""
+        if (onThinking && text) {
+          onThinking(text, { delta: false, kind: "deep" })
+        }
       } else if (event === "answer") {
         const payload = data as StreamAnswerEvent
         answer = payload.answer ?? ""

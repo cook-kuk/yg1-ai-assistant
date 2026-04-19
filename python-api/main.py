@@ -1431,47 +1431,90 @@ async def products_stream(req: ProductsRequest):
         )
 
         # 3. CoT answer — `knowledge` is already populated from the parallel
-        # RAG fetch at the top of this coroutine.
+        # RAG fetch at the top of this coroutine. Strong-CoT queries relay
+        # intermediate `thinking` / `partial_answer` events before the
+        # final `answer`; Light stays single-shot.
+        chat_result: dict = {
+            "answer": _build_answer(intent, ranked),
+            "chips": [],
+            "reasoning": "",
+            "refined_filters": None,
+        }
         if req.message:
+            stream_filter_dict = _filters_to_dict(req.filters, intent)
             try:
-                # Clarification chips — same as sync /products path. Runs on
-                # the current filter dict so the LLM sees which fields the DB
-                # itself suggests narrowing by.
-                stream_filter_dict = _filters_to_dict(req.filters, intent)
-                try:
-                    clarify_payload_stream = await asyncio.to_thread(
-                        suggest_clarifying_chips, stream_filter_dict,
-                    )
-                except Exception:
-                    clarify_payload_stream = None
-                chat_result = await asyncio.to_thread(
-                    generate_response,
-                    req.message, intent,
-                    [c for c, _, _ in ranked[:10]],
-                    knowledge,
-                    len(ranked),
-                    None,
-                    None,
-                    clarify_payload_stream,
-                    stock_summary_stream,
-                    cutting_range_stream,
-                    session,
-                    req.filters.model_dump() if req.filters else None,
+                clarify_payload_stream = await asyncio.to_thread(
+                    suggest_clarifying_chips, stream_filter_dict,
                 )
             except Exception:
-                chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
+                clarify_payload_stream = None
+
+            from chat import _assess_cot_level, stream_strong_cot
+            cot_level_stream = _assess_cot_level(
+                req.message, intent,
+                [c for c, _, _ in ranked[:10]],
+                knowledge, len(ranked), None,
+            )
+            req_filters_dump = req.filters.model_dump() if req.filters else None
+
+            def _merge_series_chips(payload: dict) -> dict:
+                if not series_chips_stream:
+                    return payload
+                existing = payload.get("chips") or []
+                seen = set(existing)
+                payload["chips"] = series_chips_stream + [
+                    c for c in existing
+                    if c not in series_chips_stream and c not in seen
+                ]
+                return payload
+
+            if cot_level_stream == "strong":
+                try:
+                    async for ev_type, payload in stream_strong_cot(
+                        req.message, intent,
+                        [c for c, _, _ in ranked[:10]],
+                        knowledge, len(ranked), None, None,
+                        clarify_payload_stream,
+                        stock_summary_stream, cutting_range_stream,
+                        session, req_filters_dump,
+                    ):
+                        if ev_type == "answer":
+                            chat_result = _merge_series_chips(payload)
+                            yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+                        else:
+                            yield f"event: {ev_type}\ndata: {_json.dumps(payload, ensure_ascii=False)}\n\n"
+                except Exception:
+                    chat_result = _merge_series_chips({
+                        "answer": _build_answer(intent, ranked),
+                        "chips": [], "reasoning": "", "refined_filters": None,
+                        "cot_level": "light",
+                    })
+                    yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+            else:
+                try:
+                    chat_result = await asyncio.to_thread(
+                        generate_response,
+                        req.message, intent,
+                        [c for c, _, _ in ranked[:10]],
+                        knowledge,
+                        len(ranked),
+                        None,
+                        None,
+                        clarify_payload_stream,
+                        stock_summary_stream,
+                        cutting_range_stream,
+                        session,
+                        req_filters_dump,
+                    )
+                except Exception:
+                    chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
+                chat_result = _merge_series_chips(chat_result)
+                yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
         else:
-            chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
-
-        if series_chips_stream:
-            existing_chips = chat_result.get("chips") or []
-            existing_set = set(existing_chips)
-            chat_result["chips"] = series_chips_stream + [
-                c for c in existing_chips
-                if c not in series_chips_stream and c not in existing_set
-            ]
-
-        yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+            # No user message — deterministic answer, no CoT round-trip.
+            if series_chips_stream:
+                chat_result["chips"] = list(series_chips_stream)
+            yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
 
         # Persist the turn so subsequent stream calls keep state.
         edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
