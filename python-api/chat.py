@@ -53,7 +53,13 @@ SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공
    - **웹 검색** (knowledge type=web_search): "업계 일반적으로는…"으로 유도, 단정 금지
    - **LLM 추론**: "경험적으로…" / "일반적으로…" 로 표시
 
-8. [clarify] 블록이 있으면 그건 "DB 관점에서 지금 조건이 너무 느슨해 후보가 {candidate_count}개 남아있다"는 뜻이다.
+8. 재고 안내 — top_products 의 `stock_status` 가 있으면 1~2위 제품에 한해 자연스럽게 덧붙여라. "재고 N개 (창고 M곳)" 식으로 짧게. 규칙:
+   - stock_status="instock" → "재고 여유 있음" 또는 "재고 {total_stock}개(창고 {warehouse_count}곳)"
+   - stock_status="limited" → "재고 소량(남은 {total_stock}개)" — 결정 재촉 유도 가능
+   - stock_status="outofstock" → "현재 재고 없음, 납기 확인 필요"
+   - stock_status 가 null 이면 재고 언급 금지 (스냅샷 없는 제품에 확신 부여 금지).
+
+9. [clarify] 블록이 있으면 그건 "DB 관점에서 지금 조건이 너무 느슨해 후보가 {candidate_count}개 남아있다"는 뜻이다.
    그대로 두고 top-10 추천만 주지 마라. 반드시 한 문장으로 "현재 {candidate_count}건 후보가 있어요 — DB에서 좁혀볼 수 있는 조건은 아래입니다" 식으로 설명하고, [clarify] 의 각 필드별 상위 값을 chips 로 제안해라.
    chip 레이블은 "{label}: {value}" 형식으로 간결하게 (예: "헬릭스각: 30", "직경공차: h7", "볼반경: 0.5"). 숫자 필드는 단위 없이 DB 원문 값 그대로.
    [clarify] 가 비어 있으면 (candidate_count 가 작으면) 이 원칙은 무시하고 기존 추천 원칙을 따른다.
@@ -90,6 +96,22 @@ def _summarize_intent(intent) -> dict:
     }
 
 
+def _stock_status_for_prompt(total_stock) -> str | None:
+    """Mirror main._derive_stock_status so the prompt sees the same buckets
+    the UI card does. Kept here (not imported) to avoid a chat→main cycle."""
+    if total_stock is None:
+        return None
+    try:
+        n = int(total_stock)
+    except (TypeError, ValueError):
+        return None
+    if n <= 0:
+        return "outofstock"
+    if n < 5:
+        return "limited"
+    return "instock"
+
+
 def _summarize_products(products: list[dict], limit: int = 5) -> list[dict]:
     """Compact product preview for the prompt — drops heavy fields like
     description/feature and keeps only what distinguishes candidates."""
@@ -97,6 +119,8 @@ def _summarize_products(products: list[dict], limit: int = 5) -> list[dict]:
     for p in (products or [])[:limit]:
         if not isinstance(p, dict):
             continue
+        total_stock = p.get("total_stock")
+        status = p.get("stock_status") or _stock_status_for_prompt(total_stock)
         out.append({
             "edp_no": p.get("edp_no"),
             "brand": p.get("brand"),
@@ -105,6 +129,12 @@ def _summarize_products(products: list[dict], limit: int = 5) -> list[dict]:
             "diameter": p.get("diameter"),
             "flutes": p.get("flutes"),
             "coating": p.get("coating"),
+            # Inventory fields — principle 8 tells the LLM to quote these
+            # verbatim on the top-ranked card when available. Omitted keys
+            # leave it silent, which is what we want for stale rows.
+            "total_stock": total_stock,
+            "warehouse_count": p.get("warehouse_count"),
+            "stock_status": status,
             "score": p.get("score"),
         })
     return out

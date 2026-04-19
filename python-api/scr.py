@@ -308,7 +308,15 @@ def _pre_resolve_material(message: str) -> str | None:
     ISO group (P/M/K/N/S/H/O) on first hit, or None.
 
     Used as a fallback *after* the LLM — so Korean aliases stay the model's
-    job, and national codes stay Python's job."""
+    job, and national codes stay Python's job.
+
+    Resolution order:
+      1) hand-curated Korean slang (cheapest, strongest signal)
+      2) public.material_aliases DB — 2.6k aliases, authoritative for
+         multi-language grade codes (St 37-2, 16MnCr5, SM490YA …)
+      3) CSV national-code lookup (CSV SSOT, subset of DB but narrower
+         matching semantics — kept as final fallback when the DB load
+         failed at init or an alias isn't in the DB set yet)."""
     if not message:
         return None
     # Industry slang first — cheap O(1) per term, covers the "스뎅/서스/알미늄"
@@ -317,6 +325,17 @@ def _pre_resolve_material(message: str) -> str | None:
     for term, iso in _MATERIAL_SLANG.items():
         if term in msg_lc:
             return iso
+    # DB aliases next — covers ~2.6k standardized grade codes across JIS/DIN/
+    # AISI/SS/GB and more. init_resolver() warms the cache at server startup;
+    # if that failed for any reason the helper returns None and we fall
+    # through to the CSV path.
+    try:
+        from alias_resolver import find_material_iso_in_text
+        db_hit = find_material_iso_in_text(message)
+        if db_hit:
+            return db_hit
+    except Exception:
+        pass
     lookup = _build_material_lookup()
     if not lookup:
         return None
