@@ -45,6 +45,14 @@ export interface ChatMsg {
   thinkingAgent?: string | null
   reasoningVisibility?: RecommendationReasoningVisibility | null
   /**
+   * Python CoT metadata forwarded to the reasoning block header so the
+   * collapsed-state badge can say "심층 분석 완료 · ✓ 검증됨 · 23s".
+   * All optional — light-path and legacy engines leave them null.
+   */
+  cotLevel?: "light" | "strong" | null
+  cotElapsedSec?: number | null
+  verified?: boolean | null
+  /**
    * Inline product-card list rendered directly in the chat (not in the side
    * panel). Populated on every search result and on "제품 보기" CTA so the
    * candidate snapshot lives inside the conversation flow.

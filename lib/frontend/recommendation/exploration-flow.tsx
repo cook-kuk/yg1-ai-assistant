@@ -455,20 +455,79 @@ function ExplorationSidebar({
 
 // ChatGPT/Claude-style reasoning block: 헤드라인 + 경과시간 + 토글 본문.
 // 스트리밍 중에는 100ms 단위 타이머가 흐르고, 끝나면 최종 경과시간을 고정한다.
+/**
+ * Auto-summary for the collapsed-state header. Pulls concrete facts
+ * from the final answer so the badge reads like Claude's "Thought for
+ * 23s · compared 3 products" rather than a generic "done".
+ */
+function buildReasoningSummary(
+  answerText: string,
+  cotLevel: "light" | "strong" | null | undefined,
+  verified: boolean | null | undefined,
+  seconds: number,
+  language: "ko" | "en",
+): string {
+  const parts: string[] = []
+  const levelLabel = cotLevel === "strong"
+    ? (language === "ko" ? "심층 분석" : "Deep analysis")
+    : (language === "ko" ? "분석" : "Analysis")
+  parts.push(`${levelLabel} ${language === "ko" ? "완료" : "done"}`)
+
+  // Product count — mine `N건` / `N개` from the answer.
+  const countMatch = answerText.match(/(\d{1,4})\s*(건|개)/)
+  if (countMatch) {
+    const n = countMatch[1]
+    parts.push(language === "ko" ? `${n}개 제품` : `${n} products`)
+  }
+
+  // Brand mentions — flag a comparison when 2+ flagship names co-occur.
+  const brandPattern = /(V7\s*PLUS(?:\s*A)?|X-POWER|ALU-POWER(?:\s*HPC)?|ALU-CUT|TitaNox(?:-Power)?|CRX[\s-]*S|4G\s*MILL|3S\s*MILL)/gi
+  const brandHits = Array.from(new Set((answerText.match(brandPattern) ?? []).map(s => s.toUpperCase().replace(/\s+/g, " "))))
+  if (brandHits.length >= 2) {
+    parts.push(
+      language === "ko"
+        ? `${brandHits.slice(0, 3).join(" vs ")} 비교`
+        : `${brandHits.slice(0, 3).join(" vs ")} comparison`,
+    )
+  }
+
+  // Verified badge — only when the verifier ran and gave a result.
+  if (cotLevel === "strong" && verified === true) {
+    parts.push(language === "ko" ? "✓ 검증됨" : "✓ verified")
+  } else if (cotLevel === "strong" && verified === false) {
+    parts.push(language === "ko" ? "교정됨" : "corrected")
+  }
+
+  // Elapsed seconds — always last so the eye can scan time consistently.
+  const sec = Math.max(1, Math.round(seconds))
+  parts.push(language === "ko" ? `${sec}초` : `${sec}s`)
+  return parts.join(" · ")
+}
+
+
 function ReasoningBlock({
   trail,
   deep,
   agent,
   isLoading,
   language,
+  answerText = "",
+  cotLevel = null,
+  verified = null,
 }: {
   trail: string
   deep: string
   agent: string
   isLoading: boolean
   language: "ko" | "en"
+  /** Final answer text — mined for summary badge when collapsed. */
+  answerText?: string
+  /** Which CoT tier ran. Only "strong" gets a fact-check badge. */
+  cotLevel?: "light" | "strong" | null
+  /** Verifier verdict. true = passed, false = corrected, null = unknown. */
+  verified?: boolean | null
 }) {
-  const [deepOpen, setDeepOpen] = useState(true)
+  const [deepOpen, setDeepOpen] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const [open, setOpen] = useState(true)
   // 사용자가 수동으로 토글한 적이 있으면 자동 접기/펴기를 멈춘다 (의도 존중).
@@ -489,14 +548,23 @@ function ReasoningBlock({
     } catch { return 12_000 }
   })
 
-  // 로딩 중/완료 모두 펼친 상태를 유지 — 사용자가 명시적으로 접기 전까진 CoT 본문을 보존.
-  // (이전엔 로딩 종료 시 자동 접기로 인해 상세 내용이 "사라진 것처럼" 보였음.)
+  // Claude-style auto behavior:
+  //   * streaming (isLoading=true) → auto-expand so tokens are visible.
+  //   * stream ends (true→false transition) → auto-collapse exactly once
+  //     and show a summary badge. User click afterward overrides.
+  //   * user manually toggles → `userToggledRef` latches, disabling auto.
   useEffect(() => {
     if (userToggledRef.current) {
       wasLoadingRef.current = isLoading
       return
     }
-    if (isLoading) setOpen(true)
+    if (isLoading) {
+      setOpen(true)
+    } else if (wasLoadingRef.current && !isLoading) {
+      // Only collapse on the transition — don't fight a user click that
+      // re-opened the block before the next stream starts.
+      setOpen(false)
+    }
     wasLoadingRef.current = isLoading
   }, [isLoading])
 
@@ -535,9 +603,14 @@ function ReasoningBlock({
   const timerLabel = !isLoading
     ? `${Math.round(seconds)}s`
     : (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
+  // Header text has two modes:
+  //   * loading → short "추론 중" cue (timer is shown separately).
+  //   * done    → full summary badge ("심층 분석 완료 · 3개 제품 · ✓ 검증됨 · 23초")
+  //     generated from the final answer so the collapsed state actually
+  //     communicates what the model did, Claude-style.
   const headlineText = isLoading
     ? (language === "ko" ? "추론 중" : "Thinking")
-    : (language === "ko" ? `${Math.max(1, Math.round(seconds))}초 동안 추론함` : `Thought for ${Math.max(1, Math.round(seconds))}s`)
+    : buildReasoningSummary(answerText, cotLevel, verified, seconds, language)
 
   // 원형 progress ring
   const RING_SIZE = 14
@@ -577,12 +650,18 @@ function ReasoningBlock({
         <span className={`text-[11px] font-medium text-gray-700 leading-none ${isLoading ? "shimmer-text" : ""}`}>
           {headlineText}
         </span>
-        <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
-          {timerLabel}
-        </span>
+        {/* During streaming we surface the live countdown alongside the
+            "추론 중" cue. After done, the summary already carries the
+            elapsed seconds at its tail, so we drop the duplicate timer
+            to keep the pill compact (Claude-style). */}
+        {isLoading && (
+          <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
+            {timerLabel}
+          </span>
+        )}
         <ChevronRight
           size={12}
-          className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          className={`text-gray-400 shrink-0 transition-transform ml-auto ${open ? "rotate-90" : ""}`}
         />
       </button>
       {open && (
@@ -768,6 +847,9 @@ function NarrowingChat({
                   agent={(message as { thinkingAgent?: string | null }).thinkingAgent ?? ""}
                   isLoading={!!message.isLoading}
                   language={language}
+                  answerText={message.text ?? ""}
+                  cotLevel={message.cotLevel ?? null}
+                  verified={message.verified ?? null}
                 />
               )}
 

@@ -258,6 +258,11 @@ export interface RecommendationResponseDto {
   recommendation: RecommendationResult | null
   session: RecommendationSessionEnvelopeDto
   candidates: RecommendationCandidateDto[] | null
+  /** "조회한 상품" peek — populated when the user names a specific EDP/series
+   * mid-session ("UGMG34919 보여줘"). These bypass the current filter state
+   * so the UI renders them in a dedicated section below `candidates`. */
+  referenceCandidates?: RecommendationCandidateDto[] | null
+  referenceQuery?: string | null
   pagination: RecommendationPaginationDto | null
   evidenceSummaries: EvidenceSummary[] | null
   requestPreparation: RequestPreparationResult | null
@@ -286,6 +291,14 @@ export interface RecommendationResponseDto {
   /** 추론 과정 — Claude thinking 처럼 유저에게 "이렇게 이해했습니다" 보여주기 위한 한국어 자연어. */
   thinkingProcess?: string | null
   thinkingDeep?: string | null
+  /**
+   * Dual-CoT metadata from Python /products. Populated only when the
+   * Strong path ran (draft + verify). Feeds the ReasoningBlock header
+   * so the collapsed badge can say "심층 분석 완료 · ✓ 검증됨 · 23s".
+   */
+  cotLevel?: "light" | "strong" | null
+  cotElapsedSec?: number | null
+  verified?: boolean | null
   error?: string
   detail?: string
 }
@@ -550,6 +563,9 @@ export const recommendationResponseSchema = z.object({
   reasoningVisibility: recommendationReasoningVisibilitySchema.nullable().optional(),
   thinkingProcess: z.string().nullable().optional(),
   thinkingDeep: z.string().nullable().optional(),
+  cotLevel: z.enum(["light", "strong"]).nullable().optional(),
+  cotElapsedSec: z.number().nullable().optional(),
+  verified: z.boolean().nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),
 }).passthrough()

@@ -609,6 +609,10 @@ function ProductCard({
 export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   const { language } = useApp()
   const [showXai, setShowXai] = useState(false)
+  // Body starts collapsed so chat transcripts with many cards aren't a wall
+  // of detail. Header (image + code + badges) stays visible — click the
+  // chevron to expand the full spec list, features, and xAI breakdown.
+  const [open, setOpen] = useState(false)
   const breakdown = c.scoreBreakdown
   const cleanedDescription = c.description
     ? c.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").trim()
@@ -638,6 +642,15 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</span>
             {breakdown && <QualityBadge breakdown={breakdown} />}
+            <button
+              type="button"
+              onClick={() => setOpen(prev => !prev)}
+              aria-expanded={open}
+              aria-label={open ? "접기" : "펼치기"}
+              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+            >
+              {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
           </div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {buildSubtypeFirstSummary(c, language).join(" · ")}
@@ -647,7 +660,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           )}
         </div>
       </div>
-      {detailBadges.length > 0 ? (
+      {open && detailBadges.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {detailBadges.map(badge => (
             <div
@@ -661,18 +674,22 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             </div>
           ))}
         </div>
-      ) : (
+      ) : open ? (
         <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
           {fallbackSpecs.map(spec => (
             <span key={spec}>{spec}</span>
           ))}
         </div>
+      ) : null}
+      {open && (
+        <>
+          <div className="flex items-center gap-2">
+            {c.hasEvidence && c.bestCondition && <EvidenceBadge conditions={c.bestCondition} />}
+          </div>
+          <InventoryBlock totalStock={c.totalStock} snapshotDate={c.inventorySnapshotDate} locations={c.inventoryLocations} />
+        </>
       )}
-      <div className="flex items-center gap-2">
-        {c.hasEvidence && c.bestCondition && <EvidenceBadge conditions={c.bestCondition} />}
-      </div>
-      <InventoryBlock totalStock={c.totalStock} snapshotDate={c.inventorySnapshotDate} locations={c.inventoryLocations} />
-      {breakdown && (
+      {open && breakdown && (
         <div className="pt-1">
           <button
             onClick={() => setShowXai(prev => !prev)}

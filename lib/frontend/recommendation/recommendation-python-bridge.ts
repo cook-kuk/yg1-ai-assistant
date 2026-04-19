@@ -121,6 +121,11 @@ interface StreamProductsEvent {
   }>
   broadened?: boolean
   score_breakdown_max?: Record<string, number> | null
+  // "조회한 상품" peek cards — populated when the user names a specific
+  // EDP/series mid-session. Ignored by the main ranked-list panel; the
+  // adapter forwards them to the UI as a separate section.
+  reference_products?: Array<Record<string, unknown>> | null
+  reference_query?: string | null
 }
 
 interface StreamAnswerEvent {
@@ -128,6 +133,10 @@ interface StreamAnswerEvent {
   chips?: string[]
   reasoning?: string
   refined_filters?: Record<string, unknown> | null
+  // Dual-CoT metadata: populated whenever Python ran the Strong path
+  // (a separate draft + verify pass). Absent for the light path.
+  cot_level?: "light" | "strong" | null
+  verified?: boolean | null
 }
 
 function formatFilterStage(intent: Record<string, unknown> | null): string | null {
@@ -255,9 +264,16 @@ async function streamProductsViaPython(
     let streamedTop: ProductCard[] = []
     let streamedCount = 0
     let streamedBroadened = false
+    let streamedReferenceProducts: ProductCard[] = []
+    let streamedReferenceQuery: string | null = null
     let answer = ""
     let chips: string[] = []
     let reasoning = ""
+    // Dual-CoT metadata — populated from `answer` frame if present.
+    let cotLevel: "light" | "strong" | null = null
+    let verified: boolean | null = null
+    // Elapsed-timer bookends for the reasoning block header.
+    const startedAt = Date.now()
 
     const flushPartialCards = () => {
       if (!onCards) return
@@ -271,6 +287,8 @@ async function streamProductsViaPython(
         appliedFilters: intentToAppliedFilters(intent),
         totalCount: streamedCount,
         route: "stream-partial",
+        reference_products: streamedReferenceProducts,
+        reference_query: streamedReferenceQuery,
       }
       try {
         onCards(adaptProductsToRecommendationDto(partial, pageSize ? { pageSize } : {}))
@@ -297,6 +315,14 @@ async function streamProductsViaPython(
         streamedTop = streamTopToProductCards(payload.top10 ?? [])
         streamedCount = typeof payload.count === "number" ? payload.count : streamedTop.length
         streamedBroadened = payload.broadened === true
+        // Carry peek cards forward so the final payload / partial flushes
+        // can surface them in the "조회한 상품" section.
+        streamedReferenceProducts = Array.isArray(payload.reference_products)
+          ? streamTopToProductCards(payload.reference_products as StreamProductsEvent["top10"])
+          : []
+        streamedReferenceQuery = typeof payload.reference_query === "string" && payload.reference_query.length > 0
+          ? payload.reference_query
+          : null
         if (onThinking) {
           const txt = streamedBroadened
             ? `전체 카탈로그로 확장 · 후보 ${streamedCount}건 · 상위 ${streamedTop.length}개 확보`
@@ -327,6 +353,10 @@ async function streamProductsViaPython(
         answer = payload.answer ?? ""
         chips = Array.isArray(payload.chips) ? payload.chips : []
         reasoning = typeof payload.reasoning === "string" ? payload.reasoning : ""
+        cotLevel = (payload.cot_level === "light" || payload.cot_level === "strong")
+          ? payload.cot_level
+          : null
+        verified = typeof payload.verified === "boolean" ? payload.verified : null
         if (onThinking && reasoning) {
           onThinking(reasoning, { delta: false, kind: "deep" })
         }
@@ -357,12 +387,19 @@ async function streamProductsViaPython(
       appliedFilters: intentToAppliedFilters(intent),
       totalCount: streamedCount,
       route: "stream",
+      reference_products: streamedReferenceProducts,
+      reference_query: streamedReferenceQuery,
     }
     const dto = adaptProductsToRecommendationDto(finalPayload, pageSize ? { pageSize } : {})
     if (reasoning) {
       dto.thinkingDeep = reasoning
       dto.reasoningVisibility = "full"
     }
+    // Forward CoT metadata so the reasoning-block header can render
+    // "심층 분석 완료 · ✓ 검증됨 · 23s" on the collapsed badge.
+    dto.cotLevel = cotLevel
+    dto.verified = verified
+    dto.cotElapsedSec = Math.round((Date.now() - startedAt) / 1000)
     return dto
   } finally {
     clearTimeout(timer)

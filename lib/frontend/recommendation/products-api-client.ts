@@ -59,6 +59,13 @@ export interface ProductCard {
   helix_angle?: string | null
   coolant_hole?: string | null
   shank_type?: string | null
+  // P0/P1 spec fields — added so the UI can render actual values instead
+  // of "-" for shank dia / neck / effective length / corner or ball radius.
+  edp_unit?: string | null       // "Metric" | "Inch" — drives inch→mm convert
+  shank_dia?: string | null      // milling_shank_dia (may be "1/2" inch)
+  ball_radius?: string | null    // milling_ball_radius (e.g. "R.125" inch)
+  neck_diameter?: string | null
+  effective_length?: string | null
   // Inventory summary forwarded from product_inventory_summary_mv.
   total_stock?: number | null
   warehouse_count?: number | null
@@ -107,6 +114,12 @@ export interface ProductsResponse {
   // this over the hardcoded PY_WEIGHTS fallback so UI bars auto-track
   // weight changes without a frontend deploy.
   score_breakdown_max?: Record<string, number> | null
+  // "조회한 상품" peek — populated when the user names a specific EDP/series
+  // ("UGMG34919 보여줘") mid-session. These bypass the live filter state
+  // so the UI can render them in a dedicated section without touching the
+  // main ranked list.
+  reference_products?: ProductCard[] | null
+  reference_query?: string | null
 }
 
 export interface FilterOptionsResponse {
@@ -179,11 +192,51 @@ export async function fetchProductsPage(
 // Python has no thinking/evidence/explanation yet, so those slots are
 // filled with null/empty so the existing UI doesn't break.
 
+// Pull the first numeric token out of a free-form spec string. Handles:
+//   - integers / decimals / negatives  ("43", "0.25", "-0.030")
+//   - leading-dot decimals             ("R.125" → 0.125, critical fix)
+//   - pure fractions                   ("1/2"  → 0.5)
+//   - mixed fractions                  ("1-1/2" or "1 1/2" → 1.5)
+//   - ranges/lists — takes the first   ("43;44;45" → 43)
+// Returns null for empty/unparseable input. Unit stripping (°, mm, inch,
+// quotes) is implicit because the regex is anchored to the first number, not
+// the whole string.
 function parseNumeric(raw: string | number | null | undefined): number | null {
   if (raw == null) return null
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null
-  const m = String(raw).match(/-?\d+(\.\d+)?/)
+  const s = String(raw).trim()
+  if (!s) return null
+  // Mixed fraction: "1-1/2", "1 1/2", "-1-1/2". Use explicit boundary so
+  // "UGMG34" doesn't accidentally match.
+  const mix = s.match(/^(-?\d+)[-\s](\d+)\/(\d+)/)
+  if (mix) {
+    const whole = Number(mix[1])
+    const frac = Number(mix[2]) / Number(mix[3])
+    return whole < 0 ? whole - frac : whole + frac
+  }
+  // Pure fraction anywhere in the string: "1/2", "R1/2".
+  const frac = s.match(/(-?\d+)\/(\d+)/)
+  if (frac) return Number(frac[1]) / Number(frac[2])
+  // Regular number (including leading-dot decimals). The alternation is
+  // ordered so "\d+(\.\d+)?" wins over ".\d+" when the digit is present.
+  const m = s.match(/-?(?:\d+(?:\.\d+)?|\.\d+)/)
   return m ? Number(m[0]) : null
+}
+
+// Inch-aware wrapper. Rows with edp_unit === "Inch"/"INCH" store all
+// dimensional values in inches, so the naive parse-then-render pipeline
+// produces labels like "3mm" for what is really 3 inches. This multiplies
+// the parsed value by 25.4 when the unit flag says inch.
+const MM_PER_INCH = 25.4
+function parseNumericMm(
+  raw: string | number | null | undefined,
+  unit: string | null | undefined,
+): number | null {
+  const n = parseNumeric(raw)
+  if (n == null) return null
+  if (typeof unit !== "string") return n
+  const u = unit.trim().toLowerCase()
+  return u === "inch" || u === "imperial" ? n * MM_PER_INCH : n
 }
 
 function parseIntTok(raw: string | number | null | undefined): number | null {
@@ -359,18 +412,20 @@ function adaptProductCard(
     brand: card.brand ?? null,
     seriesName: card.series ?? null,
     seriesIconUrl: deriveSeriesIconUrl(card.series ?? null),
-    diameterMm: parseNumeric(card.diameter ?? null),
+    // Convert inch rows to mm so "UGMG34919 · 1/2" shows as 12.7mm, not 1mm.
+    // Helix angle is a pure angle so no unit conversion needed.
+    diameterMm: parseNumericMm(card.diameter ?? null, card.edp_unit),
     fluteCount: parseIntTok(card.flutes ?? null),
     coating: card.coating ?? null,
     toolSubtype: card.subtype ?? null,
     toolMaterial: null,
-    shankDiameterMm: null,
+    shankDiameterMm: parseNumericMm(card.shank_dia ?? null, card.edp_unit),
     shankType: card.shank_type ?? null,
-    lengthOfCutMm: parseNumeric(card.loc ?? null),
-    overallLengthMm: parseNumeric(card.oal ?? null),
+    lengthOfCutMm: parseNumericMm(card.loc ?? null, card.edp_unit),
+    overallLengthMm: parseNumericMm(card.oal ?? null, card.edp_unit),
     helixAngleDeg: parseNumeric(card.helix_angle ?? null),
     coolantHole: parseCoolantHole(card.coolant_hole ?? null),
-    ballRadiusMm: null,
+    ballRadiusMm: parseNumericMm(card.ball_radius ?? null, card.edp_unit),
     taperAngleDeg: null,
     pointAngleDeg: null,
     threadPitchMm: null,

@@ -647,6 +647,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
+          cotLevel: (data as any).cotLevel ?? null,
+          cotElapsedSec: (data as any).cotElapsedSec ?? null,
+          verified: (data as any).verified ?? null,
         } as ChatMsg
         return updated
       })
@@ -775,6 +778,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
+          cotLevel: (data as any).cotLevel ?? null,
+          cotElapsedSec: (data as any).cotElapsedSec ?? null,
+          verified: (data as any).verified ?? null,
         } as ChatMsg
         return updated
       })
@@ -968,6 +974,9 @@ export function useProductRecommendationPage({
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
+          cotLevel: (data as any).cotLevel ?? null,
+          cotElapsedSec: (data as any).cotElapsedSec ?? null,
+          verified: (data as any).verified ?? null,
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
