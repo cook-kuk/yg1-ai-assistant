@@ -883,7 +883,11 @@ def _generate_strong_cot(
                 + [{"role": "user", "content": user_turn}]
             ),
             response_format={"type": "json_object"},
-            reasoning_effort="medium",
+            # Lowered from "medium" → "low". With [매칭 제품] ground-truth
+            # and verifier pass, the draft doesn't need deep reasoning —
+            # medium was adding 10-15s for marginal quality gain. Escalate
+            # back to medium if compare/why answers start regressing.
+            reasoning_effort="low",
             # Hard cap — the UI's 60s client budget leaves no room for a
             # silent stall here. On timeout the except below drops to light,
             # which still returns a usable answer instead of -1/HTTP error.
@@ -1187,7 +1191,9 @@ async def stream_strong_cot(
                 + [{"role": "user", "content": user_turn}]
             ),
             response_format={"type": "json_object"},
-            reasoning_effort="medium",
+            # Same rationale as the sync strong path (see above) —
+            # reasoning_effort lowered for latency headroom.
+            reasoning_effort="low",
             stream=True,
             # Stream init stall guard — if the model never starts emitting
             # within 45s, drop to light fallback (below) so the SSE client
