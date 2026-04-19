@@ -84,6 +84,16 @@ def _row_matches_ilike(row_value: Any, needle: str) -> bool:
     return needle.lower() in str(row_value).lower()
 
 
+_BRAND_PUNCT_RE = re.compile(r"[\s\-_/]+")
+
+
+def _strip_brand_punct(s: str) -> str:
+    """Strip separator punctuation (space/hyphen/underscore/slash) and
+    uppercase so "ALUPOWER" ↔ "ALU-POWER" compare equal. Used only for
+    the brand filter — shank/tool canonical strings keep their punct."""
+    return _BRAND_PUNCT_RE.sub("", s).upper()
+
+
 def _load_from_db() -> list[dict]:
     """Pull the whole MV (mill-family rows only, same base filter as
     search_products). Skips rows without a numeric diameter so downstream
@@ -221,11 +231,29 @@ def _matches(p: dict, f: dict) -> bool:
     if v and not _coating_match(p.get("coating"), v):
         return False
 
+    # Brand match — hyphen/space/underscore insensitive. "ALUPOWER" must
+    # match "ALU-POWER" so users who type the brand without punctuation
+    # still get the same results. Applied only to brand since shank/tool
+    # canonical strings are fixed vocabularies where punctuation is real.
+    brand_filter = f.get("brand")
+    if brand_filter:
+        needle = _strip_brand_punct(str(brand_filter))
+        actual = _strip_brand_punct(str(p.get("brand") or ""))
+        if needle and needle not in actual:
+            return False
+
+    # Series substring — wire for queries like "E5H22 시리즈" or "GMF52
+    # 사양". Before this, series was SELECTed but never filterable, so any
+    # series-prefix lookup returned the whole catalog.
+    series_filter = f.get("series")
+    if series_filter:
+        if not _row_matches_ilike(p.get("series"), str(series_filter)):
+            return False
+
     # ILIKE-equivalent substring filters for the rest.
     for (key, col) in [
         ("tool_type", "tool_type"),
         ("subtype", "subtype"),
-        ("brand", "brand"),
         ("shank_type", "search_shank_type"),
         ("machining_category", "tool_type"),
         ("application_shape", "series_application_shape"),

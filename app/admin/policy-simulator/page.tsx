@@ -51,7 +51,7 @@ export default function PolicySimulatorPage() {
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="mb-6">
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-[#ed1c24]" />
+            <ShieldCheck className="h-5 w-5 text-yg1" />
             역할별 정책 시뮬레이터
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -66,7 +66,7 @@ export default function PolicySimulatorPage() {
               key={r.role}
               className={cn(
                 "cursor-pointer transition-all",
-                activeRole === r.role ? "ring-2 ring-[#ed1c24] bg-[#ed1c24]/5" : "hover:bg-muted/50"
+                activeRole === r.role ? "ring-2 ring-[#ed1c24] bg-yg1/5" : "hover:bg-muted/50"
               )}
               onClick={() => setActiveRole(r.role)}
             >
@@ -154,7 +154,7 @@ export default function PolicySimulatorPage() {
                   </div>
 
                   <div className="mt-3 flex gap-1.5">
-                    <Button size="sm" className="flex-1 text-xs bg-[#ed1c24] hover:bg-[#d01920]">견적요청</Button>
+                    <Button size="sm" className="flex-1 text-xs bg-yg1 hover:bg-yg1-hover">견적요청</Button>
                     {vis.salesContact && (
                       <Button size="sm" variant="outline" className="flex-1 text-xs bg-transparent">영업연결</Button>
                     )}

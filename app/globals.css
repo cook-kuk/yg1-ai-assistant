@@ -77,6 +77,11 @@
 @theme inline {
   --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";
+  /* YG-1 brand palette — promoted from inline `bg-[#ed1c24]` so the
+     hex literal lives in exactly one place. Use as `bg-yg1`,
+     `text-yg1`, `border-yg1`, `bg-yg1-hover`. */
+  --color-yg1: #ed1c24;
+  --color-yg1-hover: #d01920;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

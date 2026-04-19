@@ -305,7 +305,7 @@ export default function AssistantNewPage() {
                 return (
                   <div key={step.id} className={cn(
                     "rounded-lg p-2 transition-all",
-                    isActive && "bg-[#ed1c24]/10 border border-[#ed1c24]/30",
+                    isActive && "bg-yg1/10 border border-yg1/30",
                     isDone && "bg-green-50 border border-green-200",
                     !isActive && !isDone && "opacity-50"
                   )}>
@@ -313,7 +313,7 @@ export default function AssistantNewPage() {
                       {isDone ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                       ) : isActive ? (
-                        <step.icon className="h-3.5 w-3.5 text-[#ed1c24]" />
+                        <step.icon className="h-3.5 w-3.5 text-yg1" />
                       ) : (
                         <step.icon className="h-3.5 w-3.5 text-muted-foreground" />
                       )}
@@ -352,7 +352,7 @@ export default function AssistantNewPage() {
           <LocationPermissionBanner />
           {/* Chat header */}
           <div className="h-12 border-b flex items-center px-4 gap-3">
-            <Sparkles className="h-4 w-4 text-[#ed1c24]" />
+            <Sparkles className="h-4 w-4 text-yg1" />
             <span className="font-medium text-sm">AI 추천 대화</span>
             {scenario && (
               <Badge variant="outline" className="text-xs">{scenario.title}</Badge>
@@ -368,7 +368,7 @@ export default function AssistantNewPage() {
               )}>
                 <div className={cn(
                   "max-w-[85%] rounded-xl px-4 py-2.5",
-                  msg.role === "user" ? "bg-[#ed1c24] text-white" :
+                  msg.role === "user" ? "bg-yg1 text-white" :
                   msg.role === "system" ? "bg-amber-50 border border-amber-200 text-amber-800" :
                   "bg-muted"
                 )}>
@@ -571,7 +571,7 @@ export default function AssistantNewPage() {
                 placeholder="가공 조건이나 문의사항을 입력하세요..."
                 className="flex-1"
               />
-              <Button onClick={() => handleSend()} className="bg-[#ed1c24] hover:bg-[#d01920]">
+              <Button onClick={() => handleSend()} className="bg-yg1 hover:bg-yg1-hover">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -638,11 +638,11 @@ export default function AssistantNewPage() {
           {chatProducts.length > 0 ? (
             <div className="p-3 space-y-2">
               <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-[#ed1c24]" />
+                <Sparkles className="h-3.5 w-3.5 text-yg1" />
                 추천 제품 ({chatProducts.length}개)
               </h4>
               {chatProducts.slice(0, 5).map((p, i) => (
-                <Card key={p.displayCode} className={cn("overflow-hidden", i === 0 && "ring-2 ring-[#ed1c24]/30")}>
+                <Card key={p.displayCode} className={cn("overflow-hidden", i === 0 && "ring-2 ring-yg1/30")}>
                   <CardContent className="p-2.5">
                     <div className="flex gap-2 mb-1.5">
                       <img
@@ -653,7 +653,7 @@ export default function AssistantNewPage() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <Badge className={cn("text-[10px]", i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground")}>#{i + 1}</Badge>
+                          <Badge className={cn("text-[10px]", i === 0 ? "bg-yg1" : "bg-muted-foreground")}>#{i + 1}</Badge>
                           {p.brand && <span className="text-[10px] font-bold text-purple-800 truncate">{p.brand}</span>}
                         </div>
                         <p className="text-xs font-mono font-bold text-gray-900">{p.displayCode}</p>
@@ -688,13 +688,13 @@ export default function AssistantNewPage() {
           ) : showResult ? (
             <div className="p-3 space-y-3">
               <h4 className="text-xs font-semibold flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-[#ed1c24]" />
+                <Sparkles className="h-3.5 w-3.5 text-yg1" />
                 Top-3 추천
               </h4>
               {recommendations.map((cp, i) => (
                 <Card key={cp.id} className={cn(
                   "overflow-hidden",
-                  i === 0 && "ring-2 ring-[#ed1c24]/30"
+                  i === 0 && "ring-2 ring-yg1/30"
                 )}>
                   <CardContent className="p-3">
                     <div className="flex items-start gap-2 mb-2">
@@ -708,7 +708,7 @@ export default function AssistantNewPage() {
                         <div className="flex items-center gap-1.5">
                           <Badge className={cn(
                             "text-[10px]",
-                            i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground"
+                            i === 0 ? "bg-yg1" : "bg-muted-foreground"
                           )}>#{i + 1}</Badge>
                           <Badge variant="outline" className="text-[10px]">{cp.fitTag}</Badge>
                         </div>
@@ -767,7 +767,7 @@ export default function AssistantNewPage() {
 
                     {/* Actions */}
                     <div className="flex gap-1">
-                      <Button size="sm" className="flex-1 text-[10px] h-7 bg-[#ed1c24] hover:bg-[#d01920]">견적요청</Button>
+                      <Button size="sm" className="flex-1 text-[10px] h-7 bg-yg1 hover:bg-yg1-hover">견적요청</Button>
                       <Button size="sm" variant="outline" className="flex-1 text-[10px] h-7 bg-transparent">비교함</Button>
                     </div>
                   </CardContent>
@@ -775,11 +775,11 @@ export default function AssistantNewPage() {
               ))}
 
               {/* Commercial Action Bar */}
-              <Card className="bg-[#ed1c24]/5 border-[#ed1c24]/20">
+              <Card className="bg-yg1/5 border-yg1/20">
                 <CardContent className="p-3 space-y-2">
                   <h5 className="text-xs font-semibold">실행 액션</h5>
                   <div className="grid grid-cols-2 gap-1.5">
-                    <Button size="sm" className="text-[10px] h-7 bg-[#ed1c24] hover:bg-[#d01920]">견적 요청</Button>
+                    <Button size="sm" className="text-[10px] h-7 bg-yg1 hover:bg-yg1-hover">견적 요청</Button>
                     <Button size="sm" variant="outline" className="text-[10px] h-7 bg-transparent">재고/납기 확인</Button>
                     <Button size="sm" variant="outline" className="text-[10px] h-7 bg-transparent">담당 영업 연결</Button>
                     <Button size="sm" variant="outline" className="text-[10px] h-7 bg-transparent">주문 의사 전달</Button>

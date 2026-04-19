@@ -40,7 +40,7 @@ export default function KnowledgePage() {
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="mb-6">
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-[#ed1c24]" />
+            <BookOpen className="h-5 w-5 text-yg1" />
             지식 베이스 / 규칙 관리
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -67,7 +67,7 @@ export default function KnowledgePage() {
                   onChange={e => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button className="bg-[#ed1c24] hover:bg-[#d01920]">규칙 추가</Button>
+              <Button className="bg-yg1 hover:bg-yg1-hover">규칙 추가</Button>
             </div>
 
             <div className="space-y-2">

@@ -482,13 +482,14 @@ def _filters_to_dict(
     filters: ManualFilters | None,
     intent: SCRIntent,
     edp_no: Optional[str] = None,
+    series: Optional[str] = None,
 ) -> dict:
     """Flatten the intent + optional manual overlay into a plain filter dict
     for search_products / product_count_filtered / get_filter_options.
 
-    edp_no is a product-code override — when a specific EDP is detected in
-    the request, it supersedes every other filter (the user asked for THAT
-    product, not a new search scoped by prior context)."""
+    `edp_no` / `series` are product-code overrides — when the user types a
+    specific EDP (narrow) or series prefix (broad), it supersedes every
+    other carried filter so prior-session scope doesn't hijack the lookup."""
     base = {
         "diameter": intent.diameter,
         "flute_count": intent.flute_count,
@@ -581,6 +582,8 @@ def _filters_to_dict(
                 base[fld] = v
     if edp_no:
         base["edp_no"] = edp_no
+    if series:
+        base["series"] = series
     return base
 
 
@@ -713,12 +716,21 @@ def _auto_inject_excellent_brand(intent, message: Optional[str]) -> None:
 # Korean 을 immediately after the digits isn't treated as a boundary.
 # Explicit ASCII-alnum look-around lets Korean particles / punctuation /
 # whitespace all count as boundaries without matching mid-identifier.
-_PRODUCT_CODE_RE = re.compile(r"(?<![A-Z0-9])([A-Z][A-Z0-9]{1,5}\d{3,7}(?:[\-_]?\d{1,4})?)(?![A-Z0-9])")
+# Digit floor relaxed from 3→2 so short series codes ("E5H22", "GMF52",
+# "UGMG34") are also caught. Index verification in _detect_product_code
+# keeps random material codes ("SUS304", "SKD12") that happen to fit
+# this regex from triggering a filter.
+_PRODUCT_CODE_RE = re.compile(r"(?<![A-Z0-9])([A-Z][A-Z0-9]{1,5}\d{2,7}(?:[\-_]?\d{1,4})?)(?![A-Z0-9])")
 
 
-def _detect_product_code(message: Optional[str]) -> Optional[str]:
-    """Extract an EDP-shaped token from the message and confirm it exists
-    in the product index. Returns the canonical upper-cased code or None."""
+def _detect_product_code(message: Optional[str]) -> Optional[tuple[str, str]]:
+    """Extract a product-code token and route it to the right filter:
+      - ("edp_no", code)  when the token matches a full EDP in the index
+        (or a substring of an EDP — narrow to that specific product line)
+      - ("series", code)  when the token matches a series code exactly
+        (broad — returns every EDP in that series)
+    Returns None when no token is present OR no index row matches.
+    """
     if not message:
         return None
     msg_upper = message.upper()
@@ -730,10 +742,20 @@ def _detect_product_code(message: Optional[str]) -> Optional[str]:
         return None
     for m in _PRODUCT_CODE_RE.finditer(msg_upper):
         code = m.group(1).replace("_", "-")
+        matched_series = False
+        matched_edp_substring = False
         for p in index:
             edp_str = str(p.get("edp_no") or "").upper()
+            series_str = str(p.get("series") or "").upper()
+            if series_str and code == series_str:
+                matched_series = True
+                break  # series match is canonical — no need to scan further
             if code in edp_str:
-                return code
+                matched_edp_substring = True
+        if matched_series:
+            return ("series", code)
+        if matched_edp_substring:
+            return ("edp_no", code)
     return None
 
 

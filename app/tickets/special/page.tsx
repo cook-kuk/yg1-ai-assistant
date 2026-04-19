@@ -85,7 +85,7 @@ export default function SpecialTicketPage() {
                 key={ticket.id}
                 className={cn(
                   "cursor-pointer hover:bg-muted/50 transition-colors",
-                  selected?.id === ticket.id && "ring-2 ring-[#ed1c24]/30 bg-muted/30"
+                  selected?.id === ticket.id && "ring-2 ring-yg1/30 bg-muted/30"
                 )}
                 onClick={() => setSelected(ticket)}
               >
@@ -179,7 +179,7 @@ export default function SpecialTicketPage() {
             <div className="flex gap-3">
               {selected.status === "open" && (
                 <>
-                  <Button className="bg-[#ed1c24] hover:bg-[#d01920]">
+                  <Button className="bg-yg1 hover:bg-yg1-hover">
                     <User className="h-4 w-4 mr-1.5" />전문가 배정
                   </Button>
                   <Button variant="outline" className="bg-transparent">

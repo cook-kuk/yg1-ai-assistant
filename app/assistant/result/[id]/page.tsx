@@ -51,7 +51,7 @@ export default function ResultPage() {
               </Link>
               <div>
                 <h1 className="text-lg font-bold flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-[#ed1c24]" />
+                  <Sparkles className="h-5 w-5 text-yg1" />
                   추천 결과 보드
                 </h1>
                 <p className="text-xs text-muted-foreground">
@@ -66,7 +66,7 @@ export default function ResultPage() {
                   key={r}
                   variant={role === r ? "default" : "ghost"}
                   size="sm"
-                  className={cn("text-xs h-7", role === r && "bg-[#ed1c24] hover:bg-[#d01920]")}
+                  className={cn("text-xs h-7", role === r && "bg-yg1 hover:bg-yg1-hover")}
                   onClick={() => setRole(r)}
                 >
                   {label}
@@ -91,10 +91,10 @@ export default function ResultPage() {
               {candidateProducts.map((cp, i) => (
                 <Card key={cp.id} className={cn(
                   "overflow-hidden",
-                  i === 0 && "ring-2 ring-[#ed1c24]/30"
+                  i === 0 && "ring-2 ring-yg1/30"
                 )}>
                   {i === 0 && (
-                    <div className="bg-[#ed1c24] text-white text-center text-xs py-1 font-medium">
+                    <div className="bg-yg1 text-white text-center text-xs py-1 font-medium">
                       최적 추천
                     </div>
                   )}
@@ -105,7 +105,7 @@ export default function ResultPage() {
                         <div className="flex items-center gap-1.5 mb-1">
                           <Badge className={cn(
                             "text-[10px]",
-                            i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground"
+                            i === 0 ? "bg-yg1" : "bg-muted-foreground"
                           )}>#{i + 1}</Badge>
                           <Badge variant="outline" className="text-[10px]">{cp.fitTag}</Badge>
                         </div>
@@ -230,7 +230,7 @@ export default function ResultPage() {
 
                     {/* Actions */}
                     <div className="space-y-1.5">
-                      <Button size="sm" className="w-full text-xs bg-[#ed1c24] hover:bg-[#d01920]">
+                      <Button size="sm" className="w-full text-xs bg-yg1 hover:bg-yg1-hover">
                         <FileText className="h-3 w-3 mr-1" />견적 요청
                       </Button>
                       {role !== "customer" && (
@@ -248,13 +248,13 @@ export default function ResultPage() {
             <Card className="mb-6">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-[#ed1c24]" />
+                  <Zap className="h-4 w-4 text-yg1" />
                   실행 액션 패널
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-5 gap-2">
-                  <Button className="bg-[#ed1c24] hover:bg-[#d01920]">
+                  <Button className="bg-yg1 hover:bg-yg1-hover">
                     <FileText className="h-4 w-4 mr-1.5" />견적 요청
                   </Button>
                   <Button variant="outline" className="bg-transparent">
@@ -315,7 +315,7 @@ export default function ResultPage() {
                       <tr className="border-b bg-muted/30">
                         <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">항목</th>
                         {candidateProducts.map((cp, i) => (
-                          <th key={cp.id} className={cn("text-center px-4 py-3 text-xs font-medium", i === 0 && "bg-[#ed1c24]/5")}>
+                          <th key={cp.id} className={cn("text-center px-4 py-3 text-xs font-medium", i === 0 && "bg-yg1/5")}>
                             {cp.sku}
                           </th>
                         ))}
@@ -335,7 +335,7 @@ export default function ResultPage() {
                         <tr key={j} className="border-b last:border-0">
                           <td className="px-4 py-2.5 text-xs font-medium text-muted-foreground">{row.label}</td>
                           {candidateProducts.map((cp, i) => (
-                            <td key={cp.id} className={cn("px-4 py-2.5 text-xs text-center", i === 0 && "bg-[#ed1c24]/5 font-medium")}>
+                            <td key={cp.id} className={cn("px-4 py-2.5 text-xs text-center", i === 0 && "bg-yg1/5 font-medium")}>
                               {row.render(cp)}
                             </td>
                           ))}
@@ -344,8 +344,8 @@ export default function ResultPage() {
                       <tr className="border-t">
                         <td className="px-4 py-2.5 text-xs font-medium text-muted-foreground">액션</td>
                         {candidateProducts.map((cp, i) => (
-                          <td key={cp.id} className={cn("px-4 py-2.5 text-center", i === 0 && "bg-[#ed1c24]/5")}>
-                            <Button size="sm" className={cn("text-[10px] h-6", i === 0 ? "bg-[#ed1c24] hover:bg-[#d01920]" : "")}>
+                          <td key={cp.id} className={cn("px-4 py-2.5 text-center", i === 0 && "bg-yg1/5")}>
+                            <Button size="sm" className={cn("text-[10px] h-6", i === 0 ? "bg-yg1 hover:bg-yg1-hover" : "")}>
                               견적요청
                             </Button>
                           </td>

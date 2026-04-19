@@ -25,7 +25,7 @@ export default function ExecutiveDemoPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#ed1c24]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yg1">
                   <Sparkles className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -72,7 +72,7 @@ export default function ExecutiveDemoPage() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="bg-muted/30 border rounded-xl p-5 mb-8">
           <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-[#ed1c24]" />
+            <Zap className="h-4 w-4 text-yg1" />
             {"왜 YG-1 Agent가 유리한가"}
           </h3>
           <div className="grid grid-cols-3 gap-6">
@@ -82,8 +82,8 @@ export default function ExecutiveDemoPage() {
               { icon: Shield, title: "스탠다드/스페셜 자동 분기", desc: "실패 없는 운영, 위험 자동 감지 안전망" },
             ].map((item, i) => (
               <div key={i} className="flex gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#ed1c24]/10 shrink-0">
-                  <item.icon className="h-4 w-4 text-[#ed1c24]" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-yg1/10 shrink-0">
+                  <item.icon className="h-4 w-4 text-yg1" />
                 </div>
                 <div>
                   <p className="font-medium text-sm">{item.title}</p>
@@ -105,18 +105,18 @@ export default function ExecutiveDemoPage() {
 
         <div className="grid grid-cols-2 gap-4 mb-8">
           {wowScenarios.map((s, i) => (
-            <Card key={s.id} className="group hover:border-[#ed1c24]/50 hover:shadow-md transition-all cursor-pointer">
+            <Card key={s.id} className="group hover:border-yg1/50 hover:shadow-md transition-all cursor-pointer">
               <Link href={`/assistant/new?scenario=${s.id}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge className="bg-[#ed1c24] text-white text-xs">{i + 1}</Badge>
+                        <Badge className="bg-yg1 text-white text-xs">{i + 1}</Badge>
                         <CardTitle className="text-base">{s.title}</CardTitle>
                       </div>
                       <p className="text-xs text-muted-foreground">{s.subtitle}</p>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-[#ed1c24] transition-colors" />
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-yg1 transition-colors" />
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -163,10 +163,10 @@ export default function ExecutiveDemoPage() {
         {/* Quick Actions */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           <Link href="/assistant/new">
-            <Card className="hover:border-[#ed1c24]/50 hover:shadow-md transition-all cursor-pointer h-full">
+            <Card className="hover:border-yg1/50 hover:shadow-md transition-all cursor-pointer h-full">
               <CardContent className="p-5 flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#ed1c24]/10 shrink-0">
-                  <Sparkles className="h-6 w-6 text-[#ed1c24]" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yg1/10 shrink-0">
+                  <Sparkles className="h-6 w-6 text-yg1" />
                 </div>
                 <div>
                   <p className="font-semibold text-sm">새 문의 시작</p>
