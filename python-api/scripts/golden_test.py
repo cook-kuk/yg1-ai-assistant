@@ -216,7 +216,7 @@ def load_singleton_cases(xlsx_path: Path) -> list[dict[str, Any]]:
 # Top-level split respects `key=value` chunks separated by commas. Negation
 # uses `!=`. Narrative prefixes like "기대 결과:" / "필수 필터/의도:" are stripped.
 _PREFIX_RE = re.compile(r"^\s*(?:필수\s*필터/의도|기대\s*결과)\s*:\s*", re.IGNORECASE)
-_TOKEN_RE = re.compile(r"\s*([A-Za-z_]+)\s*(!=|=)\s*([^,|]+?)\s*(?=(?:,|$|\|))")
+_TOKEN_RE = re.compile(r"\s*([A-Za-z_]+)\s*(!=|>=|<=|=)\s*([^,|]+?)\s*(?=(?:,|$|\|))")
 
 
 def parse_expected_filters(text: str) -> list[tuple[str, str, str]]:
@@ -459,9 +459,15 @@ SUPPORTED_COMPARATORS = {
     "toolMaterial": _compare_tool_material,
     "shankType": _compare_shank_type,
     # P2 — previously skipped, now backed by SCR min/max slots.
+    # Both bare and "Mm"-suffixed forms — the XLSX uses both inconsistently
+    # (lengthOfCutMm<=10 vs lengthOfCut=20).
     "lengthOfCut": _compare_loc,
+    "lengthOfCutMm": _compare_loc,
     "overallLength": _compare_oal,
+    "overallLengthMm": _compare_oal,
     "shankDiameter": _compare_shank_dia,
+    "shankDiameterMm": _compare_shank_dia,
+    "diameterMm": _compare_diameter,  # already mapped above but kept here for clarity
     "seriesName": _compare_series_name,
     # SCR's reference_lookup field captures bare EDP / catalog codes
     # (e.g. "SEME75100E 사진 보여줘") — promoted from UNSUPPORTED so
@@ -491,14 +497,20 @@ def grade_case(
         if field in SUPPORTED_COMPARATORS:
             supported_total += 1
             cmp = SUPPORTED_COMPARATORS[field]
-            hit = cmp(value, filters)
+            # XLSX uses field<=value / field>=value as separators (not
+            # field=<=value), so when op is one of <=/>=/<, splice it back
+            # into the value string — _compare_numeric_range parses inline
+            # operators on the value side. Other comparators (string match)
+            # ignore the operator entirely.
+            cmp_value = f"{op}{value}" if op in ("<=", ">=", "<", ">") else value
+            hit = cmp(cmp_value, filters)
             if op == "!=":
                 hit = not hit
             if hit:
                 matched += 1
-                detail.append(f"{field}={value}: OK")
+                detail.append(f"{field}{op}{value}: OK")
             else:
-                detail.append(f"{field}={value}: MISS (got {filters})")
+                detail.append(f"{field}{op}{value}: MISS (got {filters})")
         elif field in UNSUPPORTED_FIELDS:
             skipped.append(field)
         # Unknown fields: ignore (comments, typos).
