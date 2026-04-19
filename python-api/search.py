@@ -252,6 +252,23 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
         where.append("edp_brand_name ILIKE %s")
         params.append(f"%{brand}%")
 
+    # edp_no / series-family lookup. Called from _build_reference_peek
+    # when the user points at a specific product or family ("UGMG34919",
+    # "UGMH", "UGM", "GMF52"). Before this existed the filter was silently
+    # dropped and the peek returned the entire milling catalog or 0 rows.
+    #
+    # Both edp_no and edp_series_name get a prefix match so "UGM" returns
+    # all 28 UGMH/UGMF*/UGMG* series rows, while "UGMG34919" still hits
+    # the concrete EDP.
+    edp_no = filters.get("edp_no")
+    if edp_no and not _skip("edp_no"):
+        token = str(edp_no).strip().upper()
+        if token:
+            where.append(
+                "(edp_no ILIKE %s OR edp_series_name ILIKE %s)"
+            )
+            params.extend([f"{token}%", f"{token}%"])
+
     coating = filters.get("coating")
     if coating and not _skip("coating"):
         where.append("milling_coating ILIKE %s")

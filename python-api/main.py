@@ -1,10 +1,13 @@
 import asyncio
 import json as _json
+import logging
 import os
 import re
 import time
 from collections import Counter
 from typing import Optional
+
+logger = logging.getLogger("aria")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,8 +98,8 @@ async def _warm_index() -> None:
     on every request. Failure is non-fatal — downstream falls back to DB."""
     try:
         load_index()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[main._warm_index] {type(e).__name__}: {e}")
 
 
 @app.on_event("startup")
@@ -107,8 +110,8 @@ async def _init_alias_resolver() -> None:
     try:
         from alias_resolver import init_resolver
         init_resolver()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[main._init_alias_resolver] {type(e).__name__}: {e}")
 
 
 @app.on_event("startup")
@@ -264,17 +267,26 @@ def _build_reference_peek(
         hits = search_products_fast({"edp_no": token}, limit=_REFERENCE_PEEK_LIMIT)
     except Exception:
         return [], token
+    # Zero-result fallback (Cheolhyun: never dead-end). If the token didn't
+    # resolve as EDP/series-prefix, try once more as a brand name. Covers
+    # "V7 PLUS", "ALU-POWER", "TitaNox" where the user named the brand
+    # but search.py's edp_no/series columns won't hit.
+    if not hits:
+        try:
+            hits = search_products_fast({"brand": token}, limit=_REFERENCE_PEEK_LIMIT)
+        except Exception:
+            hits = []
     if not hits:
         return [], token
-    # De-dup against what's already in the main ranked list so we don't
-    # render the same card twice. The peek section is strictly *additional*
-    # context.
-    main_edps = {str(getattr(c, "edp_no", "") or "").upper() for c in main_cards}
+    # NOTE: previously dropped peek cards whose edp_no was already in
+    # `main_cards` to avoid visual duplication. That broke the Cheolhyun
+    # "never dead-end" rule — a fresh "UGMG34 보여줘" also narrowed the
+    # main ranking to UGMG34, so every peek hit was filtered out and the
+    # dedicated "조회한 상품" panel went empty. The amber frame in the UI
+    # already differentiates peek from the main list, so keeping the
+    # overlap is cheaper than losing the peek signal entirely.
     peek: list = []
     for row in hits:
-        edp = str(row.get("edp_no") or "").upper()
-        if edp in main_edps:
-            continue
         stock_qty = _coerce_int(row.get("total_stock"))
         peek.append(ProductCard(
             edp_no=row["edp_no"],
@@ -378,7 +390,7 @@ def _derive_matched_fields(card: dict, intent) -> list[str]:
             if abs(float(dia) - float(intent_dia)) < 0.5:
                 out.append(f"직경 {intent_dia}mm 일치")
         except (TypeError, ValueError):
-            pass
+            pass  # intentional: non-numeric diameter text ("10mm", "1/2") — skip the match badge
     flutes = card.get("flutes")
     intent_flutes = getattr(intent, "flute_count", None) if intent is not None else None
     if flutes and intent_flutes:
@@ -386,7 +398,7 @@ def _derive_matched_fields(card: dict, intent) -> list[str]:
             if int(float(flutes)) == int(intent_flutes):
                 out.append(f"{intent_flutes}날 일치")
         except (TypeError, ValueError):
-            pass
+            pass  # intentional: non-numeric flutes field — skip the match badge
     tags = card.get("material_tags") or []
     intent_tag = getattr(intent, "material_tag", None) if intent is not None else None
     if intent_tag and tags and intent_tag in tags:
@@ -619,10 +631,10 @@ def _force_recommendation_on_followup(intent, message: Optional[str], session) -
         return
     try:
         intent.intent = "recommendation"
-    except Exception:
-        # Pydantic model immutability — swallow and let downstream default-
-        # branch handle it. In practice SCRIntent permits mutation.
-        pass
+    except Exception as e:
+        # intentional: Pydantic model immutability — downstream default-
+        # branch handles it. In practice SCRIntent permits mutation.
+        logger.debug(f"[main._force_recommendation_on_followup] {type(e).__name__}: {e}")
 
 
 def _should_narrow_by_previous(message: Optional[str], intent, session) -> bool:
@@ -1030,6 +1042,13 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 total_count=0,
                 answer_preview=answer_text,
             )
+        # Peek lookup even on domain_knowledge / general_question turns —
+        # "UGM이 뭐에요?" deserves a "조회한 상품" card set even though SCR
+        # routed the message to a knowledge-answer branch. Filter session
+        # is still untouched.
+        ref_products_domain, ref_query_domain = _build_reference_peek(
+            getattr(intent, "reference_lookup", None), []
+        )
         return ProductsResponse(
             text=answer_text,
             chips=chips,
@@ -1045,6 +1064,8 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             cot_level=chat_result_skip.get("cot_level"),
             verified=chat_result_skip.get("verified"),
             score_breakdown_max=SCORE_BREAKDOWN_MAX,
+            reference_products=ref_products_domain,
+            reference_query=ref_query_domain,
         )
 
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
@@ -1662,6 +1683,20 @@ async def products_stream(req: ProductsRequest):
                     }
             else:
                 chat_result = {"answer": "", "chips": [], "reasoning": "", "refined_filters": None}
+            # Peek lookup even on domain_knowledge / general_question turns —
+            # "UGM이 뭐에요?" deserves a "조회한 상품" card set even though
+            # SCR routed to a knowledge-answer branch. Emit a minimal products
+            # frame so the frontend side panel fills in. Filter session is
+            # still untouched.
+            _peek_cards_dom, _peek_query_dom = _build_reference_peek(
+                getattr(intent, "reference_lookup", None), []
+            )
+            if _peek_cards_dom or _peek_query_dom:
+                _peek_payload_dom = [card.model_dump() for card in _peek_cards_dom]
+                yield (
+                    f"event: products\ndata: "
+                    f"{_json.dumps({'count': 0, 'top10': [], 'broadened': False, 'series_chips': [], 'stock_summary': None, 'cutting_range': None, 'score_breakdown_max': SCORE_BREAKDOWN_MAX, 'reference_products': _peek_payload_dom, 'reference_query': _peek_query_dom}, ensure_ascii=False)}\n\n"
+                )
             yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
             add_turn(
                 session, role="user",
@@ -1766,16 +1801,12 @@ async def products_stream(req: ProductsRequest):
             })
         # Independent peek lookup for the "조회한 상품" side section. Runs
         # outside the filter session so UGMG34919 shows up even when the
-        # user was narrowed to N군. De-dup against top10_payload (dicts)
-        # rather than the typed cards used by the sync path.
-        _main_edps_stream = {str(c.get("edp_no") or "").upper() for c in top10_payload}
+        # user was narrowed to N군. Overlap with top10 is allowed on
+        # purpose — see _build_reference_peek for the Cheolhyun rationale.
         _peek_cards, reference_query_stream = _build_reference_peek(
             getattr(intent, "reference_lookup", None), []
         )
-        reference_payload_stream = [
-            card.model_dump() for card in _peek_cards
-            if str(card.edp_no or "").upper() not in _main_edps_stream
-        ]
+        reference_payload_stream = [card.model_dump() for card in _peek_cards]
         yield (
             f"event: products\ndata: "
             f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX, 'reference_products': reference_payload_stream, 'reference_query': reference_query_stream}, ensure_ascii=False)}\n\n"

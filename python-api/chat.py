@@ -426,13 +426,13 @@ def _build_ui_context(
                 if int(p.get("total_stock") or 0) > 0:
                     in_stock += 1
             except (TypeError, ValueError):
-                pass
+                pass  # intentional: malformed total_stock value — skip the stock count
             s = p.get("score")
             if s is not None:
                 try:
                     score_vals.append(float(s))
                 except (TypeError, ValueError):
-                    pass
+                    pass  # intentional: non-numeric score — skip the average calculation
             b = p.get("brand")
             if b:
                 brand_counter[str(b)] += 1

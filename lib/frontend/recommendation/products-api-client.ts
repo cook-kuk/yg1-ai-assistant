@@ -592,9 +592,8 @@ const DETAIL_LIMIT = 10
 
 // Candidate-panel page size — SSOT for both the hook (initial + follow-up
 // requests) and the adapter (fallback when callers don't pass their own).
-// 2026-04-19 사용자 피드백: 채팅창에 한 번에 10개씩 카드로, 나머지는
-// 페이지네이션으로. Flip here and both consumers follow.
-export const DEFAULT_PAGE_SIZE = 10
+// Flip here and both consumers follow.
+export const DEFAULT_PAGE_SIZE = 20
 
 export function adaptProductsToRecommendationDto(
   payload: ProductsResponse,

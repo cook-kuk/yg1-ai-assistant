@@ -74,7 +74,13 @@ const QUALITY_TIERS = [
 function QualityBadge({ breakdown }: { breakdown: ScoreBreakdown }) {
   const { language } = useApp()
   const mat = breakdown.materialTag
-  if (!mat || mat.max <= 0) return null
+  // No material axis or user didn't supply a material → hide the badge.
+  // Without this guard every card carries a "미흡 / Poor" badge in a
+  // material-agnostic session (e.g. "10mm 추천" without a workpiece),
+  // which reads like a negative signal but is really just "no material
+  // specified to score against". mat.score <= 0 catches the "scored but
+  // zero match" case too, which is indistinguishable from "unscored".
+  if (!mat || mat.max <= 0 || mat.score <= 0) return null
   const pct = Math.round((mat.score / mat.max) * 100)
   const tier = QUALITY_TIERS.find(t => pct >= t.min) ?? QUALITY_TIERS[QUALITY_TIERS.length - 1]
   return (

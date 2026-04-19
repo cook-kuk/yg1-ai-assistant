@@ -254,6 +254,19 @@ _REFERENCE_LOOKUP_EXCLUDE: frozenset[str] = frozenset({
 
 _REFERENCE_LOOKUP_RE = re.compile(r"\b([A-Z][A-Z0-9]*\d[A-Z0-9]*)\b")
 
+# Stage 2b — family-prefix regex for digit-less series tokens ("UGM",
+# "UGMH", "GMF", "EHE"). These never match _REFERENCE_LOOKUP_RE because
+# it requires at least one digit. Tokens of 3–8 uppercase letters covers
+# real YG-1 series prefixes without flooding on random English words —
+# the HINT gate + exclude list filter the rest.
+#
+# Uses explicit ASCII negative lookarounds instead of \b — Python's
+# Unicode-aware \b treats Korean syllables as word characters, so
+# "UGM이" (UGM + Korean particle) would fail \b between M and 이. With
+# ASCII lookarounds Korean is treated as a boundary, and "UGM" still
+# matches correctly.
+_FAMILY_PREFIX_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{3,8})(?![A-Za-z0-9])")
+
 # Korean verbs/phrases that signal "show me THIS specific thing" — used to
 # promote a series_name match to a reference peek when no full EDP was typed.
 _REFERENCE_LOOKUP_HINTS: tuple[str, ...] = (
@@ -296,6 +309,39 @@ def _detect_reference_lookup(
     # "V7 PLUS 설명해줘" shape where the token is a brand/family, not an EDP.
     if llm_series_name and any(h in message for h in _REFERENCE_LOOKUP_HINTS):
         return llm_series_name
+
+    # Stage 2b — digit-less family prefix ("UGM", "UGMH", "GMF") paired
+    # with a HINT phrase. Without the HINT gate a stray "ISO" or "USA" in
+    # a general query would trigger a wrong peek; the gate keeps this tied
+    # to explicit "what is X?" / "show me X" shapes. Downstream search
+    # prefix-matches via search.py's edp_no/edp_series_name clause, so
+    # "UGM" → all UGMH/UGMF*/UGMG* rows (28 series), "GMF" → GMF52 etc.
+    has_hint = any(h in message for h in _REFERENCE_LOOKUP_HINTS)
+    if has_hint:
+        for m in _FAMILY_PREFIX_RE.finditer(msg_upper):
+            tok = m.group(1)
+            if tok in _REFERENCE_LOOKUP_EXCLUDE:
+                continue
+            return tok
+
+        # Stage 2c — DB-known brand name inside the message. Scans the live
+        # edp_brand_name set via _get_brands() so "V7 PLUS 스펙", "ALU-POWER
+        # 알려줘", "TitaNox 설명" resolve without the LLM having to populate
+        # series_name. Longest-match wins so "ALU-CUT HPC" beats "ALU-CUT".
+        try:
+            brands = _get_brands() or []
+        except Exception:
+            brands = []
+        msg_lc = message.lower()
+        best: str | None = None
+        best_len = 0
+        for b in brands:
+            if not b or len(b) < 3:
+                continue
+            if b.lower() in msg_lc and len(b) > best_len:
+                best, best_len = b, len(b)
+        if best:
+            return best
 
     return None
 
@@ -347,7 +393,7 @@ def _build_material_lookup() -> dict[str, str]:
                     # canonical grade families beat regional lookalikes.
                     lookup.setdefault(key, iso)
     except FileNotFoundError:
-        pass
+        pass  # intentional: material_mapping.csv absent — fuzzy resolver degrades gracefully
     _MATERIAL_LOOKUP = lookup
     return _MATERIAL_LOOKUP
 
@@ -391,7 +437,7 @@ def _pre_resolve_material(message: str) -> str | None:
         if db_hit:
             return db_hit
     except Exception:
-        pass
+        pass  # intentional: alias_resolver warmup failed — CSV fallback below
     lookup = _build_material_lookup()
     if not lookup:
         return None
@@ -1057,7 +1103,7 @@ def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
             out["stock_max"] = hi
             return out
         except (TypeError, ValueError):
-            pass
+            pass  # intentional: regex matched non-numeric group — fall through
 
     for pat in (_STOCK_MIN_RE, _STOCK_MIN_EN_FIRST):
         m = pat.search(message)
@@ -1065,7 +1111,7 @@ def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
             try:
                 n = int(m.group("n"))
             except (TypeError, ValueError):
-                continue
+                continue  # intentional: malformed number — try next pattern
             op = (m.group("op") or "").lower()
             exclusive = _is_exclusive(
                 op, _STOCK_VOCAB["min_inclusive"], _STOCK_VOCAB["min_exclusive"]
@@ -1079,7 +1125,7 @@ def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
             try:
                 n = int(m.group("n"))
             except (TypeError, ValueError):
-                continue
+                continue  # intentional: malformed number — try next pattern
             op = (m.group("op") or "").lower()
             exclusive = _is_exclusive(
                 op, _STOCK_VOCAB["max_inclusive"], _STOCK_VOCAB["max_exclusive"]
@@ -1146,7 +1192,7 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
                     f"현재 발화: {message}"
                 )
         except Exception:
-            pass
+            pass  # intentional: history lookup is best-effort — degrade to current-message-only
 
     # max_retries=5 lets the SDK honor `Retry-After` on 429s (TPM bursts
     # from parallel callers — load tests, IDE auto-complete storms). The

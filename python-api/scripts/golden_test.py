@@ -38,6 +38,16 @@ XLSX_PATH = REPO_ROOT / "testset" / "YG1_ARIA_Testset_v5_Shared_v5.3.xlsx"
 RESULTS_DIR = API_ROOT / "results"
 OUTPUT_CSV = RESULTS_DIR / "golden_result.csv"
 
+# Make config.py importable regardless of how this script is invoked
+# (python scripts/golden_test.py vs python -m scripts.golden_test).
+sys.path.insert(0, str(API_ROOT))
+from config import (  # noqa: E402
+    GOLDEN_RETRY_STATUS,
+    GOLDEN_MAX_RETRIES,
+    GOLDEN_BASE_BACKOFF_SEC,
+    GOLDEN_INTER_CASE_SLEEP_SEC,
+)
+
 
 # ── Scoring-rule maps ─────────────────────────────────────────────────
 
@@ -547,12 +557,12 @@ def _apply_response(row: dict, body: dict, case: dict, jerry: bool, expected) ->
     row.update(graded)
 
 
-# Status codes that indicate transient failures worth retrying. OpenAI
-# rate-limit (429) and generic server errors (500/502/503/504) all pass
-# through the FastAPI layer as-is, so we treat them all as retryable.
-_RETRY_STATUS = {429, 500, 502, 503, 504}
-_MAX_RETRIES = 3
-_BASE_BACKOFF = 1.0
+# Status codes + retry budget live in config.py (GOLDEN_* family) so ops
+# can retune without editing the script. Module-level aliases keep the
+# existing call sites readable.
+_RETRY_STATUS = GOLDEN_RETRY_STATUS
+_MAX_RETRIES = GOLDEN_MAX_RETRIES
+_BASE_BACKOFF = GOLDEN_BASE_BACKOFF_SEC
 
 
 def run_case(client: httpx.Client, case: dict, *, jerry: bool = False) -> dict:
@@ -680,7 +690,7 @@ def main() -> int:
     parser.add_argument("--concurrency", type=int, default=1,
                         help="number of in-flight requests (default 1 = sequential). "
                              "Use e.g. 10 to parallelize against a slow backend.")
-    parser.add_argument("--sleep", type=float, default=0.3,
+    parser.add_argument("--sleep", type=float, default=GOLDEN_INTER_CASE_SLEEP_SEC,
                         help="inter-case pause in seconds (sequential mode only). "
                              "Prevents OpenAI TPM rate-limit trips on long runs. "
                              "Set 0 to disable.")
