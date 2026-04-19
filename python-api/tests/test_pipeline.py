@@ -39,10 +39,10 @@ def test_recommend_returns_top5_with_scores(api_client, db_conn, anthropic_clien
     assert score_values[0] == max(score_values)
     assert all(0.0 <= s <= 100.0 for s in score_values)
 
-    # breakdown keys: base weight schema + affinity + flagship + material_pref + stock
+    # breakdown keys: base weight schema + affinity + flagship + material_pref + stock + hrc_match
     assert set(body["scores"][0]["breakdown"].keys()) == {
         "diameter", "flutes", "material", "shape", "coating",
-        "affinity", "flagship", "material_pref", "stock",
+        "affinity", "flagship", "material_pref", "stock", "hrc_match",
     }
 
 

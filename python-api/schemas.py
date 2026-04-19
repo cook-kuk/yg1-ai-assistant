@@ -30,6 +30,16 @@ class SCRIntent(BaseModel):
     # P2 additions — per-query unit + inventory switch.
     unit_system: Optional[str] = None        # "Metric" | "Inch" — maps to edp_unit
     in_stock_only: Optional[bool] = None     # "재고 있는 것만" / "in stock"
+    # P1 additions — series-scoped lookup + HRC-aware affinity.
+    # series_name: user asked about a specific series family ("GMF52 스펙",
+    # "V7 PLUS 헬릭스각"); chat path routes these to series_profile_mv
+    # instead of the per-EDP recommender. Free text — we keyword-match
+    # against series_profile_mv.series_name_variants downstream.
+    series_name: Optional[str] = None
+    # hardness_hrc: workpiece hardness in HRC. Picks up "HRC 58 가공",
+    # "열처리강 55 로크웰" style phrasing so scoring.hrc_match_boost can
+    # credit brands whose reference_profiles cover that range.
+    hardness_hrc: Optional[float] = None
 
 
 class Candidate(BaseModel):

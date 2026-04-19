@@ -6,7 +6,7 @@ skipped (weight is redistributed proportionally so partial intents still rank).
 """
 
 from typing import Optional
-from affinity import get_affinity
+from affinity import get_affinity, hrc_covers
 from db import fetch_all
 
 # Central scoring config — sub-field weights + affinity tier bonuses. Kept as
@@ -28,6 +28,11 @@ SCORING_CONFIG: dict[str, float] = {
     # two otherwise-equal candidates sort arbitrarily and the one the
     # customer can't buy today wins the #1 slot.
     "stock_boost": 3,
+    # User supplied a target HRC and the candidate's brand has a
+    # reference_profile whose hardness range covers it. A direct "this
+    # brand is cataloged for HRC 55–62" hit is stronger than an ISO-group
+    # affinity guess, so we give it a discrete boost on top.
+    "hrc_match": 5,
 }
 
 # Sum of every possible contribution — used to normalize final score into
@@ -285,6 +290,7 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
     scored: list[tuple[dict, float, dict[str, float]]] = []
     mat_tag = getattr(intent, "material_tag", None)
     wp_name = getattr(intent, "workpiece_name", None)
+    hardness_hrc = getattr(intent, "hardness_hrc", None)
     for c in candidates:
         base, breakdown = score_candidate(c, intent)
         flagship = _brand_boost(c.get("brand"))
@@ -298,14 +304,20 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
         except (TypeError, ValueError):
             stock_qty = 0
         stock = float(SCORING_CONFIG["stock_boost"]) if stock_qty > 0 else 0.0
+        hrc = (
+            float(SCORING_CONFIG["hrc_match"])
+            if hardness_hrc is not None and hrc_covers(c.get("brand"), hardness_hrc)
+            else 0.0
+        )
         breakdown = {
             **breakdown,
             "affinity": round(affinity, 2),
             "flagship": round(flagship, 2),
             "material_pref": round(material_pref, 2),
             "stock": round(stock, 2),
+            "hrc_match": round(hrc, 2),
         }
-        raw = base + flagship + affinity + material_pref + stock
+        raw = base + flagship + affinity + material_pref + stock + hrc
         normalized = min(100.0, round(raw / MAX_POSSIBLE_SCORE * 100, 1))
         scored.append((c, normalized, breakdown))
     scored.sort(key=lambda x: x[1], reverse=True)

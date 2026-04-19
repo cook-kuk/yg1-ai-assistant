@@ -479,16 +479,52 @@ def search_knowledge_web(query: str, top_k: int = 3) -> list[dict]:
     return hits
 
 
+def search_glossary(query: str, top_k: int = 1) -> list[dict]:
+    """DB-backed cutting-tool vocabulary lookup. Matches the query against
+    `term` and `aliases` columns of public.glossary_terms — returns the
+    definition + yg1_offering so the chat path can answer "플루트가
+    뭐야?" / "헬릭스각이란?" style questions without hitting the product
+    recommender. Phase-1 hit; trumps the generic industry/material lookups
+    when the user is asking about a term rather than a job."""
+    try:
+        from glossary import search as _g_search
+    except Exception:
+        return []
+    hits = _g_search(query, top_k=top_k)
+    return [{"type": "glossary", "data": h} for h in hits]
+
+
+def search_series_profile(query: str, top_k: int = 1) -> list[dict]:
+    """DB-backed series_profile_mv lookup — surface the diameter/LOC/OAL
+    ranges + helix/ball/flute arrays for a named series. Phase-1 hit used
+    to answer "이 시리즈의 헬릭스각은?" / "GMF52 직경 범위?" without going
+    through the per-EDP recommender."""
+    try:
+        from series_profile import find_in_text, format_summary
+    except Exception:
+        return []
+    profile = find_in_text(query)
+    if not profile:
+        return []
+    return [{
+        "type": "series_profile",
+        "data": {**profile, "summary": format_summary(profile)},
+    }][:top_k]
+
+
 def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
     """Three-stage cascade:
-      Phase 1  industry + material guide lookup (operator-curated KB,
-               `knowledge/*.json` with explanation/followup/material_chips).
-               Also falls back to the older keyword scorers over the
-               domain-knowledge JSONs if neither industry nor material hits.
+      Phase 1  glossary (DB, term definitions) → series_profile (DB,
+               series spec ranges) → industry + material guide lookup
+               (operator-curated `knowledge/*.json` with explanation /
+               followup / material_chips). Falls back to the older
+               keyword scorers over domain-knowledge JSONs if none hit.
       Phase 2  OpenAI embeddings (semantic, covers paraphrases)
       Phase 3  Tavily web search (long-tail / current events)
     """
     phase1: list[dict] = []
+    phase1.extend(search_glossary(query, top_k=1))
+    phase1.extend(search_series_profile(query, top_k=1))
     phase1.extend(search_industry(query, top_k=1))
     phase1.extend(search_material(query, top_k=2))
     if phase1:

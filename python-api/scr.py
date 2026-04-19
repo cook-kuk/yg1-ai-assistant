@@ -403,7 +403,9 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "diameter_tolerance": string|null, // "h6"/"h7"/"h8" 등 공차 등급
   "ball_radius": number|null,    // 볼엔드밀 반경 (mm). "R0.5", "R 0.3"
   "unit_system": string|null,    // "Metric" | "Inch"
-  "in_stock_only": boolean|null  // "재고 있는 것만" / "in stock"
+  "in_stock_only": boolean|null, // "재고 있는 것만" / "in stock"
+  "series_name": string|null,    // "GMF52", "V7 PLUS", "X-POWER" 등 시리즈/패밀리 자체를 묻는 경우. 스펙·범위·라인업 질문에서 추출.
+  "hardness_hrc": number|null    // 경도 HRC 수치. "HRC 58 가공용", "로크웰 55", "55HRC" → 55
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -425,6 +427,10 @@ intent 판별 (반드시 포함):
   "TiAlN 코팅 특징 설명해줘"   → intent="domain_knowledge", 나머지 전부 null
   "수스 10mm 4날"              → intent="recommendation", material_tag="M", workpiece_name="스테인리스강", diameter=10, flute_count=4
   "CRX-S 알루미늄용 추천"      → intent="recommendation", brand="CRX-S", material_tag="N", workpiece_name="알루미늄"
+  "GMF52 시리즈 직경 범위"     → intent="domain_knowledge", series_name="GMF52", 나머지 null (시리즈 자체 스펙 질문)
+  "V7 PLUS 헬릭스 몇 도?"      → intent="domain_knowledge", series_name="V7 PLUS"
+  "HRC 58 경화강 엔드밀"       → intent="recommendation", material_tag="H", workpiece_name="경화강", hardness_hrc=58
+  "55 HRC 가공용 4날"          → intent="recommendation", hardness_hrc=55, flute_count=4
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 구체 피삭재 (workpiece_name) vs ISO 그룹 (material_tag) — 반드시 **둘 다** 채울 것:
@@ -894,4 +900,6 @@ def parse_intent(message: str) -> SCRIntent:
         ball_radius=_as_float(data.get("ball_radius")),
         unit_system=(data.get("unit_system") or None) or None,
         in_stock_only=_as_bool(data.get("in_stock_only")),
+        series_name=(data.get("series_name") or None) or None,
+        hardness_hrc=_as_float(data.get("hardness_hrc")),
     )

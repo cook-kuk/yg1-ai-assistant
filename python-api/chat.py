@@ -59,7 +59,11 @@ SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공
    - stock_status="outofstock" → "현재 재고 없음, 납기 확인 필요"
    - stock_status 가 null 이면 재고 언급 금지 (스냅샷 없는 제품에 확신 부여 금지).
 
-9. [clarify] 블록이 있으면 그건 "DB 관점에서 지금 조건이 너무 느슨해 후보가 {candidate_count}개 남아있다"는 뜻이다.
+9. [용어] 블록이 있으면 사용자가 용어 정의를 물은 것이다. definition_ko(없으면 definition_en)를 자연스러운 문장으로 옮기되, "YG-1 제공" 줄을 한 문장 덧붙여 YG-1이 해당 축을 어떻게 커버하는지 연결한다. 추천 제품을 나열하지 말 것(용어 답변이 우선).
+
+10. [시리즈 프로파일] 블록이 있으면 사용자가 특정 시리즈의 스펙/범위를 물은 것이다. summary 문자열의 수치(직경/섕크/LOC/OAL/헬릭스/날수/재질)를 그대로 인용하고 description/feature가 있으면 한두 문장으로 요약. "정확한 스펙은 YG-1 시리즈 프로파일(series_profile_mv) 기준"이라고 출처를 명시할 것. EDP 추천 나열 금지 — 유저가 시리즈 자체를 물은 것.
+
+11. [clarify] 블록이 있으면 그건 "DB 관점에서 지금 조건이 너무 느슨해 후보가 {candidate_count}개 남아있다"는 뜻이다.
    그대로 두고 top-10 추천만 주지 마라. 반드시 한 문장으로 "현재 {candidate_count}건 후보가 있어요 — DB에서 좁혀볼 수 있는 조건은 아래입니다" 식으로 설명하고, [clarify] 의 각 필드별 상위 값을 chips 로 제안해라.
    chip 레이블은 "{label}: {value}" 형식으로 간결하게 (예: "헬릭스각: 30", "직경공차: h7", "볼반경: 0.5"). 숫자 필드는 단위 없이 DB 원문 값 그대로.
    [clarify] 가 비어 있으면 (candidate_count 가 작으면) 이 원칙은 무시하고 기존 추천 원칙을 따른다.
@@ -166,6 +170,23 @@ def _build_context_blocks(knowledge: list[dict] | None) -> str:
                 f"Vc: {d.get('cutting_speed_range','')}\n"
                 f"coating: {', '.join(coatings)}\n"
                 f"yg1_hint: {d.get('yg1_recommendation_hint','')}"
+            )
+        elif k_type == "glossary":
+            # public.glossary_terms — term definitions the chat path quotes
+            # directly for "플루트가 뭐야?" style questions.
+            blocks.append(
+                f"[용어] {d.get('term','')}\n"
+                f"설명: {(d.get('definition_ko') or d.get('definition_en') or '')[:500]}\n"
+                f"YG-1 제공: {(d.get('yg1_offering') or '')[:300]}"
+            )
+        elif k_type == "series_profile":
+            # catalog_app.series_profile_mv — one-line summary + raw range
+            # fields so the LLM can cite precise numbers instead of guessing.
+            blocks.append(
+                f"[시리즈 프로파일] {d.get('series_name','')} (brand: {d.get('brand','')})\n"
+                f"summary: {d.get('summary','')}\n"
+                f"description: {(d.get('description') or '')[:200]}\n"
+                f"feature: {(d.get('feature') or '')[:200]}"
             )
         elif k_type == "web_search":
             blocks.append(

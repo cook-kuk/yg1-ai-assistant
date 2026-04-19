@@ -25,6 +25,13 @@ _CACHE_TTL_SEC = 3600.0
 _cache: dict[str, dict[str, dict[str, float]]] = {}
 _loaded_at: float = 0.0
 
+# HRC coverage cache — sourced from brand_profile_mv.reference_profiles JSON.
+# Shape: { normalized_brand: [(hrc_min, hrc_max, work_piece_name, tag_name), …] }
+# Used by scoring._hrc_match_boost to credit brands whose catalog target
+# hardness range covers the user-supplied hardness_hrc.
+_hrc_cache: dict[str, list[tuple[float, float, str, str]]] = {}
+_hrc_loaded_at: float = 0.0
+
 _BRAND_NORM_RE = re.compile(r"[\s\-·ㆍ./(),]+")
 _ISO_CODE_RE = re.compile(r"^[PMKNSH]$")
 
@@ -127,9 +134,95 @@ def _ensure_loaded() -> dict[str, dict[str, dict[str, float]]]:
 
 
 def refresh_cache() -> None:
-    global _cache, _loaded_at
+    global _cache, _loaded_at, _hrc_cache, _hrc_loaded_at
     _cache = {}
     _loaded_at = 0.0
+    _hrc_cache = {}
+    _hrc_loaded_at = 0.0
+
+
+def _load_hrc_ranges() -> dict[str, list[tuple[float, float, str, str]]]:
+    """Flatten brand_profile_mv.reference_profiles into a per-brand list of
+    HRC ranges. Each row's reference_profiles is a JSON array with items
+    like {tag_name, series_name, work_piece_name, hardness_min_hrc,
+    hardness_max_hrc}; we keep only the items that carry hardness data
+    since the no-HRC rows don't add signal for scoring."""
+    try:
+        rows = fetch_all(
+            """
+            SELECT brand_name, reference_profiles
+            FROM catalog_app.brand_profile_mv
+            WHERE brand_name IS NOT NULL
+              AND reference_profiles IS NOT NULL
+            """
+        )
+    except Exception:
+        return {}
+    out: dict[str, list[tuple[float, float, str, str]]] = {}
+    for r in rows:
+        nb = _normalize_brand(r.get("brand_name"))
+        if not nb:
+            continue
+        profiles = r.get("reference_profiles") or []
+        if not isinstance(profiles, list):
+            continue
+        ranges: list[tuple[float, float, str, str]] = []
+        for p in profiles:
+            if not isinstance(p, dict):
+                continue
+            lo_raw = p.get("hardness_min_hrc")
+            hi_raw = p.get("hardness_max_hrc")
+            if lo_raw is None and hi_raw is None:
+                continue
+            try:
+                lo = float(lo_raw) if lo_raw is not None else 0.0
+                hi = float(hi_raw) if hi_raw is not None else 70.0
+            except (TypeError, ValueError):
+                continue
+            if hi < lo:
+                lo, hi = hi, lo
+            ranges.append((
+                lo, hi,
+                str(p.get("work_piece_name") or ""),
+                str(p.get("tag_name") or ""),
+            ))
+        if ranges:
+            out[nb] = ranges
+    return out
+
+
+def _ensure_hrc_loaded() -> dict[str, list[tuple[float, float, str, str]]]:
+    global _hrc_cache, _hrc_loaded_at
+    now = time.time()
+    if not _hrc_cache or now - _hrc_loaded_at > _CACHE_TTL_SEC:
+        try:
+            _hrc_cache = _load_hrc_ranges()
+        except Exception:
+            _hrc_cache = {}
+        _hrc_loaded_at = now
+    return _hrc_cache
+
+
+def hrc_covers(brand: Optional[str], hardness_hrc: Optional[float]) -> bool:
+    """True when any of `brand`'s catalog reference_profiles covers the
+    given HRC value. Used by the scoring boost; returning bool (not score)
+    so the tier magnitude stays in scoring.SCORING_CONFIG."""
+    if not brand or hardness_hrc is None:
+        return False
+    nb = _normalize_brand(brand)
+    if not nb:
+        return False
+    try:
+        hv = float(hardness_hrc)
+    except (TypeError, ValueError):
+        return False
+    ranges = _ensure_hrc_loaded().get(nb)
+    if not ranges:
+        return False
+    for lo, hi, _wp, _tag in ranges:
+        if lo <= hv <= hi:
+            return True
+    return False
 
 
 def set_cache(data: dict[str, dict[str, dict[str, float]]]) -> None:
