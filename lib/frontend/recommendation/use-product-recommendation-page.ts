@@ -48,6 +48,29 @@ function pickLongerThinking(
   return sa.length >= sb.length ? sa : sb
 }
 
+// 동일 productCode가 두 번 포함된 후보 배열이 드물게 관찰됨 (stream partial +
+// final DTO가 겹치는 순간, 또는 inventory snapshot의 warehouse 다중 행이
+// 파이프라인을 타고 올라온 경우). 순서를 보존하며 첫 번째만 남긴다.
+// React가 중복 key 경고를 내지 않도록 렌더 직전 공통 경로에서 방어.
+function dedupeCandidatesByProductCode<T extends { productCode?: string | null }>(
+  list: T[] | null | undefined,
+): T[] | null {
+  if (!list || list.length === 0) return list ?? null
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const item of list) {
+    const key = String(item?.productCode ?? "")
+    if (!key) {
+      out.push(item)
+      continue
+    }
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(item)
+  }
+  return out.length === list.length ? list : out
+}
+
 function resolveReasoningVisibility(
   explicit: RecommendationReasoningVisibility | null | undefined,
   thinkingProcess: string | null | undefined,
@@ -870,7 +893,7 @@ export function useProductRecommendationPage({
               altExplanations: partial.altExplanations ?? [],
               // Inline cards render in the chat flow as soon as the stream
               // flushes them — no waiting for the LLM narrative or a CTA click.
-              candidateCards: partial.candidates ?? last.candidateCards ?? null,
+              candidateCards: dedupeCandidatesByProductCode(partial.candidates ?? last.candidateCards ?? null),
               candidatePagination: partial.pagination ?? last.candidatePagination ?? null,
               // keep isLoading=true so the typewriter still shows once text arrives
             }
@@ -917,7 +940,7 @@ export function useProductRecommendationPage({
         // Candidates from the final DTO may be null (e.g. a greeting turn with
         // no search). Fall back to whatever the partial stream already put on
         // the message so we don't clobber cards the user is already seeing.
-        const finalCards = data.candidates ?? prevMsg?.candidateCards ?? null
+        const finalCards = dedupeCandidatesByProductCode(data.candidates ?? prevMsg?.candidateCards ?? null)
         const finalPagination = data.pagination ?? prevMsg?.candidatePagination ?? null
         const nextMessage: ChatMsg = {
           role: "ai",
@@ -994,7 +1017,7 @@ export function useProductRecommendationPage({
    */
   const handleShowProductCards = () => {
     if (!candidateSnapshot || candidateSnapshot.length === 0) return
-    const cards = candidateSnapshot
+    const cards = dedupeCandidatesByProductCode(candidateSnapshot) ?? []
     const totalCount = candidatePagination?.totalItems ?? cards.length
     setChatMessages(prev => [
       ...prev,
@@ -1050,7 +1073,7 @@ export function useProductRecommendationPage({
     try {
       const resp = await fetchProductsPage(sessionId, page, currentPagination.pageSize)
       const adapted = adaptProductsPage(resp)
-      const nextCards = adapted.candidates.length > 0 ? adapted.candidates : null
+      const nextCards = adapted.candidates.length > 0 ? dedupeCandidatesByProductCode(adapted.candidates) : null
       setCandidateSnapshot(nextCards)
       setCandidatePagination(adapted.pagination)
       setSessionState(prev => prev ? { ...prev, candidateCount: adapted.pagination.totalItems } : prev)

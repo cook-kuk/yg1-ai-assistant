@@ -14,7 +14,7 @@ import json
 import re
 import csv as csv_mod
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -407,7 +407,9 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "diameter_tolerance": string|null, // "h6"/"h7"/"h8" 등 공차 등급
   "ball_radius": number|null,    // 볼엔드밀 반경 (mm). "R0.5", "R 0.3"
   "unit_system": string|null,    // "Metric" | "Inch"
-  "in_stock_only": boolean|null, // "재고 있는 것만" / "in stock"
+  "in_stock_only": boolean|null, // 순수 "재고 있는 것만" / "in stock" (숫자 없음)
+  "stock_min": integer|null,     // 재고 하한 — "재고 200개 이상", "100개↑", "stock >= 50"
+  "stock_max": integer|null,     // 재고 상한 — "재고 50개 이하", "10개 미만", "stock <= 20"
   "series_name": string|null,    // "GMF52", "V7 PLUS", "X-POWER" 등 시리즈/패밀리 자체를 묻는 경우. 스펙·범위·라인업 질문에서 추출.
   "hardness_hrc": number|null,   // 경도 HRC 수치. "HRC 58 가공용", "로크웰 55", "55HRC" → 55
   "length_of_cut_min": number|null,   // 날장(LOC) 하한 mm. "날장 20 이상" → 20
@@ -691,6 +693,19 @@ TPI (thread_tpi):
   "재고 있는 것만" · "재고있는거만" · "stock 있는거" · "in stock" · "available now" · "당장 되는 거" → true
   "재고 없어도 돼" · "all products" 등은 false 또는 null.
   언급 없으면 null (false 아님).
+  ★ 숫자가 같이 나오면 in_stock_only 아니고 stock_min / stock_max 로 간다 (아래 규칙).
+
+재고 수량 범위 (stock_min / stock_max, integer):
+  수량이 명시된 "재고 N개 이상/이하/초과/미만" 표현은 범위 필드로 간다. 이때는 in_stock_only=null 로 둘 것 (중복 금지).
+  "재고 200개 이상만"      → stock_min=200, in_stock_only=null
+  "재고 100개 이상"        → stock_min=100, in_stock_only=null
+  "재고 50개 이하"          → stock_max=50,  in_stock_only=null
+  "재고 10개 미만"          → stock_max=9,   in_stock_only=null   (미만 → -1)
+  "재고 20개 초과"          → stock_min=21,  in_stock_only=null   (초과 → +1)
+  "재고 50~200"             → stock_min=50, stock_max=200
+  "stock >= 100"            → stock_min=100
+  "재고 200 이상인 것만"    → stock_min=200  ("~인 것만" 은 수량-기반이면 in_stock_only 아님)
+  개/ea/pcs/piece 같은 단위 접미사는 무시하고 정수만 추출. 한국어 "개" 포함해도 수량 파싱 계속.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 부정 조건 처리 (반드시 준수):
@@ -734,7 +749,10 @@ TPI (thread_tpi):
 8. M숫자×숫자 또는 "M6x1.0" 패턴이면 diameter=첫 숫자(6), thread_pitch=둘째 숫자(1.0).
 9. "R숫자" 패턴 + 볼/ball 맥락이면 ball_radius. 단독 R 만 있고 볼 맥락 없으면 subtype="Corner Radius" 우선.
 10. "h7"/"h8"/"h6"/"H7" 문자열이 메시지에 있으면 diameter_tolerance 필수.
-11. "재고", "stock", "in stock", "available" 언급 → in_stock_only=true.
+11. "재고" / "stock" 언급 처리는 두 갈래:
+    (a) 숫자+이상/이하/초과/미만/≥/≤/> / < → stock_min 또는 stock_max. in_stock_only 는 null.
+    (b) 숫자 없이 "있는 것만" / "available" 류만 있으면 → in_stock_only=true.
+    (a) 가 성립하면 (b) 는 적용하지 말 것 (중복 금지).
 12. "인치/inch/imperial" → unit_system="Inch", "메트릭/metric" → unit_system="Metric".
 
 위 조건 중 하나라도 해당하는데 잘못 출력하면 오답이다.
@@ -839,6 +857,119 @@ def _is_brand_excluded(message: str, brand: str) -> bool:
     return False
 
 
+# Stock-range regex patterns — match "재고 N개 이상/이하/초과/미만" and the
+# English "stock >= N" / "stock <= N" equivalents. Compiled once at import.
+# Parses what the LLM reliably mis-classifies ("재고 200개 이상만" → true)
+# so stock_min/stock_max survive when the LLM drops them.
+#
+# Explicit inclusive/exclusive handling:
+#   이상 / 초과 / more than / >=      → min (이상·>=·↑ inclusive; 초과·more than exclusive → +1)
+#   이하 / 미만 / less than / <=      → max (이하·<=·↓ inclusive; 미만·less than exclusive → -1)
+
+_STOCK_NUM_RE = re.compile(
+    r"(?:재고|stock|inventory|qty|quantity)\s*"
+    r"(?:는|이|가|을|를|:)?\s*"
+    r"(?P<n1>\d+)\s*(?:개|ea|pcs|piece|pieces)?"
+    r"\s*(?:~|-|부터|에서|between|to)\s*"
+    r"(?P<n2>\d+)\s*(?:개|ea|pcs|piece|pieces)?",
+    re.IGNORECASE,
+)
+_STOCK_MIN_RE = re.compile(
+    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
+    r"(?P<n>\d+)\s*(?:개|ea|pcs|piece|pieces)?\s*"
+    r"(?P<op>이상|초과|over|more\s+than|at\s+least|>=|>|↑|\+)",
+    re.IGNORECASE,
+)
+_STOCK_MAX_RE = re.compile(
+    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
+    r"(?P<n>\d+)\s*(?:개|ea|pcs|piece|pieces)?\s*"
+    r"(?P<op>이하|미만|under|less\s+than|at\s+most|<=|<|↓)",
+    re.IGNORECASE,
+)
+# English-first order: "stock >= 200"
+_STOCK_MIN_EN_FIRST = re.compile(
+    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
+    r"(?P<op>>=|>|at\s+least|more\s+than|over)\s*"
+    r"(?P<n>\d+)",
+    re.IGNORECASE,
+)
+_STOCK_MAX_EN_FIRST = re.compile(
+    r"(?:재고|stock|inventory|qty|quantity)\s*(?:는|이|가|:)?\s*"
+    r"(?P<op><=|<|at\s+most|less\s+than|under)\s*"
+    r"(?P<n>\d+)",
+    re.IGNORECASE,
+)
+
+# "or equal" variants first so ">=" isn't misread as exclusive ">".
+_INCLUSIVE_MIN_TOKS = (">=", "at least", "↑", "+", "이상")
+_EXCLUSIVE_MIN_TOKS = ("초과", "over", "more than", ">")
+_INCLUSIVE_MAX_TOKS = ("<=", "at most", "↓", "이하")
+_EXCLUSIVE_MAX_TOKS = ("미만", "less than", "under", "<")
+
+
+def _is_exclusive(op: str, inclusive: tuple[str, ...], exclusive: tuple[str, ...]) -> bool:
+    """Return True only when the op matches an *exclusive* token and does
+    NOT match a longer inclusive token. Fixes the >=/>  ambiguity."""
+    if any(t in op for t in inclusive):
+        return False
+    return any(t in op for t in exclusive)
+
+
+def _detect_stock_range(message: str) -> dict[str, Optional[int]]:
+    """Deterministic extractor for stock_min/stock_max from the raw message.
+    Handles both Korean ("재고 200개 이상") and English ("stock >= 200") plus
+    range form ("재고 50~200"). Returns {} when no numeric stock pattern
+    is present — caller should fall through to the LLM's values.
+
+    Semantics:
+      이상/>= / at least / ↑   → inclusive min (N stays N)
+      초과/> / more than / over → exclusive min (N → N+1)
+      이하/<= / at most / ↓    → inclusive max (N stays N)
+      미만/< / less than / under → exclusive max (N → N-1, floored at 0)
+    """
+    if not message:
+        return {}
+    out: dict[str, Optional[int]] = {}
+    # Range form wins first — "재고 50~200" should set both.
+    m_range = _STOCK_NUM_RE.search(message)
+    if m_range:
+        try:
+            n1 = int(m_range.group("n1"))
+            n2 = int(m_range.group("n2"))
+            lo, hi = (n1, n2) if n1 <= n2 else (n2, n1)
+            out["stock_min"] = lo
+            out["stock_max"] = hi
+            return out
+        except (TypeError, ValueError):
+            pass
+
+    for pat in (_STOCK_MIN_RE, _STOCK_MIN_EN_FIRST):
+        m = pat.search(message)
+        if m:
+            try:
+                n = int(m.group("n"))
+            except (TypeError, ValueError):
+                continue
+            op = (m.group("op") or "").lower()
+            exclusive = _is_exclusive(op, _INCLUSIVE_MIN_TOKS, _EXCLUSIVE_MIN_TOKS)
+            out["stock_min"] = n + 1 if exclusive else n
+            break
+
+    for pat in (_STOCK_MAX_RE, _STOCK_MAX_EN_FIRST):
+        m = pat.search(message)
+        if m:
+            try:
+                n = int(m.group("n"))
+            except (TypeError, ValueError):
+                continue
+            op = (m.group("op") or "").lower()
+            exclusive = _is_exclusive(op, _INCLUSIVE_MAX_TOKS, _EXCLUSIVE_MAX_TOKS)
+            out["stock_max"] = max(0, n - 1) if exclusive else n
+            break
+
+    return out
+
+
 def _embed_resolve(field: str, raw: str | None, threshold: float = 0.75) -> str | None:
     """Thin wrapper around alias_resolver.resolve with import-time safety:
     if the module or embedding API is unavailable we fail quiet and return
@@ -897,7 +1028,15 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         except Exception:
             pass
 
-    resp = client.with_options(timeout=SCR_TIMEOUT).chat.completions.create(
+    # max_retries=5 lets the SDK honor `Retry-After` on 429s (TPM bursts
+    # from parallel callers — load tests, IDE auto-complete storms). The
+    # SDK default is 2, which paired with the 30s timeout drops requests
+    # mid-backoff when the org's 200k TPM quota is saturated. 5 adds a
+    # bit of headroom without materially extending the happy-path latency.
+    resp = client.with_options(
+        timeout=SCR_TIMEOUT,
+        max_retries=5,
+    ).chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": _system_prompt(message, session)},
@@ -970,6 +1109,40 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
                 return False
         return None
 
+    def _as_int(v):
+        """int 강제 변환. float 도 허용 (200.0 → 200) 하고 잘못된 형식/
+        음수/빈값은 None. _as_float 과 같은 모양의 실패 시 None 전략."""
+        try:
+            if v is None or v == "" or v is False:
+                return None
+            iv = int(float(v))
+            return iv if iv >= 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    # Stock-range deterministic fallback — the LLM occasionally still emits
+    # in_stock_only=true even when the user said "재고 200개 이상만" because
+    # the word "재고" alone pulls the old heuristic. We re-parse the raw
+    # message here and override, so stock_min/stock_max survive the LLM's
+    # classification bias.
+    stock_min_raw = _as_int(data.get("stock_min"))
+    stock_max_raw = _as_int(data.get("stock_max"))
+    in_stock_only_raw = _as_bool(data.get("in_stock_only"))
+    try:
+        det_stock = _detect_stock_range(message)
+    except Exception:
+        det_stock = {}
+    if det_stock:
+        # Prefer deterministic when the raw message carries an explicit
+        # numeric threshold — LLM mis-classifications here are far more
+        # common than false positives in the regex.
+        if det_stock.get("stock_min") is not None:
+            stock_min_raw = det_stock["stock_min"]
+        if det_stock.get("stock_max") is not None:
+            stock_max_raw = det_stock["stock_max"]
+        # Numeric threshold ⇒ in_stock_only must be null (mutually exclusive).
+        in_stock_only_raw = None
+
     return SCRIntent(
         intent=data.get("intent") or "recommendation",
         diameter=data.get("diameter"),
@@ -989,7 +1162,9 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         diameter_tolerance=(data.get("diameter_tolerance") or None) or None,
         ball_radius=_as_float(data.get("ball_radius")),
         unit_system=(data.get("unit_system") or None) or None,
-        in_stock_only=_as_bool(data.get("in_stock_only")),
+        in_stock_only=in_stock_only_raw,
+        stock_min=stock_min_raw,
+        stock_max=stock_max_raw,
         series_name=(data.get("series_name") or None) or None,
         hardness_hrc=_as_float(data.get("hardness_hrc")),
         length_of_cut_min=_as_float(data.get("length_of_cut_min")),

@@ -900,8 +900,8 @@ function NarrowingChat({
 
               {message.candidateCards && message.candidateCards.length > 0 && !message.isLoading && (
                 <div className="mt-1 space-y-2">
-                  {message.candidateCards.map(candidate => (
-                    <CandidateCard key={candidate.productCode} c={candidate} />
+                  {message.candidateCards.map((candidate, cardIdx) => (
+                    <CandidateCard key={`${candidate.productCode ?? "no-code"}-${cardIdx}`} c={candidate} />
                   ))}
                   {(() => {
                     const pg = message.candidatePagination
@@ -1203,8 +1203,8 @@ function CandidatePanel({
                 </button>
                 {openGroups.has(group.seriesKey) && (
                   <div className="p-2 space-y-2 bg-white">
-                    {group.members.map(candidate => (
-                      <CandidateCard key={candidate.productCode} c={candidate} />
+                    {group.members.map((candidate, memberIdx) => (
+                      <CandidateCard key={`${candidate.productCode ?? "no-code"}-${memberIdx}`} c={candidate} />
                     ))}
                   </div>
                 )}
@@ -1214,8 +1214,8 @@ function CandidatePanel({
         </div>
       ) : displayCandidates && displayCandidates.length > 0 ? (
         <div className="space-y-2">
-          {displayCandidates.map(candidate => (
-            <CandidateCard key={candidate.productCode} c={candidate} />
+          {displayCandidates.map((candidate, dcIdx) => (
+            <CandidateCard key={`${candidate.productCode ?? "no-code"}-${dcIdx}`} c={candidate} />
           ))}
         </div>
       ) : hasZeroCandidateResult ? (

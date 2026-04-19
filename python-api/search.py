@@ -221,13 +221,30 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
 
     tool_type = filters.get("tool_type")
     if tool_type and not _skip("tool_type"):
-        where.append("series_tool_type ILIKE %s")
+        # series_tool_type is blank for the majority of end-mill rows in
+        # the current MV (~2300/2340 Ball+N rows carry '' instead of
+        # 'Solid'). Accept NULL/'' alongside the requested type so
+        # "Solid" — scr.py's default for the word "엔드밀" — doesn't
+        # silently wipe out 98%+ of the catalog.
+        where.append(
+            "(series_tool_type IS NULL OR series_tool_type = '' "
+            "OR series_tool_type ILIKE %s)"
+        )
         params.append(f"%{tool_type}%")
 
     subtype = filters.get("subtype")
     if subtype and not _skip("subtype"):
-        where.append("series_cutting_edge_shape ILIKE %s")
-        params.append(f"%{subtype}%")
+        # MV stores shape in two columns and they don't always agree:
+        # series_cutting_edge_shape carries the series-level label
+        # ("Square" even for ball-nose variants), while search_subtype
+        # carries the per-EDP shape ("Ball" for the ball-nose rows).
+        # OR-match both so a "볼 엔드밀" intent picks up rows where the
+        # series label is Square but the individual SKU is Ball. Same for
+        # Corner Radius / Taper / Chamfer / Roughing / High-Feed.
+        where.append(
+            "(series_cutting_edge_shape ILIKE %s OR search_subtype ILIKE %s)"
+        )
+        params.extend([f"%{subtype}%", f"%{subtype}%"])
 
     brand = filters.get("brand")
     if brand and not _skip("brand"):
@@ -400,6 +417,25 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
             "WHERE inv.edp = edp_no AND inv.total_stock > 0)"
         )
 
+    # stock_min / stock_max — explicit quantity thresholds from SCR
+    # ("재고 200개 이상" → stock_min=200). Independent of in_stock_only:
+    # an aggregate total_stock ≥ N automatically implies positive stock so
+    # both gates don't need to fire together. The SCR regex enforces the
+    # mutual exclusion upstream (numeric threshold ⇒ in_stock_only=null).
+    stock_min = filters.get("stock_min")
+    stock_max = filters.get("stock_max")
+    if (stock_min is not None or stock_max is not None) and not _skip("stock_range"):
+        cond = ["inv.edp = edp_no"]
+        if stock_min is not None:
+            cond.append("COALESCE(inv.total_stock, 0) >= %s")
+            params.append(int(stock_min))
+        if stock_max is not None:
+            cond.append("COALESCE(inv.total_stock, 0) <= %s")
+            params.append(int(stock_max))
+        where.append(
+            f"EXISTS (SELECT 1 FROM {INVENTORY_MV} inv WHERE " + " AND ".join(cond) + ")"
+        )
+
     warehouse = filters.get("warehouse")
     if warehouse and not _skip("warehouse"):
         where.append(
@@ -466,6 +502,10 @@ def search_products(
     brand_norm: Optional[str] = None,
     # P3 — inventory gate.
     in_stock_only: Optional[bool] = None,
+    # Numeric stock thresholds ("재고 200개 이상") — independent of
+    # in_stock_only which is just the binary any-stock toggle.
+    stock_min: Optional[int] = None,
+    stock_max: Optional[int] = None,
     warehouse: Optional[str] = None,
     limit: int = 5000,
 ) -> list[dict]:
@@ -519,6 +559,8 @@ def search_products(
         "unit_system": unit_system,
         "brand_norm": brand_norm,
         "in_stock_only": in_stock_only,
+        "stock_min": stock_min,
+        "stock_max": stock_max,
         "warehouse": warehouse,
     }
     where, params = _build_where(filters)

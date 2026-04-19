@@ -322,6 +322,11 @@ def needs_db_path(filters: dict) -> bool:
     search_products_fast so the DB-side gates fire."""
     if filters.get("in_stock_only") or filters.get("warehouse"):
         return True
+    # Numeric stock thresholds — same story as in_stock_only: no stock
+    # column on the index, so only the DB path (EXISTS on inventory_mv)
+    # can enforce "total_stock >= N".
+    if filters.get("stock_min") is not None or filters.get("stock_max") is not None:
+        return True
     drill = any(filters.get(k) is not None for k in (
         "point_angle", "point_angle_min", "point_angle_max",
         "holemaking_coolant_hole",

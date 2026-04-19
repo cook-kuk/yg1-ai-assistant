@@ -32,6 +32,14 @@ class SCRIntent(BaseModel):
     # P2 additions — per-query unit + inventory switch.
     unit_system: Optional[str] = None        # "Metric" | "Inch" — maps to edp_unit
     in_stock_only: Optional[bool] = None     # "재고 있는 것만" / "in stock"
+    # Stock quantity bounds — "재고 200개 이상" → stock_min=200; "재고 50개
+    # 이하" → stock_max=50. Distinct from in_stock_only (binary "any stock"),
+    # which stays for the pure "있는 것만" case. Implemented via EXISTS +
+    # total_stock >= / <= on product_inventory_summary_mv so the main MV
+    # row count stays stable (no JOIN blow-up when a single EDP has many
+    # warehouse rows).
+    stock_min: Optional[int] = None
+    stock_max: Optional[int] = None
     # P1 additions — series-scoped lookup + HRC-aware affinity.
     # series_name: user asked about a specific series family ("GMF52 스펙",
     # "V7 PLUS 헬릭스각"); chat path routes these to series_profile_mv
@@ -156,6 +164,9 @@ class ManualFilters(BaseModel):
     # product_inventory_summary_mv; the in-memory index path falls back to
     # the DB path when these are set since the index doesn't carry stock.
     in_stock_only: Optional[bool] = None
+    # Explicit stock-quantity range (matches SCRIntent.stock_min/stock_max).
+    stock_min: Optional[int] = None
+    stock_max: Optional[int] = None
     warehouse: Optional[str] = None            # inventory_snapshot.warehouse_or_region ILIKE
 
 

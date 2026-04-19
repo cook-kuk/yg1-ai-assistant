@@ -432,6 +432,10 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "ball_radius": getattr(intent, "ball_radius", None),
         "unit_system": getattr(intent, "unit_system", None),
         "in_stock_only": getattr(intent, "in_stock_only", None),
+        # Numeric stock thresholds ("재고 200개 이상만") — parsed in scr.py
+        # via _detect_stock_range and flow through as plain intent keys.
+        "stock_min": getattr(intent, "stock_min", None),
+        "stock_max": getattr(intent, "stock_max", None),
         # P2 — dimensional ranges the LLM now emits directly. search._build_where
         # already recognizes these keys (via ManualFilters), so exposing them
         # from the SCR side is a pure pass-through.
@@ -488,7 +492,7 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
             "holemaking_coolant_hole", "threading_coolant_hole",
             # P2/P3
             "unit_system", "brand_norm",
-            "in_stock_only", "warehouse",
+            "in_stock_only", "stock_min", "stock_max", "warehouse",
         ):
             v = getattr(filters, fld, None)
             if v is not None:
@@ -888,6 +892,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             "ball_radius": getattr(intent, "ball_radius", None),
             "unit_system": getattr(intent, "unit_system", None),
             "in_stock_only": getattr(intent, "in_stock_only", None),
+            # Numeric stock thresholds ("재고 200개 이상만") — independent of
+            # the binary in_stock_only toggle; regex-parsed in scr.py.
+            "stock_min": getattr(intent, "stock_min", None),
+            "stock_max": getattr(intent, "stock_max", None),
         }
         if req.filters:
             for fld in (
@@ -908,7 +916,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 "effective_length_min", "effective_length_max",
                 "holemaking_coolant_hole", "threading_coolant_hole",
                 "unit_system", "brand_norm",
-                "in_stock_only", "warehouse",
+                "in_stock_only", "stock_min", "stock_max", "warehouse",
             ):
                 v = getattr(req.filters, fld, None)
                 if v is not None:
