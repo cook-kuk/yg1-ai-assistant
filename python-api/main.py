@@ -2,6 +2,7 @@ import asyncio
 import json as _json
 import os
 import re
+import time
 from collections import Counter
 from typing import Optional
 
@@ -12,7 +13,6 @@ from fastapi.responses import StreamingResponse
 from schemas import (
     RecommendRequest,
     RecommendResponse,
-    HealthResponse,
     Candidate,
     ScoredCandidate,
     SCRIntent,
@@ -60,7 +60,10 @@ from config import (
     SERIES_QUERY_LIMIT,
     DEFAULT_PAGE_SIZE as _CFG_DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE as _CFG_MAX_PAGE_SIZE,
+    HEALTH_DETAILED,
 )
+
+_start_time = time.time()
 from scheduler import scheduler
 from cutting import (
     get_cutting_conditions,
@@ -135,13 +138,19 @@ def cutting_conditions_api(
     )
 
 
-@app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    try:
-        n = product_count()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"db unreachable: {e}") from e
-    return HealthResponse(status="ok", product_count=n)
+@app.get("/health")
+def health() -> dict:
+    """Minimal by default so k8s / ELB liveness probes stay <5 ms — earlier
+    shape touched the DB (COUNT(*)) on every poll which added ~500 ms per
+    request. Set ARIA_HEALTH_DETAILED=true to get the old shape with the
+    in-memory index size + process uptime for dev dashboards."""
+    if not HEALTH_DETAILED:
+        return {"alive": True}
+    return {
+        "alive": True,
+        "product_count": index_size(),
+        "uptime": round(time.time() - _start_time, 1),
+    }
 
 
 def _derive_stock_status(total_stock) -> Optional[str]:

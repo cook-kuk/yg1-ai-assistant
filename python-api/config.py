@@ -36,6 +36,16 @@ def envStr(name: str, default: str) -> str:
     return v if v is not None and v.strip() != "" else default
 
 
+def envBool(name: str, default: bool = False) -> bool:
+    """True when the env var is set to a truthy string (true/1/yes), else
+    the supplied default. Unset is treated as default so tests that clear
+    the env cleanly revert to the documented behavior."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("true", "1", "yes", "on")
+
+
 # ── OpenAI model IDs ─────────────────────────────────────────────────
 # CLAUDE.md: provider.ts 의 tier naming (haiku/sonnet/opus) 은 건드리지
 # 말 것. env var 이름도 그 관례를 따른다.
@@ -67,6 +77,12 @@ MAX_PAGE_SIZE = envInt("ARIA_MAX_PAGE_SIZE", 100)
 PRODUCT_INDEX_REFRESH_SEC = envInt("ARIA_INDEX_REFRESH", 2 * 60 * 60)  # 2h
 DIAMETER_TOLERANCE = envNum("ARIA_DIA_TOLERANCE", 0.10)  # ±10 %
 
+# ── Health endpoint ─────────────────────────────────────────────────
+# Default minimal (alive only) so k8s / ELB liveness probes don't hit
+# the DB on every poll. Flip to true when you want uptime + row count
+# in the response (dev dashboard / manual debugging).
+HEALTH_DETAILED = envBool("ARIA_HEALTH_DETAILED", False)
+
 # ── LLM timeouts (seconds) ──────────────────────────────────────────
 SCR_TIMEOUT = envNum("ARIA_SCR_TIMEOUT", 30.0)
 LIGHT_COT_TIMEOUT = envNum("ARIA_LIGHT_COT_TIMEOUT", 30.0)
@@ -82,7 +98,11 @@ DUAL_COT_STRONG_THRESHOLD = envInt("DUAL_COT_STRONG_THRESHOLD", 3)
 DUAL_COT_PARTIAL_CHARS = envInt("DUAL_COT_PARTIAL_CHARS", 50)
 
 # ── Conversation memory window ───────────────────────────────────────
-MEMORY_MAX_TURNS = envInt("MEMORY_MAX_TURNS", 6)
+# Default 3 turns (down from 6) — raw messages[] passthrough on Strong
+# CoT's draft+verify+retry chain ballooned token cost 3× for follow-up
+# queries at 6, which surfaced as a latency regression. 3 still covers
+# the "직전 턴 반영" use case. Override via MEMORY_MAX_TURNS env.
+MEMORY_MAX_TURNS = envInt("MEMORY_MAX_TURNS", 3)
 
 # ── Golden test harness retry ────────────────────────────────────────
 GOLDEN_RETRY_STATUS: set[int] = {429, 500, 502, 503, 504}
@@ -109,7 +129,7 @@ def reload_env() -> None:
         FEW_SHOT_PROMPT_SHOTS=envInt("FEW_SHOT_PROMPT_SHOTS", 5),
         DUAL_COT_STRONG_THRESHOLD=envInt("DUAL_COT_STRONG_THRESHOLD", 3),
         DUAL_COT_PARTIAL_CHARS=envInt("DUAL_COT_PARTIAL_CHARS", 50),
-        MEMORY_MAX_TURNS=envInt("MEMORY_MAX_TURNS", 6),
+        MEMORY_MAX_TURNS=envInt("MEMORY_MAX_TURNS", 3),
         GOLDEN_MAX_RETRIES=envInt("GOLDEN_MAX_RETRIES", 3),
         GOLDEN_BASE_BACKOFF_SEC=envNum("GOLDEN_BASE_BACKOFF_SEC", 1.0),
         GOLDEN_INTER_CASE_SLEEP_SEC=envNum("GOLDEN_INTER_CASE_SLEEP_SEC", 0.3),
