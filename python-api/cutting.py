@@ -76,6 +76,67 @@ def get_cutting_conditions(
     return _records(out.head(limit))
 
 
+def get_cutting_range_for_material(
+    material_tag: Optional[str],
+    diameter: Optional[float] = None,
+) -> Optional[dict]:
+    """Roll-up of Vc / Fz / RPM bounds across every CSV row for the given
+    ISO group (and optional diameter window). Used by /products to surface a
+    "이 소재 · 이 직경 권장 범위" block upfront so the chat answer can quote
+    concrete numbers instead of generalities.
+
+    Diameter filter widens by ±20% so the caller's 10mm still picks up
+    condition rows keyed to 8mm or 12mm cutters — the CSV diameters are
+    discrete, exact-match would shed useful data. Returns None when nothing
+    matches so the caller can omit the block entirely."""
+    if not material_tag:
+        return None
+    df = _load()
+    if df.empty:
+        return None
+    mat_up = str(material_tag).upper()
+    mask = df["iso"].astype(str).str.upper() == mat_up
+    if diameter is not None and "인선_mm" in df.columns:
+        edge = pd.to_numeric(df["인선_mm"], errors="coerce")
+        try:
+            d = float(diameter)
+        except (TypeError, ValueError):
+            d = None
+        if d is not None and d > 0:
+            lo, hi = d * 0.8, d * 1.2
+            mask &= edge.between(lo, hi, inclusive="both")
+    subset = df[mask]
+    if subset.empty:
+        return None
+
+    def _rng(col: str, *, as_int: bool = False) -> tuple[Optional[float], Optional[float]]:
+        if col not in subset.columns:
+            return (None, None)
+        s = pd.to_numeric(subset[col], errors="coerce").dropna()
+        if s.empty:
+            return (None, None)
+        lo, hi = s.min(), s.max()
+        if as_int:
+            return (int(lo), int(hi))
+        return (round(float(lo), 3), round(float(hi), 3))
+
+    vc_min, vc_max = _rng("Vc")
+    fz_min, fz_max = _rng("Fz")
+    rpm_min, rpm_max = _rng("RPM", as_int=True)
+    if vc_min is None and fz_min is None and rpm_min is None:
+        return None
+    return {
+        "vc_min": vc_min,
+        "vc_max": vc_max,
+        "fz_min": fz_min,
+        "fz_max": fz_max,
+        "n_min": rpm_min,
+        "n_max": rpm_max,
+        "row_count": int(len(subset)),
+        "source": "YG-1 카탈로그 절삭조건표",
+    }
+
+
 def get_conditions_for_products(
     products: list[dict],
     iso: Optional[str] = None,

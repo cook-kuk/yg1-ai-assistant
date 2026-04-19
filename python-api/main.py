@@ -2,6 +2,7 @@ import asyncio
 import json as _json
 import os
 import re
+from collections import Counter
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -50,7 +51,12 @@ from product_index import (
 from clarify import suggest_clarifying_chips
 from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
 from scheduler import scheduler
-from cutting import get_cutting_conditions, get_conditions_for_products
+from cutting import (
+    get_cutting_conditions,
+    get_conditions_for_products,
+    get_cutting_range_for_material,
+)
+from series_profile import lookup as get_series_profile
 
 app = FastAPI(title="cook-forge python-api", version="0.1.0")
 
@@ -152,6 +158,65 @@ def _coerce_int(v) -> Optional[int]:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _series_profile_chips(ranked: list, max_chips: int = 3) -> list[str]:
+    """Top-N 시리즈 프로파일 요약 chip. ranked 상위 10위 안에서 동일 시리즈가
+    반복되면 그 시리즈의 직경/날수 범위 (series_profile_mv) 를 한 줄 chip 으로
+    선제 노출해, 유저가 직접 필터 바를 뒤적이지 않아도 "이 시리즈는 8-20mm,
+    2/3/4날 커버한다" 는 사실을 한눈에 볼 수 있게 한다.
+
+    미리-알리는 정보 블록 A. Empty 리스트 반환 = 노출할 시리즈가 없다는 뜻
+    (top-10 이 완전 고유 series 로만 구성됐거나 MV 캐시 미스)."""
+    if not ranked:
+        return []
+    names = [c.get("series") for c, _, _ in ranked[:10] if c.get("series")]
+    if not names:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for series_name, _count in Counter(names).most_common(max_chips):
+        profile = get_series_profile(series_name)
+        if not profile:
+            continue
+        display = profile.get("series_name") or series_name
+        if display in seen:
+            continue
+        seen.add(display)
+        d_min = profile.get("diameter_min")
+        d_max = profile.get("diameter_max")
+        flutes = profile.get("flute_counts") or []
+        parts: list[str] = []
+        if d_min is not None and d_max is not None:
+            if d_min == d_max:
+                parts.append(f"직경 {d_min:g}mm")
+            else:
+                parts.append(f"직경 {d_min:g}-{d_max:g}mm")
+        if flutes:
+            parts.append("/".join(str(int(f)) for f in flutes) + "날")
+        if parts:
+            out.append(f"{display}: " + ", ".join(parts))
+    return out
+
+
+def _stock_summary_from_ranked(ranked: list) -> Optional[dict]:
+    """{in_stock, total, pct} — 현 후보군 중 즉시 출고 가능한 비율.
+    total_stock 이 None(스냅샷 없음) 또는 0 이면 분자에 포함하지 않는다.
+    분모는 ranked 전체. total=0 이면 None 반환 (후보 자체가 없는 상황에서
+    재고 문구를 띄우는 건 무의미)."""
+    total = len(ranked)
+    if total == 0:
+        return None
+    in_stock = 0
+    for c, _, _ in ranked:
+        try:
+            qty = int(c.get("total_stock") or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty > 0:
+            in_stock += 1
+    pct = round(in_stock / total * 100) if total else 0
+    return {"in_stock": in_stock, "total": total, "pct": pct}
 
 
 def _build_answer(intent, ranked: list) -> str:
@@ -271,7 +336,33 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "ball_radius": getattr(intent, "ball_radius", None),
         "unit_system": getattr(intent, "unit_system", None),
         "in_stock_only": getattr(intent, "in_stock_only", None),
+        # P2 — dimensional ranges the LLM now emits directly. search._build_where
+        # already recognizes these keys (via ManualFilters), so exposing them
+        # from the SCR side is a pure pass-through.
+        "length_of_cut_min": getattr(intent, "length_of_cut_min", None),
+        "length_of_cut_max": getattr(intent, "length_of_cut_max", None),
+        "overall_length_min": getattr(intent, "overall_length_min", None),
+        "overall_length_max": getattr(intent, "overall_length_max", None),
+        "shank_diameter_min": getattr(intent, "shank_diameter_min", None),
+        "shank_diameter_max": getattr(intent, "shank_diameter_max", None),
     }
+    # Exact shank_diameter → ±0.2mm range. Shank dia is a fit tolerance, not
+    # a selection target; h5/h6 tolerance classes keep actual values within
+    # ±0.015mm of nominal, but catalog rows sometimes round ("8.0" vs "8"),
+    # so ±0.2 absorbs that noise without leaking neighbors (6/10 are the
+    # next standard stops). Skip if min/max already set.
+    shank_exact = getattr(intent, "shank_diameter", None)
+    if shank_exact is not None and base.get("shank_diameter_min") is None and base.get("shank_diameter_max") is None:
+        base["shank_diameter_min"] = shank_exact - 0.2
+        base["shank_diameter_max"] = shank_exact + 0.2
+    # cutting_edge_shape is the same MV column as subtype
+    # (series_cutting_edge_shape). Treat the SCR split as a rename: if
+    # the parser emitted cutting_edge_shape without also filling subtype,
+    # surface it through the subtype filter so search._build_where's
+    # existing ILIKE clause picks it up.
+    ces = getattr(intent, "cutting_edge_shape", None)
+    if ces and not base.get("subtype"):
+        base["subtype"] = ces
     if filters:
         if filters.workpiece_name is not None:
             base["workpiece_name"] = filters.workpiece_name

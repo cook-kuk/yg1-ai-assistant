@@ -340,6 +340,88 @@ def _compare_shank_type(exp_val: str, actual_filters: dict) -> bool:
     return exp_s == act_s or exp_s in act_s or act_s in exp_s
 
 
+# Comparator for numeric fields that the SCR may emit as a range (min/max).
+# Accepts testset expressions like ">=20", "<=100", "15-25", "25" and
+# matches against the actual filter's {prefix}_min / {prefix}_max pair.
+_RANGE_RE = re.compile(r"^\s*(>=|<=|>|<)?\s*(-?\d+(?:\.\d+)?)\s*$")
+_BETWEEN_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(?:-|~|to|…|–|—)\s*(-?\d+(?:\.\d+)?)\s*$")
+
+
+def _compare_numeric_range(prefix: str, exp_val: str, actual_filters: dict) -> bool:
+    """Treat `exp_val` as one of: "20", ">=20", "<=30", "15-25".
+    Pass when the actual filter's `{prefix}_min`/`{prefix}_max` pair is
+    consistent with that expression. An exact value matches when the
+    actual range contains it (or equals it); a one-sided comparator
+    matches when the SCR emitted a matching bound."""
+    exp_s = str(exp_val or "").strip()
+    act_lo = _norm_number(actual_filters.get(f"{prefix}_min"))
+    act_hi = _norm_number(actual_filters.get(f"{prefix}_max"))
+
+    m_between = _BETWEEN_RE.match(exp_s)
+    if m_between:
+        lo = float(m_between.group(1))
+        hi = float(m_between.group(2))
+        if lo > hi:
+            lo, hi = hi, lo
+        # Accept when the SCR's range overlaps the expected one.
+        return (
+            (act_lo is None or act_lo <= hi) and
+            (act_hi is None or act_hi >= lo) and
+            (act_lo is not None or act_hi is not None)
+        )
+
+    m = _RANGE_RE.match(exp_s)
+    if not m:
+        return False
+    op = m.group(1)
+    val = float(m.group(2))
+    if op in (">=", ">", None, ""):
+        # Expected: "≥ val". Passes if SCR set a min ≥ val (fully covered)
+        # OR picked an exact value equal to val.
+        if op in ("", None):
+            return (
+                (act_lo is not None and act_lo == val) or
+                (act_hi is not None and act_hi == val) or
+                (act_lo is not None and act_hi is not None and act_lo <= val <= act_hi)
+            )
+        return act_lo is not None and act_lo >= val
+    if op in ("<=", "<"):
+        return act_hi is not None and act_hi <= val
+    return False
+
+
+def _compare_loc(exp_val: str, actual_filters: dict) -> bool:
+    return _compare_numeric_range("length_of_cut", exp_val, actual_filters)
+
+
+def _compare_oal(exp_val: str, actual_filters: dict) -> bool:
+    return _compare_numeric_range("overall_length", exp_val, actual_filters)
+
+
+def _compare_shank_dia(exp_val: str, actual_filters: dict) -> bool:
+    """shank_diameter has an exact-value slot AND min/max bounds. Check the
+    range path first; if the SCR only set the exact field ("샹크 8mm"),
+    fall back to a direct equality on shank_diameter."""
+    if _compare_numeric_range("shank_diameter", exp_val, actual_filters):
+        return True
+    exp_n = _norm_number(exp_val)
+    act_n = _norm_number(actual_filters.get("shank_diameter"))
+    if exp_n is None or act_n is None:
+        return False
+    return abs(exp_n - act_n) < 1e-6
+
+
+def _compare_series_name(exp_val: str, actual_filters: dict) -> bool:
+    """Case/space-insensitive match of the emitted series_name against the
+    expected token. Accepts "GMF52" ~= "gmf 52" — _norm_brand re-uses the
+    same hyphen/space stripping so "V7-PLUS" matches "V7 PLUS"."""
+    exp_n = _norm_brand(exp_val)
+    act_n = _norm_brand(actual_filters.get("series_name"))
+    if not exp_n or not act_n:
+        return False
+    return exp_n == act_n or exp_n in act_n or act_n in exp_n
+
+
 # Expected-field → comparator + whether my API supports it.
 SUPPORTED_COMPARATORS = {
     "material": _compare_material,
@@ -351,11 +433,15 @@ SUPPORTED_COMPARATORS = {
     "brand": _compare_brand,
     "toolMaterial": _compare_tool_material,
     "shankType": _compare_shank_type,
+    # P2 — previously skipped, now backed by SCR min/max slots.
+    "lengthOfCut": _compare_loc,
+    "overallLength": _compare_oal,
+    "shankDiameter": _compare_shank_dia,
+    "seriesName": _compare_series_name,
 }
 UNSUPPORTED_FIELDS = {
     "countryCode", "cuttingType", "productCode",
-    "seriesName", "totalStock", "overallLength", "lengthOfCut",
-    "shankDiameter", "country",
+    "totalStock", "country",
 }
 
 

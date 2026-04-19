@@ -40,6 +40,18 @@ class SCRIntent(BaseModel):
     # "열처리강 55 로크웰" style phrasing so scoring.hrc_match_boost can
     # credit brands whose reference_profiles cover that range.
     hardness_hrc: Optional[float] = None
+    # P2 additions — dimensional ranges the golden test used to skip
+    # (overallLength / lengthOfCut / shankDiameter / cutting edge shape).
+    # LLM picks up "날장 20 이상" / "전장 100 이하" / "샹크 8mm" and sends
+    # min/max bounds that _build_where already knows how to consume.
+    length_of_cut_min: Optional[float] = None    # milling_length_of_cut ≥ min
+    length_of_cut_max: Optional[float] = None    # milling_length_of_cut ≤ max
+    overall_length_min: Optional[float] = None   # milling_overall_length ≥ min
+    overall_length_max: Optional[float] = None   # milling_overall_length ≤ max
+    shank_diameter: Optional[float] = None       # exact shank dia; main.py expands to ±tol
+    shank_diameter_min: Optional[float] = None
+    shank_diameter_max: Optional[float] = None
+    cutting_edge_shape: Optional[str] = None     # series_cutting_edge_shape (Square/Ball/Corner Radius/…)
 
 
 class Candidate(BaseModel):
@@ -226,6 +238,15 @@ class ProductsResponse(BaseModel):
     session_id: str
     broadened: bool = False  # True when follow-up narrow hit 0 and we used the global set
     sources: List[SourceAttribution] = Field(default_factory=list)
+    # Pre-guidance blocks surfaced alongside the product list so the UI /
+    # CoT can quote concrete aggregates without an extra round-trip.
+    # stock_summary: {in_stock, total, pct} — fraction of today's candidate
+    # pool that ships now. cutting_range: {vc_min/max, fz_min/max, n_min/max,
+    # row_count, source} — Vc/Fz/RPM bounds from the YG-1 condition chart for
+    # the parsed material_tag (+ optional diameter window). Both are None
+    # when the data isn't available, which the frontend treats as hide-chip.
+    stock_summary: Optional[Dict[str, Any]] = None
+    cutting_range: Optional[Dict[str, Any]] = None
 
 
 class ProductsPageRequest(BaseModel):

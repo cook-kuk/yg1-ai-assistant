@@ -405,7 +405,15 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "unit_system": string|null,    // "Metric" | "Inch"
   "in_stock_only": boolean|null, // "재고 있는 것만" / "in stock"
   "series_name": string|null,    // "GMF52", "V7 PLUS", "X-POWER" 등 시리즈/패밀리 자체를 묻는 경우. 스펙·범위·라인업 질문에서 추출.
-  "hardness_hrc": number|null    // 경도 HRC 수치. "HRC 58 가공용", "로크웰 55", "55HRC" → 55
+  "hardness_hrc": number|null,   // 경도 HRC 수치. "HRC 58 가공용", "로크웰 55", "55HRC" → 55
+  "length_of_cut_min": number|null,   // 날장(LOC) 하한 mm. "날장 20 이상" → 20
+  "length_of_cut_max": number|null,   // 날장 상한 mm. "날장 30 이하" → 30
+  "overall_length_min": number|null,  // 전장(OAL) 하한 mm. "전장 80 이상" → 80
+  "overall_length_max": number|null,  // 전장 상한 mm. "전장 100 이하" → 100
+  "shank_diameter": number|null,      // 샹크 직경 정확 값 mm. "샹크 8mm", "shank 6"
+  "shank_diameter_min": number|null,  // 샹크 하한 mm
+  "shank_diameter_max": number|null,  // 샹크 상한 mm
+  "cutting_edge_shape": string|null   // 절삭날 형상. "Square"/"Ball"/"Corner Radius"/"Taper"/"Chamfer" — subtype과 같은 값; subtype을 쓰면 이 필드는 null.
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -431,6 +439,13 @@ intent 판별 (반드시 포함):
   "V7 PLUS 헬릭스 몇 도?"      → intent="domain_knowledge", series_name="V7 PLUS"
   "HRC 58 경화강 엔드밀"       → intent="recommendation", material_tag="H", workpiece_name="경화강", hardness_hrc=58
   "55 HRC 가공용 4날"          → intent="recommendation", hardness_hrc=55, flute_count=4
+  "날장 20 이상 수스 10mm"     → intent="recommendation", length_of_cut_min=20, material_tag="M", diameter=10
+  "전장 100 이하 4날"          → intent="recommendation", overall_length_max=100, flute_count=4
+  "LOC 15~25 구리"             → intent="recommendation", length_of_cut_min=15, length_of_cut_max=25, workpiece_name="구리", material_tag="N"
+  "샹크 8mm 6mm 4날"           → intent="recommendation", shank_diameter=8, diameter=6, flute_count=4
+  "샹크 6~12mm 알루미늄"       → intent="recommendation", shank_diameter_min=6, shank_diameter_max=12, material_tag="N", workpiece_name="알루미늄"
+  "볼 절삭날 형상"             → intent="domain_knowledge", cutting_edge_shape="Ball"
+  "Corner Radius 4날 10mm"     → intent="recommendation", cutting_edge_shape="Corner Radius", flute_count=4, diameter=10
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 구체 피삭재 (workpiece_name) vs ISO 그룹 (material_tag) — 반드시 **둘 다** 채울 것:
@@ -902,4 +917,12 @@ def parse_intent(message: str) -> SCRIntent:
         in_stock_only=_as_bool(data.get("in_stock_only")),
         series_name=(data.get("series_name") or None) or None,
         hardness_hrc=_as_float(data.get("hardness_hrc")),
+        length_of_cut_min=_as_float(data.get("length_of_cut_min")),
+        length_of_cut_max=_as_float(data.get("length_of_cut_max")),
+        overall_length_min=_as_float(data.get("overall_length_min")),
+        overall_length_max=_as_float(data.get("overall_length_max")),
+        shank_diameter=_as_float(data.get("shank_diameter")),
+        shank_diameter_min=_as_float(data.get("shank_diameter_min")),
+        shank_diameter_max=_as_float(data.get("shank_diameter_max")),
+        cutting_edge_shape=(data.get("cutting_edge_shape") or None) or None,
     )
