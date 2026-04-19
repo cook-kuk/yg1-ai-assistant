@@ -966,7 +966,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # 5. Answer generation.
     #    - Natural-language message → RAG lookup + GPT-5.4-mini (CoT).
     #    - Manual-only request → deterministic template (no LLM round-trip).
+    # Hoisted above the branch so the manual-only path (no req.message) still
+    # has them defined when the response uses cot_level / verified / chips.
     chips: list[str] = []
+    chat_result: dict = {}
     if req.message:
         # `knowledge` was already fetched in parallel with parse_intent at the
         # top of the handler — reuse it here instead of issuing a second call.
@@ -999,7 +1002,6 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             clarify_payload = await asyncio.to_thread(suggest_clarifying_chips, filter_dict)
         except Exception:
             clarify_payload = None
-        chat_result: dict = {}
         try:
             chat_result = await asyncio.to_thread(
                 generate_response,
