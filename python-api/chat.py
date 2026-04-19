@@ -17,10 +17,11 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -28,6 +29,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 OPENAI_MODEL = os.environ.get("OPENAI_HAIKU_MODEL", "gpt-5.4-mini")
 
 _client: OpenAI | None = None
+_aclient: AsyncOpenAI | None = None
 
 
 def _get_client() -> OpenAI:
@@ -35,6 +37,16 @@ def _get_client() -> OpenAI:
     if _client is None:
         _client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     return _client
+
+
+def _get_aclient() -> AsyncOpenAI:
+    """Async OpenAI client for the streaming Strong-CoT draft. Separate
+    singleton from the sync one so a blocking light-path call doesn't
+    contend with an in-flight stream."""
+    global _aclient
+    if _aclient is None:
+        _aclient = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    return _aclient
 
 
 SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공구 전문가답게 친절하게 응대한다.
@@ -228,6 +240,156 @@ def _summarize_facets(available_filters: dict | None, top_n: int = 4) -> str:
     return "\n".join(lines)
 
 
+def _build_conversation_memory_safe(session: Any) -> str:
+    """Wrap session.build_conversation_memory with a session→None guard and
+    graceful import fallback. Returns "" when the session has no history
+    or the helper import fails, so the CoT prompt stays well-formed even
+    when the caller forgot to pass a session (e.g. /recommend path)."""
+    if session is None:
+        return ""
+    try:
+        from session import build_conversation_memory
+        return build_conversation_memory(session) or ""
+    except Exception:
+        return ""
+
+
+def _build_ui_context(
+    intent: Any,
+    req_filters: dict | None,
+    available_filters: dict | None,
+    products: list[dict] | None,
+    total_count: int,
+    relaxed_fields: list[str] | None,
+) -> str:
+    """Full UI-state dump. Replaces the old 9-field `_summarize_intent`
+    block so the CoT sees the *exact* same state the user has on screen:
+      A) ManualFilters that the user toggled in the filter bar
+      B) SCR fields the LLM pulled from the natural-language message
+      C) range-slider values (anything ending in _min / _max)
+      D) live result summary — total_count, relaxed_fields
+      E) top10 stock breakdown (in-stock / total)
+      F) top10 brand distribution (Counter most_common(5))
+      G) top10 score high/low
+      H) one-click narrow hints from availableFilters (top 3 per field)
+
+    Principle 6/11 and the new 12/13 all reference signals that used to live
+    across multiple blocks — keeping them in a single [UI 컨텍스트] block lets
+    the model cross-reference "이 유저는 diameter_min=8 을 토글한 채 '코팅 좋
+    은 거' 라고 물었다" without hunting around the prompt.
+
+    Returns "" when nothing is informative — caller skips the block entirely."""
+    lines: list[str] = []
+    _RANGE_SUFFIXES = ("_min", "_max")
+
+    # A + C — ManualFilters (user-toggled), split scalar vs range for clarity.
+    user_scalar: list[str] = []
+    user_range: list[str] = []
+    if req_filters:
+        for key in sorted(req_filters):
+            val = req_filters.get(key)
+            if val is None or val == "" or val is False:
+                continue
+            if any(key.endswith(s) for s in _RANGE_SUFFIXES):
+                user_range.append(f"  {key}: {val}")
+            else:
+                user_scalar.append(f"  {key}: {val}")
+    if user_scalar:
+        lines.append("[유저가 설정한 필터 (토글/선택)]")
+        lines.extend(user_scalar)
+    if user_range:
+        if lines:
+            lines.append("")
+        lines.append("[범위 필터 (슬라이더)]")
+        lines.extend(user_range)
+
+    # B — SCR intent fields the LLM extracted this turn.
+    llm_fields = (
+        "diameter", "flute_count", "material_tag", "workpiece_name",
+        "subtype", "brand", "coating", "tool_material", "shank_type",
+        "helix_angle", "point_angle", "thread_pitch", "thread_tpi",
+        "diameter_tolerance", "ball_radius",
+        "length_of_cut_min", "length_of_cut_max",
+        "overall_length_min", "overall_length_max",
+        "shank_diameter", "shank_diameter_min", "shank_diameter_max",
+        "hardness_hrc", "series_name", "cutting_edge_shape",
+        "unit_system", "in_stock_only",
+    )
+    llm_active: list[str] = []
+    for f in llm_fields:
+        v = getattr(intent, f, None)
+        if v is not None:
+            llm_active.append(f"  {f}: {v}")
+    if llm_active:
+        if lines:
+            lines.append("")
+        lines.append("[AI가 자연어에서 추출한 필터]")
+        lines.extend(llm_active)
+
+    # D + E + F + G — result roll-up over the top-10 ranked cards.
+    result_lines: list[str] = [f"  총 {total_count}건 매칭"]
+    if relaxed_fields:
+        result_lines.append(f"  ⚠ 조건 완화됨: {', '.join(relaxed_fields)}")
+    if products:
+        in_stock = 0
+        brand_counter: Counter = Counter()
+        score_vals: list[float] = []
+        for p in products[:10]:
+            if not isinstance(p, dict):
+                continue
+            try:
+                if int(p.get("total_stock") or 0) > 0:
+                    in_stock += 1
+            except (TypeError, ValueError):
+                pass
+            s = p.get("score")
+            if s is not None:
+                try:
+                    score_vals.append(float(s))
+                except (TypeError, ValueError):
+                    pass
+            b = p.get("brand")
+            if b:
+                brand_counter[str(b)] += 1
+        top_n = min(len(products), 10)
+        result_lines.append(f"  top{top_n} 재고 있는 제품: {in_stock}/{top_n}건")
+        if brand_counter:
+            preview = ", ".join(
+                f"{b}({c}건)" for b, c in brand_counter.most_common(5)
+            )
+            result_lines.append(f"  브랜드 분포: {preview}")
+        if score_vals:
+            result_lines.append(
+                f"  스코어: 최고 {max(score_vals):.1f} / 최저 {min(score_vals):.1f}"
+            )
+    if lines:
+        lines.append("")
+    lines.append("[검색 결과 요약]")
+    lines.extend(result_lines)
+
+    # H — one-click narrow hints (top-3 values per facet field).
+    if available_filters:
+        field_hints: list[str] = []
+        for field, opts in available_filters.items():
+            if not opts or not isinstance(opts, list) or len(opts) <= 1:
+                continue
+            pairs: list[tuple[str, int]] = []
+            for o in opts[:3]:
+                if hasattr(o, "value") and hasattr(o, "count"):
+                    pairs.append((str(o.value), int(o.count)))
+                elif isinstance(o, dict) and "value" in o:
+                    pairs.append((str(o["value"]), int(o.get("count", 0))))
+            if pairs:
+                preview = ", ".join(f"{v}({c}건)" for v, c in pairs)
+                field_hints.append(f"  {field}: {preview}")
+        if field_hints:
+            lines.append("")
+            lines.append("[유저가 추가로 좁힐 수 있는 필터]")
+            lines.extend(field_hints)
+
+    return "\n".join(lines)
+
+
 def _format_stock_summary_block(summary: dict | None) -> str:
     """Render the [재고 요약] block consumed by principle 12. Returns "" when
     the caller has no meaningful summary (no candidates)."""
@@ -277,31 +439,44 @@ def _generate_light_cot(
     clarify: dict | None = None,
     stock_summary: dict | None = None,
     cutting_range: dict | None = None,
+    session: Any = None,
+    req_filters: dict | None = None,
 ) -> dict:
     """Fast-path composer — gpt-5.4-mini @ reasoning_effort=low. Used for
     the bulk of /products traffic where the answer is a straightforward
     quote of DB data + knowledge. Keeps the 13 principles, no extra
     verification pass. generate_response() is the public entry point.
+
+    `session` feeds build_conversation_memory so the model sees the last
+    N turns (user question + AI preview + filter deltas). `req_filters`
+    is the raw ManualFilters dict so [UI 컨텍스트] can label toggle-state
+    distinctly from SCR-extracted intent.
     """
-    intent_summary = _summarize_intent(intent)
     product_summary = _summarize_products(products or [])
     context_str = _build_context_blocks(knowledge)
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
+    ui_context = _build_ui_context(
+        intent, req_filters, available_filters, products, total_count, relaxed_fields,
+    )
+    memory_block = _build_conversation_memory_safe(session)
 
-    meta_lines = [
-        f"total_count: {total_count}",
-    ]
+    # [meta] is now the "LLM-only needs this" slice — top_products (for
+    # principle 8 stock rules) and relaxed_fields. Everything else lives
+    # in [UI 컨텍스트] / [대화 히스토리].
+    meta_lines = [f"total_count: {total_count}"]
     if relaxed_fields:
         meta_lines.append(f"relaxed_fields: {relaxed_fields}")
-    if intent_summary:
-        meta_lines.append(f"intent: {json.dumps(intent_summary, ensure_ascii=False)}")
     if product_summary:
         meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
     meta_block = "\n".join(meta_lines)
 
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if memory_block:
+        parts.append(memory_block)
+    if ui_context:
+        parts.append(f"[UI 컨텍스트]\n{ui_context}")
     if facets_str:
         parts.append(f"[facets]\n{facets_str}")
     if clarify and clarify.get("groups"):
@@ -517,29 +692,39 @@ def _generate_strong_cot(
     clarify: dict | None = None,
     stock_summary: dict | None = None,
     cutting_range: dict | None = None,
+    session: Any = None,
+    req_filters: dict | None = None,
 ) -> dict:
     """Two-pass composer — gpt-5.4 drafts with reasoning_effort=medium,
     then gpt-5.4-mini verifies the draft against the [매칭 제품] ground
     truth and corrects any hallucinated specs. Falls back to the light
-    path on any exception so a single bad request can't block the UI."""
-    intent_summary = _summarize_intent(intent)
+    path on any exception so a single bad request can't block the UI.
+
+    `session` + `req_filters` let the Strong path cross-reference the prior
+    turns + current UI toggle state (same rationale as the light path)."""
     product_summary = _summarize_products(products or [], limit=10)
     context_str = _build_context_blocks(knowledge)
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
     product_ground_truth = _strong_product_block(products or [], limit=10)
+    ui_context = _build_ui_context(
+        intent, req_filters, available_filters, products, total_count, relaxed_fields,
+    )
+    memory_block = _build_conversation_memory_safe(session)
 
     meta_lines = [f"total_count: {total_count}"]
     if relaxed_fields:
         meta_lines.append(f"relaxed_fields: {relaxed_fields}")
-    if intent_summary:
-        meta_lines.append(f"intent: {json.dumps(intent_summary, ensure_ascii=False)}")
     if product_summary:
         meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
     meta_block = "\n".join(meta_lines)
 
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if memory_block:
+        parts.append(memory_block)
+    if ui_context:
+        parts.append(f"[UI 컨텍스트]\n{ui_context}")
     if product_ground_truth:
         parts.append(f"[매칭 제품 (ground truth — 여기 없는 건 인용 금지)]\n{product_ground_truth}")
     if facets_str:
@@ -574,6 +759,7 @@ def _generate_strong_cot(
             message, intent, products, knowledge, total_count,
             relaxed_fields, available_filters, clarify,
             stock_summary, cutting_range,
+            session, req_filters,
         )
         result["cot_level"] = "light"
         return result
@@ -594,6 +780,7 @@ def _generate_strong_cot(
         f"[매칭 제품]\n{product_ground_truth or '(없음)'}\n\n"
         f"[meta]\n{meta_block}"
     )
+    verified_flag: bool | None = None
     try:
         verify_resp = client.chat.completions.create(
             model=OPENAI_MODEL,
@@ -607,7 +794,17 @@ def _generate_strong_cot(
         verified = _extract_json(verify_resp.choices[0].message.content or "")
         # Only trust the verifier if it returned an answer; otherwise keep
         # the draft so a bad verifier pass doesn't discard good output.
-        data = verified if verified.get("answer") else _extract_json(draft_text)
+        if verified.get("answer"):
+            data = verified
+            # verifier reports its own verified bool — coerce to Python bool
+            # (some runs return the string "true"/"false").
+            v = verified.get("verified")
+            if isinstance(v, bool):
+                verified_flag = v
+            elif isinstance(v, str):
+                verified_flag = v.strip().lower() == "true"
+        else:
+            data = _extract_json(draft_text)
     except Exception:
         data = _extract_json(draft_text)
 
@@ -630,6 +827,7 @@ def _generate_strong_cot(
         "reasoning": str(data.get("reasoning") or data.get("corrections") or ""),
         "chips": chips,
         "refined_filters": data.get("refined_filters") or None,
+        "verified": verified_flag,
     }
 
 
@@ -644,10 +842,17 @@ def generate_response(
     clarify: dict | None = None,
     stock_summary: dict | None = None,
     cutting_range: dict | None = None,
+    session: Any = None,
+    req_filters: dict | None = None,
 ) -> dict:
     """Public entry point — dispatches to light/strong CoT based on
     _assess_cot_level. Always tags the result dict with cot_level so
-    callers can forward it to ProductsResponse."""
+    callers can forward it to ProductsResponse.
+
+    `session` + `req_filters` are forwarded into both CoT paths so every
+    chat turn sees the same [대화 히스토리] + [UI 컨텍스트] state. Both
+    default to None, which keeps /recommend (stateless) callers working
+    without a session store."""
     level = _assess_cot_level(
         message, intent, products or [], knowledge or [], total_count, relaxed_fields,
     )
@@ -656,6 +861,7 @@ def generate_response(
             message, intent, products, knowledge, total_count,
             relaxed_fields, available_filters, clarify,
             stock_summary, cutting_range,
+            session, req_filters,
         )
         result.setdefault("cot_level", "strong")
         return result
@@ -663,6 +869,252 @@ def generate_response(
         message, intent, products, knowledge, total_count,
         relaxed_fields, available_filters, clarify,
         stock_summary, cutting_range,
+        session, req_filters,
     )
     result["cot_level"] = "light"
     return result
+
+
+# ── Strong-path SSE streaming ───────────────────────────────────────────
+#
+# stream_strong_cot is the async counterpart to _generate_strong_cot.
+# Instead of one blocking call it yields (event_type, payload) tuples so
+# the /products/stream endpoint can relay progress to the UI:
+#
+#   ("thinking", {step, total_steps, status, cot_level})
+#   ("partial_answer", {text, status})      — emitted every ~50 chars
+#   ("answer", {answer, chips, reasoning, cot_level, verified, ...})
+#
+# Draft step uses AsyncOpenAI with stream=True so the UI can "type" the
+# draft in real time; verify step is synchronous (short + JSON-mode). If
+# the draft stream fails mid-way we downgrade to the light path via a
+# to_thread call — callers still get exactly one ("answer", …) tuple.
+
+
+def _build_strong_user_turn(
+    message: str,
+    intent: Any,
+    products: list[dict],
+    knowledge: list[dict],
+    total_count: int,
+    relaxed_fields: list[str] | None,
+    available_filters: dict | None,
+    clarify: dict | None,
+    stock_summary: dict | None,
+    cutting_range: dict | None,
+    session: Any = None,
+    req_filters: dict | None = None,
+) -> tuple[str, str]:
+    """Return (user_turn, product_ground_truth). Extracted so both the
+    sync Strong path and the streaming variant assemble the exact same
+    prompt — otherwise the verifier's ground-truth block could drift
+    from what the drafter saw."""
+    product_summary = _summarize_products(products or [], limit=10)
+    context_str = _build_context_blocks(knowledge)
+    facets_str = _summarize_facets(available_filters)
+    stock_block = _format_stock_summary_block(stock_summary)
+    cutting_block = _format_cutting_range_block(cutting_range)
+    product_ground_truth = _strong_product_block(products or [], limit=10)
+    ui_context = _build_ui_context(
+        intent, req_filters, available_filters, products, total_count, relaxed_fields,
+    )
+    memory_block = _build_conversation_memory_safe(session)
+
+    meta_lines = [f"total_count: {total_count}"]
+    if relaxed_fields:
+        meta_lines.append(f"relaxed_fields: {relaxed_fields}")
+    if product_summary:
+        meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
+    meta_block = "\n".join(meta_lines)
+
+    parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if memory_block:
+        parts.append(memory_block)
+    if ui_context:
+        parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if product_ground_truth:
+        parts.append(f"[매칭 제품 (ground truth — 여기 없는 건 인용 금지)]\n{product_ground_truth}")
+    if facets_str:
+        parts.append(f"[facets]\n{facets_str}")
+    if clarify and clarify.get("groups"):
+        from clarify import format_chips_for_prompt
+        clarify_str = format_chips_for_prompt(clarify)
+        if clarify_str:
+            parts.append(f"[clarify]\n{clarify_str}")
+    if stock_block:
+        parts.append(f"[재고 요약]\n{stock_block}")
+    if cutting_block:
+        parts.append(f"[절삭조건 참고범위]\n{cutting_block}")
+    parts.append(f"[질문]\n{message}")
+    return "\n\n".join(parts), product_ground_truth
+
+
+def _normalize_chips_list(raw) -> list[str]:
+    """Chips wire-type is list[str]. Normalize the LLM's loose output
+    (strings, {label,value} dicts, …) so the frontend never has to."""
+    out: list[str] = []
+    for c in (raw or []):
+        if not c:
+            continue
+        if isinstance(c, dict):
+            label = c.get("label") or c.get("value")
+            if label:
+                out.append(str(label))
+        elif isinstance(c, str):
+            out.append(c)
+        else:
+            out.append(str(c))
+    return out
+
+
+# Emit a partial_answer frame roughly every this many characters. Tuned
+# so the user sees progress within the first 1–2 seconds of the draft
+# stream without flooding the SSE channel.
+_PARTIAL_CHUNK_CHARS = int(os.environ.get("DUAL_COT_PARTIAL_CHARS", "50"))
+
+
+async def stream_strong_cot(
+    message: str,
+    intent: Any,
+    products: list[dict],
+    knowledge: list[dict],
+    total_count: int,
+    relaxed_fields: list[str] | None = None,
+    available_filters: dict | None = None,
+    clarify: dict | None = None,
+    stock_summary: dict | None = None,
+    cutting_range: dict | None = None,
+    session: Any = None,
+    req_filters: dict | None = None,
+):
+    """Async generator yielding (event_type, payload) tuples for the SSE
+    relay. Yields exactly one ("answer", ...) as its terminal frame,
+    even when the draft/verify steps fail (via light-path fallback).
+    """
+    import asyncio
+
+    user_turn, product_ground_truth = _build_strong_user_turn(
+        message, intent, products, knowledge, total_count,
+        relaxed_fields, available_filters, clarify,
+        stock_summary, cutting_range, session, req_filters,
+    )
+
+    # Step 1 — announce deep-reasoning kickoff. Client renders a stage
+    # badge so the user knows the ~30-50s wait is deliberate.
+    yield ("thinking", {
+        "step": 1, "total_steps": 3,
+        "status": "심층 분석 시작 (Strong CoT)",
+        "cot_level": "strong",
+    })
+
+    # Step 2 — draft streaming.
+    yield ("thinking", {
+        "step": 2, "total_steps": 3,
+        "status": "🔍 전문가 수준으로 분석 중...",
+        "cot_level": "strong",
+    })
+
+    aclient = _get_aclient()
+    partial = ""
+    last_emit = 0
+    draft_ok = False
+    try:
+        stream = await aclient.chat.completions.create(
+            model=OPENAI_STRONG_MODEL,
+            messages=[
+                {"role": "system", "content": STRONG_SYSTEM_PROMPT},
+                {"role": "user", "content": user_turn},
+            ],
+            response_format={"type": "json_object"},
+            reasoning_effort="medium",
+            stream=True,
+        )
+        async for chunk in stream:
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None) if delta else None
+            if not content:
+                continue
+            partial += content
+            if len(partial) - last_emit >= _PARTIAL_CHUNK_CHARS:
+                last_emit = len(partial)
+                yield ("partial_answer", {
+                    "text": partial,
+                    "status": "분석 중...",
+                })
+        draft_ok = bool(partial)
+    except Exception:
+        draft_ok = False
+
+    if not draft_ok:
+        # Draft stream failed — drop to the light path so the UI still
+        # gets a real answer. Caller only sees one terminal "answer".
+        fallback = await asyncio.to_thread(
+            _generate_light_cot,
+            message, intent, products, knowledge, total_count,
+            relaxed_fields, available_filters, clarify,
+            stock_summary, cutting_range,
+            session, req_filters,
+        )
+        fallback["cot_level"] = "light"
+        fallback["verified"] = None
+        yield ("answer", fallback)
+        return
+
+    # Step 3 — fact-verification.
+    yield ("thinking", {
+        "step": 3, "total_steps": 3,
+        "status": "✅ 사실 관계 검증 중...",
+        "cot_level": "strong",
+    })
+
+    verify_system = (
+        "당신은 YG-1 카탈로그 사실검증자입니다. [초안]이 [매칭 제품]을 벗어나 "
+        "수치·제품명·재고를 지어냈는지 검사하세요. 제품 근거 이상의 과도한 "
+        "단정은 '카탈로그 확인 필요'로 완화하세요. 출력은 "
+        "{answer,chips,verified,corrections} JSON."
+    )
+    verify_user = (
+        f"[초안]\n{partial}\n\n"
+        f"[매칭 제품]\n{product_ground_truth or '(없음)'}"
+    )
+    verified_flag: bool | None = None
+
+    def _run_verify() -> dict:
+        sync_client = _get_client()
+        resp = sync_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": verify_system},
+                {"role": "user", "content": verify_user},
+            ],
+            response_format={"type": "json_object"},
+            reasoning_effort="low",
+        )
+        return _extract_json(resp.choices[0].message.content or "")
+
+    try:
+        verified = await asyncio.to_thread(_run_verify)
+    except Exception:
+        verified = {}
+
+    if verified.get("answer"):
+        data = verified
+        v = verified.get("verified")
+        if isinstance(v, bool):
+            verified_flag = v
+        elif isinstance(v, str):
+            verified_flag = v.strip().lower() == "true"
+    else:
+        data = _extract_json(partial) or {"answer": partial, "chips": []}
+
+    yield ("answer", {
+        "answer": str(data.get("answer") or partial),
+        "reasoning": str(data.get("reasoning") or data.get("corrections") or ""),
+        "chips": _normalize_chips_list(data.get("chips")),
+        "refined_filters": data.get("refined_filters") or None,
+        "cot_level": "strong",
+        "verified": verified_flag,
+    })

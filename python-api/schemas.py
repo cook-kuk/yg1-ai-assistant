@@ -254,6 +254,11 @@ class ProductsResponse(BaseModel):
     # follow-up. Exposed so the UI can render a "deep-reasoning" badge and
     # tests can assert the branch fired.
     cot_level: Optional[str] = None
+    # True when the Strong CoT verifier accepted the draft without correction,
+    # False if the mini verifier rewrote fields, None on Light or on any
+    # verifier/draft exception. Paired with cot_level so the UI can show
+    # "심층 분석 + 검증 완료" only when both signals line up.
+    verified: Optional[bool] = None
 
 
 class ProductsPageRequest(BaseModel):

@@ -56,14 +56,34 @@ def add_turn(
     message: str,
     intent: Optional[dict] = None,
     products: Optional[list[str]] = None,
+    total_count: int = 0,
+    answer_preview: Optional[str] = None,
+    top_products: Optional[list[dict]] = None,
 ) -> None:
-    """Append a dialogue turn. If `products` is non-empty it becomes the new
-    `previous_products` reference for the next follow-up narrow."""
+    """Append a dialogue turn. `products` stays the EDP list that drives
+    follow-up narrowing; `top_products` is an optional list[dict] used only
+    by build_conversation_memory to render "이전 턴에 추천했던 3개" previews
+    — storing brand/series strings, not the full candidate payload."""
+    top_summary = ""
+    if top_products:
+        parts: list[str] = []
+        for p in top_products[:3]:
+            if not isinstance(p, dict):
+                continue
+            brand = (p.get("brand") or "").strip()
+            series = (p.get("series") or p.get("series_name") or "").strip()
+            if brand or series:
+                parts.append(f"{brand} {series}".strip())
+        top_summary = " / ".join(parts)
+
     session.turns.append({
         "role": role,
         "message": message,
         "intent": intent,
         "products": products,
+        "total_count": total_count,
+        "answer_preview": answer_preview,
+        "products_summary": top_summary,
         "at": datetime.now().isoformat(timespec="seconds"),
     })
     session.last_used_at = datetime.now()
@@ -77,6 +97,66 @@ def add_turn(
         for k, v in intent.items():
             if v is not None:
                 session.current_filters[k] = v
+
+
+def build_conversation_memory(session: Optional[Session], max_turns: int = 5) -> str:
+    """Render the last `max_turns` dialogue turns as a compact block the CoT
+    prompt can reason over. The block shows each turn's role, message,
+    extracted filters, total_count, and a trimmed answer preview — plus a
+    "대화 흐름 요약" tail that diffs the first-vs-current intent so the model
+    can spot *what the user just added or dropped* without re-parsing the
+    whole transcript.
+
+    Returns "" when the session is empty; caller should skip rendering."""
+    if not session or not session.turns:
+        return ""
+    recent = session.turns[-max_turns:]
+    lines: list[str] = ["[대화 히스토리]"]
+    for i, turn in enumerate(recent, 1):
+        role = turn.get("role") or "?"
+        msg = (turn.get("message") or "").strip()
+        intent_dict = turn.get("intent") or {}
+        total = turn.get("total_count") or 0
+        if role == "user":
+            lines.append(f"턴{i} [유저]: {msg}")
+            active = {k: v for k, v in intent_dict.items() if v is not None}
+            if active:
+                lines.append(f"  → 필터: {active}")
+        elif role == "assistant":
+            preview = turn.get("answer_preview") or msg
+            preview = (preview[:150] + "…") if len(preview) > 150 else preview
+            lines.append(f"턴{i} [AI]: {preview}")
+            if total:
+                lines.append(f"  → {total}건 추천")
+            products_summary = turn.get("products_summary") or ""
+            if products_summary:
+                lines.append(f"  → top: {products_summary}")
+
+    # 대화 흐름 요약 — first vs current user turn so the model can see what
+    # filter set *changed* between the original ask and the latest follow-up.
+    user_turns = [t for t in recent if t.get("role") == "user"]
+    if len(user_turns) >= 2:
+        first_msg = (user_turns[0].get("message") or "").strip()
+        last_msg = (user_turns[-1].get("message") or "").strip()
+        lines.append("")
+        lines.append("[대화 흐름 요약]")
+        lines.append(f"  시작: {first_msg}")
+        lines.append(f"  현재: {last_msg}")
+        first_intent = user_turns[0].get("intent") or {}
+        last_intent = user_turns[-1].get("intent") or {}
+        added = {
+            k: v for k, v in last_intent.items()
+            if v is not None and first_intent.get(k) is None
+        }
+        removed = {
+            k: v for k, v in first_intent.items()
+            if v is not None and last_intent.get(k) is None
+        }
+        if added:
+            lines.append(f"  추가된 조건: {added}")
+        if removed:
+            lines.append(f"  제거된 조건: {removed}")
+    return "\n".join(lines)
 
 
 def cleanup_expired() -> int:

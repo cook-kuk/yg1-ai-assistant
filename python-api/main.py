@@ -673,7 +673,9 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 chat_result_skip = await asyncio.to_thread(
                     generate_response,
                     req.message, intent, [], effective_knowledge,
-                    0, None, None,
+                    0, None, None, None, None, None,
+                    session,
+                    req.filters.model_dump() if req.filters else None,
                 )
                 answer_text = chat_result_skip.get("answer") or ""
                 chips = chat_result_skip.get("chips") or []
@@ -712,6 +714,18 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             intent=intent_dict_skip,
             products=[],
         )
+        # Persist the assistant turn so build_conversation_memory has both
+        # sides of this exchange when the next request arrives.
+        if answer_text:
+            add_turn(
+                session,
+                role="assistant",
+                message=answer_text,
+                intent=intent_dict_skip,
+                products=[],
+                total_count=0,
+                answer_preview=answer_text,
+            )
         return ProductsResponse(
             text=answer_text,
             chips=chips,
@@ -725,6 +739,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             broadened=False,
             sources=sources,
             cot_level=chat_result_skip.get("cot_level"),
+            verified=chat_result_skip.get("verified"),
         )
 
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
@@ -998,6 +1013,8 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 clarify_payload,
                 stock_summary,
                 cutting_range,
+                session,
+                req.filters.model_dump() if req.filters else None,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
             chips = chat_result.get("chips") or []
@@ -1044,6 +1061,19 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         intent=intent_dict,
         products=edp_list,
     )
+    # Persist the assistant turn too so build_conversation_memory can render
+    # both sides of this exchange ([대화 히스토리]) on the next request.
+    if cleaned_answer:
+        add_turn(
+            session,
+            role="assistant",
+            message=cleaned_answer,
+            intent=intent_dict,
+            products=edp_list,
+            total_count=len(ranked),
+            answer_preview=cleaned_answer,
+            top_products=[c for c, _, _ in ranked[:3]],
+        )
 
     # Prepend series-profile chips so the UI surfaces "이 시리즈는 N-Mmm,
     # 2/3/4날" as the first hint set, before the LLM's clarification chips.
@@ -1068,6 +1098,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         stock_summary=stock_summary,
         cutting_range=cutting_range,
         cot_level=(chat_result.get("cot_level") if isinstance(chat_result, dict) else None),
+        verified=(chat_result.get("verified") if isinstance(chat_result, dict) else None),
     )
 
 
@@ -1258,7 +1289,10 @@ async def products_stream(req: ProductsRequest):
                 try:
                     chat_result = await asyncio.to_thread(
                         generate_response,
-                        req.message, intent, [], effective_knowledge, 0, None, None,
+                        req.message, intent, [], effective_knowledge,
+                        0, None, None, None, None, None,
+                        session,
+                        req.filters.model_dump() if req.filters else None,
                     )
                 except Exception:
                     chat_result = {
@@ -1280,6 +1314,16 @@ async def products_stream(req: ProductsRequest):
                 intent=intent.model_dump(),
                 products=[],
             )
+            ans = (chat_result or {}).get("answer") or ""
+            if ans:
+                add_turn(
+                    session, role="assistant",
+                    message=ans,
+                    intent=intent.model_dump(),
+                    products=[],
+                    total_count=0,
+                    answer_preview=ans,
+                )
             yield "event: done\ndata: {}\n\n"
             return
 
@@ -1411,6 +1455,8 @@ async def products_stream(req: ProductsRequest):
                     clarify_payload_stream,
                     stock_summary_stream,
                     cutting_range_stream,
+                    session,
+                    req.filters.model_dump() if req.filters else None,
                 )
             except Exception:
                 chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
@@ -1429,12 +1475,24 @@ async def products_stream(req: ProductsRequest):
 
         # Persist the turn so subsequent stream calls keep state.
         edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
+        intent_dump = intent.model_dump()
         add_turn(
             session, role="user",
             message=req.message or "(manual filters)",
-            intent=intent.model_dump(),
+            intent=intent_dump,
             products=edp_list,
         )
+        ans_stream = (chat_result or {}).get("answer") or ""
+        if ans_stream:
+            add_turn(
+                session, role="assistant",
+                message=ans_stream,
+                intent=intent_dump,
+                products=edp_list,
+                total_count=len(ranked),
+                answer_preview=ans_stream,
+                top_products=[c for c, _, _ in ranked[:3]],
+            )
 
         yield "event: done\ndata: {}\n\n"
 
