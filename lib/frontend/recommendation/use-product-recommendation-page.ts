@@ -576,11 +576,11 @@ export function useProductRecommendationPage({
               //                  *cumulative* draft; the old branch appended
               //                  every snapshot and bloated the reasoning
               //                  trace 20× — 2026-04-19 regression).
-              const prevDeep = (last as any).thinkingDeep ?? ""
+              const prevDeep = last.thinkingDeep ?? ""
               const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else if (isAgent) {
-              const prevAgent = (last as any).thinkingAgent ?? ""
+              const prevAgent = (last as { thinkingAgent?: string | null }).thinkingAgent ?? ""
               const nextAgent = opts?.delta
                 ? prevAgent + text
                 : prevAgent
@@ -639,7 +639,7 @@ export function useProductRecommendationPage({
         const lastIndex = updated.length - 1
         if (lastIndex < 0 || updated[lastIndex].role !== "ai") return prev
         const mergedThinkingProcess = pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null
-        const mergedThinkingDeep = pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null
+        const mergedThinkingDeep = pickLongerThinking(updated[lastIndex].thinkingDeep, data.thinkingDeep) || null
         updated[lastIndex] = {
           role: "ai",
           text: data.text ?? "",
@@ -657,7 +657,7 @@ export function useProductRecommendationPage({
           responsePayload: data,
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
-          debugTrace: (data as any).meta?.debugTrace ?? null,
+          debugTrace: data.meta?.debugTrace ?? null,
           // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
           // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
           thinkingProcess: mergedThinkingProcess,
@@ -719,7 +719,7 @@ export function useProductRecommendationPage({
             const isDeep = opts?.kind === "deep"
             if (isDeep) {
               // Same replace-on-!delta rule as above (2026-04-19 regression).
-              const prevDeep = (last as any).thinkingDeep ?? ""
+              const prevDeep = last.thinkingDeep ?? ""
               const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
             } else {
@@ -774,7 +774,7 @@ export function useProductRecommendationPage({
         const lastIndex = updated.length - 1
         if (lastIndex < 0 || updated[lastIndex].role !== "ai") return prev
         const mergedThinkingProcess = pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null
-        const mergedThinkingDeep = pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null
+        const mergedThinkingDeep = pickLongerThinking(updated[lastIndex].thinkingDeep, data.thinkingDeep) || null
         updated[lastIndex] = {
           role: "ai",
           text: data.text ?? "",
@@ -792,7 +792,7 @@ export function useProductRecommendationPage({
           responsePayload: data,
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
-          debugTrace: (data as any).meta?.debugTrace ?? null,
+          debugTrace: data.meta?.debugTrace ?? null,
           // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
           // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
           thinkingProcess: mergedThinkingProcess,
@@ -879,11 +879,11 @@ export function useProductRecommendationPage({
               //                  *cumulative* draft; the old branch appended
               //                  every snapshot and bloated the reasoning
               //                  trace 20× — 2026-04-19 regression).
-              const prevDeep = (last as any).thinkingDeep ?? ""
+              const prevDeep = last.thinkingDeep ?? ""
               const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else if (isAgent) {
-              const prevAgent = (last as any).thinkingAgent ?? ""
+              const prevAgent = (last as { thinkingAgent?: string | null }).thinkingAgent ?? ""
               const nextAgent = opts?.delta
                 ? prevAgent + text
                 : prevAgent
@@ -970,7 +970,7 @@ export function useProductRecommendationPage({
       setChatMessages(prev => {
         const updated = [...prev]
         const mergedThinkingProcess = pickLongerThinking(prev[updated.length - 1]?.thinkingProcess, data.thinkingProcess) || null
-        const mergedThinkingDeep = pickLongerThinking((prev[updated.length - 1] as any)?.thinkingDeep, (data as any).thinkingDeep) || null
+        const mergedThinkingDeep = pickLongerThinking(prev[updated.length - 1]?.thinkingDeep, data.thinkingDeep) || null
         const prevMsg = prev[updated.length - 1]
         // Candidates from the final DTO may be null (e.g. a greeting turn with
         // no search). Fall back to whatever the partial stream already put on
@@ -996,7 +996,7 @@ export function useProductRecommendationPage({
           responsePayload: data,
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
-          debugTrace: (data as any).meta?.debugTrace ?? null,
+          debugTrace: data.meta?.debugTrace ?? null,
           thinkingProcess: mergedThinkingProcess,
           thinkingDeep: mergedThinkingDeep,
           reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
@@ -1034,11 +1034,11 @@ export function useProductRecommendationPage({
             : "오류가 발생했습니다. 다시 시도해주세요.",
           isLoading: false,
           thinkingProcess: last?.thinkingProcess ?? null,
-          thinkingDeep: (last as any)?.thinkingDeep ?? null,
+          thinkingDeep: last?.thinkingDeep ?? null,
           reasoningVisibility: resolveReasoningVisibility(
             (last as ChatMsg | undefined)?.reasoningVisibility ?? null,
             last?.thinkingProcess ?? null,
-            (last as any)?.thinkingDeep ?? null,
+            last?.thinkingDeep ?? null,
           ),
         } as ChatMsg
         return updated

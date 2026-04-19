@@ -80,12 +80,29 @@ export async function createAnthropicMessageWithLogging(params: {
 
   try {
     const response = await params.client.messages.create(params.request)
+    const durationMs = Date.now() - startedAt
     traceRecommendation("llm.anthropic.response", {
       route: params.route,
       operation: params.operation,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       response: summarizeAnthropicResponse(response),
     })
+
+    // One-liner grep target — mirrors `[openai:cache-hit]` in provider.ts
+    // so ops can `grep '[anthropic:tokens]'` for quota / cost drift across
+    // the whole runtime without parsing structured logs. Cache-* fields
+    // come from prompt-cache responses and are 0 on plain calls.
+    const usage = response.usage
+    if (usage) {
+      const cacheRead = (usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0
+      const cacheCreate = (usage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ?? 0
+      // eslint-disable-next-line no-console
+      console.log(
+        `[anthropic:tokens] route=${params.route} op=${params.operation} ` +
+        `model=${response.model} in=${usage.input_tokens} out=${usage.output_tokens} ` +
+        `cache_r=${cacheRead} cache_w=${cacheCreate} stop=${response.stop_reason} ${durationMs}ms`,
+      )
+    }
 
     await appendRuntimeLog({
       category: "llm",
@@ -94,7 +111,7 @@ export async function createAnthropicMessageWithLogging(params: {
         provider: "anthropic",
         route: params.route,
         operation: params.operation,
-        durationMs: Date.now() - startedAt,
+        durationMs,
         response,
       },
     })
