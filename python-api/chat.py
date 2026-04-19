@@ -579,6 +579,11 @@ def _generate_light_cot(
         ),
         response_format={"type": "json_object"},
         reasoning_effort="low",
+        # Light path is the hot path — `reasoning_effort=low` usually finishes
+        # in 5–10 s, but an occasional stall was blowing past the client's
+        # 60 s budget and returning as -1 in the stress test. 30 s is a soft
+        # ceiling that still lets the normal case through comfortably.
+        timeout=30,
     )
     text = resp.choices[0].message.content or ""
     data = _extract_json(text)

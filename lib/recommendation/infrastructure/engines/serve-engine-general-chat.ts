@@ -301,15 +301,16 @@ function getMaterialRatingLegendReply(
   prevState: ExplorationSessionState,
 ): QuestionReply {
   const clean = userMessage.trim()
-  if (!/(excellent|good|null)/i.test(clean)) return null
+  if (!/(excellent|good|fair|null)/i.test(clean)) return null
   if (!/(뭐야|무슨|뜻|의미|설명|차이|등급|grade|rating)/i.test(clean)) return null
 
   const groups = (prevState.displayedSeriesGroups ?? [])
-    .filter((group): group is typeof group & { materialRating: "EXCELLENT" | "GOOD" | "NULL" } =>
-      group?.materialRating === "EXCELLENT" || group?.materialRating === "GOOD" || group?.materialRating === "NULL"
+    .filter((group): group is typeof group & { materialRating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" } =>
+      group?.materialRating === "EXCELLENT" || group?.materialRating === "GOOD" ||
+      group?.materialRating === "FAIR" || group?.materialRating === "NULL"
     )
   if (groups.length === 0) {
-    const askedRating = clean.match(/\b(excellent|good|null)\b/i)?.[1]?.toUpperCase() ?? null
+    const askedRating = clean.match(/\b(excellent|good|fair|null)\b/i)?.[1]?.toUpperCase() ?? null
     return buildGenericMaterialRatingLegendReply(askedRating)
   }
 

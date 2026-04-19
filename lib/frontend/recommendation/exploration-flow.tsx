@@ -64,17 +64,22 @@ const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }>
 }
 
 function getSeriesRatingLabel(
-  rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined,
+  rating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
   language: "ko" | "en"
 ): string | null {
-  if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
-  if (rating === "GOOD" || rating === "NULL" || rating == null) return language === "ko" ? "GOOD" : "GOOD"
-  return language === "ko" ? "GOOD" : "GOOD"
+  if (rating === "EXCELLENT") return "EXCELLENT"
+  if (rating === "GOOD") return "GOOD"
+  if (rating === "FAIR") return "FAIR"
+  // NULL / nullish → legacy "GOOD" label kept for backwards compat.
+  return "GOOD"
 }
 
-function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
+function getSeriesRatingBadgeClass(
+  rating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
   if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
+  if (rating === "FAIR") return "bg-orange-100 text-orange-700 border-orange-200"
   return "bg-amber-100 text-amber-700 border-amber-200"
 }
 

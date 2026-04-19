@@ -44,12 +44,16 @@ import {
   normalizeBrandKey,
 } from "@/lib/data/repos/brand-material-affinity-repo"
 
-// ── Hard-tier sort by series materialRating (EXCELLENT > GOOD > NULL) ──
-// 티어 간에는 score를 무시하고 EXCELLENT이 무조건 위에 오도록.
-function materialRatingTier(value: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): number {
+// ── Hard-tier sort by series materialRating ──────────────────────────
+// EXCELLENT > GOOD > FAIR > NULL. 티어 간에는 score를 무시하고 상위 티어가
+// 무조건 위에 오도록.
+function materialRatingTier(
+  value: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+): number {
   if (value === "EXCELLENT") return 0
   if (value === "GOOD") return 1
-  return 2
+  if (value === "FAIR") return 2
+  return 3
 }
 
 // ── Result type ──────────────────────────────────────────────

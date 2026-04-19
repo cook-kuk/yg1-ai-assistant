@@ -10,7 +10,7 @@ export interface RecommendationCandidateSeriesGroup {
   topScore: number
   seriesIconUrl: string | null
   description: string | null
-  materialRating: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   materialRatingScore: number | null
   members: RecommendationCandidateDto[]
 }
@@ -23,7 +23,7 @@ function defaultSeriesName(value: string | null): string {
 }
 
 // 후보 우선순위 (하드 티어링):
-//   1) materialRating 티어: EXCELLENT > GOOD > NULL (티어 간 score 무시)
+//   1) materialRating 티어: EXCELLENT > GOOD > FAIR > NULL (티어 간 score 무시)
 //   2) score 내림차순
 //   3) matchStatus: exact > approximate > none
 //   4) stockStatus: instock > limited > unknown > outofstock
@@ -32,10 +32,13 @@ function defaultSeriesName(value: string | null): string {
 const MATCH_STATUS_RANK: Record<string, number> = { exact: 0, approximate: 1, none: 2 }
 const STOCK_STATUS_RANK: Record<string, number> = { instock: 0, limited: 1, unknown: 2, outofstock: 3 }
 
-function materialRatingTier(value: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): number {
+function materialRatingTier(
+  value: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+): number {
   if (value === "EXCELLENT") return 0
   if (value === "GOOD") return 1
-  return 2
+  if (value === "FAIR") return 2
+  return 3
 }
 
 function compareCandidates(a: RecommendationCandidateDto, b: RecommendationCandidateDto): number {

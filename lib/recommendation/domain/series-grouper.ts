@@ -2,7 +2,7 @@ import type { CandidateSnapshot, SeriesGroup, SeriesGroupSummary } from "@/lib/r
 
 const UNGROUPED_KEY = "__ungrouped__"
 const UNGROUPED_NAME = "(기타)"
-type SeriesMaterialRatingValue = "EXCELLENT" | "GOOD" | "NULL"
+type SeriesMaterialRatingValue = "EXCELLENT" | "GOOD" | "FAIR" | "NULL"
 interface SeriesMaterialRank {
   rating: SeriesMaterialRatingValue
   score: number
@@ -15,8 +15,9 @@ function normalizeSeriesKey(value: string): string {
 function materialRatingOrder(value: SeriesMaterialRatingValue | null | undefined): number {
   if (value === "EXCELLENT") return 0
   if (value === "GOOD") return 1
-  if (value === "NULL") return 2
-  return 3
+  if (value === "FAIR") return 2
+  if (value === "NULL") return 3
+  return 4
 }
 
 export function groupCandidatesBySeries(

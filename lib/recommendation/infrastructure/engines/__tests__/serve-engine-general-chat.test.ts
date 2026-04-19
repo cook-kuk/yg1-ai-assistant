@@ -82,10 +82,13 @@ function makeSnapshot(rank: number, code: string, coating: string): CandidateSna
 
 function makeSeriesGroup(
   seriesName: string,
-  materialRating: "EXCELLENT" | "GOOD" | "NULL",
+  materialRating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL",
   members: CandidateSnapshot[],
 ): SeriesGroup {
-  const materialRatingScore = materialRating === "EXCELLENT" ? 3 : materialRating === "GOOD" ? 2 : 1
+  const materialRatingScore =
+    materialRating === "EXCELLENT" ? 3 :
+    materialRating === "GOOD" ? 2 :
+    materialRating === "FAIR" ? 1.5 : 1
 
   return {
     seriesKey: seriesName,

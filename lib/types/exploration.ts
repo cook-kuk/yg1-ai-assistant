@@ -279,7 +279,7 @@ export interface CandidateSnapshot {
   description: string | null       // series_description
   featureText: string | null        // series_feature
   materialTags: string[]
-  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   score: number
   scoreBreakdown: import("./canonical").ScoreBreakdown | null
   matchStatus: "exact" | "approximate" | "none"
@@ -313,7 +313,7 @@ export interface SeriesGroup {
   description: string | null
   candidateCount: number
   topScore: number
-  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   materialRatingScore?: number | null
   members: CandidateSnapshot[]
 }
@@ -322,7 +322,7 @@ export interface SeriesGroupSummary {
   seriesKey: string
   seriesName: string
   candidateCount: number
-  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   materialRatingScore?: number | null
 }
 
