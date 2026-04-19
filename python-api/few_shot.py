@@ -1,6 +1,11 @@
 """Adaptive few-shot store — records failure-then-corrected pairs and
 surfaces the most relevant ones as in-context examples for the SCR prompt.
 
+NOTE — data/few_shots.json is OPTIONAL. When the file is absent every
+loader returns [] and the SCR prompt simply skips the few-shot block.
+Production deploys can ship without this file; the scheduler's hourly
+backup writes it back out the first time a correction lands.
+
 Two selection modes live here:
   * FIFO (legacy) — pick the MAX_SHOTS most-recently-added pairs.
     Stays available as `render_prompt_suffix` so the SCR prompt keeps

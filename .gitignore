@@ -106,3 +106,8 @@ python-api/__pycache__/
 python-api/**/__pycache__/
 python-api/results/
 /tmp/golden_*.log
+
+# Dev-server logs (file-based stdout/stderr captures, per-port).
+*.log
+.dev*.log
+.dev*.err.log

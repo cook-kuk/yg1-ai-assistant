@@ -1,10 +1,36 @@
+import logging
 from typing import Optional
 from config import SEARCH_DEFAULT_LIMIT
 from db import fetch_all, fetch_one
 
+logger = logging.getLogger("aria")
+
+# Columns the current MV does NOT expose — filters referencing them are
+# silently skipped at query-build time (logged at info level so ops can
+# trace gaps). See docs/mv-schema-gaps.md for each column's origin and
+# the ALTER that would restore it.
+_MV_MISSING_COLUMNS: frozenset[str] = frozenset({
+    "holemaking_point_angle",
+    "threading_pitch",
+    "threading_tpi",
+    "norm_brand",
+    "norm_coating",
+})
+
 # DB stores most "numeric" values as text (varchar) so a cast guard is needed
 # before BETWEEN. Reusable regex: accepts "10", "10.5" — rejects "10mm", "1/2".
 _NUMERIC_GUARD = r"^[0-9]+(\.[0-9]+)?$"
+
+
+def _mv_column_present(col: str) -> bool:
+    """Return False (and log once) when a filter references a known-missing
+    MV column. _build_where callers use this to skip WHERE fragments that
+    would raise `column does not exist`. The info log keeps the gap visible
+    to ops without spamming for every request."""
+    if col in _MV_MISSING_COLUMNS:
+        logger.info(f"[search._build_where] Skipping filter on {col} — MV column absent")
+        return False
+    return True
 
 
 def _range_clause(
