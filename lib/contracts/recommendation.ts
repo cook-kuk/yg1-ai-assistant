@@ -110,7 +110,9 @@ export interface RecommendationSeriesGroupSummaryDto {
   seriesKey: string
   seriesName: string
   candidateCount: number
-  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  // "NULL" is retained for legacy emit sites; FAIR is the new mid tier
+  // (10..39 affinity) surfaced by Python's get_affinity_rating.
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   materialRatingScore?: number | null
 }
 
@@ -201,7 +203,10 @@ export interface RecommendationCandidateDto {
   description: string | null
   featureText: string | null
   materialTags: string[]
-  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  // FAIR is the "10..39 affinity" band emitted by Python's
+  // get_affinity_rating; kept alongside the legacy "NULL" literal so older
+  // emitters stay type-safe.
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
   score: number
   scoreBreakdown: ScoreBreakdown | null
   matchStatus: "exact" | "approximate" | "none"
@@ -395,7 +400,7 @@ export const recommendationSeriesGroupSummarySchema = z.object({
   seriesKey: z.string(),
   seriesName: z.string(),
   candidateCount: z.number(),
-  materialRating: z.enum(["EXCELLENT", "GOOD", "NULL"]).nullable().optional(),
+  materialRating: z.enum(["EXCELLENT", "GOOD", "FAIR", "NULL"]).nullable().optional(),
   materialRatingScore: z.number().nullable().optional(),
 }).passthrough()
 
@@ -485,7 +490,7 @@ export const recommendationCandidateSchema = z.object({
   description: z.string().nullable(),
   featureText: z.string().nullable(),
   materialTags: z.array(z.string()),
-  materialRating: z.enum(["EXCELLENT", "GOOD", "NULL"]).nullable().optional(),
+  materialRating: z.enum(["EXCELLENT", "GOOD", "FAIR", "NULL"]).nullable().optional(),
   score: z.number(),
   scoreBreakdown: z.unknown().nullable(),
   matchStatus: z.enum(["exact", "approximate", "none"]),

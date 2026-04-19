@@ -52,6 +52,11 @@ class SCRIntent(BaseModel):
     shank_diameter_min: Optional[float] = None
     shank_diameter_max: Optional[float] = None
     cutting_edge_shape: Optional[str] = None     # series_cutting_edge_shape (Square/Ball/Corner Radius/…)
+    # Application / machining operation mode — distinct axis from subtype.
+    # Side Milling / Roughing / Helical Interpolation / Slotting / Facing
+    # / Profiling / Trochoidal / Die-Sinking. scoring._operation_score
+    # substring-matches this against product.series_application_shape.
+    application_shape: Optional[str] = None
 
 
 class Candidate(BaseModel):

@@ -306,15 +306,12 @@ function deriveMatchStatus(card: ProductCard): "exact" | "approximate" | "none" 
   return "none"
 }
 
-function _coerceRating(v: unknown): "EXCELLENT" | "GOOD" | "NULL" | null {
+function _coerceRating(v: unknown): "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null {
   if (typeof v !== "string") return null
   const s = v.trim().toUpperCase()
   if (s === "EXCELLENT") return "EXCELLENT"
   if (s === "GOOD") return "GOOD"
-  // FAIR is emitted by Python but the DTO shape uses "NULL" to mean
-  // "known but below EXCELLENT/GOOD"; treat FAIR as NULL so the UI's
-  // rating badge doesn't misclassify it as top-tier.
-  if (s === "FAIR") return "NULL"
+  if (s === "FAIR") return "FAIR"
   return null
 }
 

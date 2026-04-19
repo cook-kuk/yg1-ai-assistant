@@ -547,6 +547,14 @@ def _apply_response(row: dict, body: dict, case: dict, jerry: bool, expected) ->
     row.update(graded)
 
 
+# Status codes that indicate transient failures worth retrying. OpenAI
+# rate-limit (429) and generic server errors (500/502/503/504) all pass
+# through the FastAPI layer as-is, so we treat them all as retryable.
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_MAX_RETRIES = 3
+_BASE_BACKOFF = 1.0
+
+
 def run_case(client: httpx.Client, case: dict, *, jerry: bool = False) -> dict:
     row = _init_row(case, jerry)
     if not case["message"]:
@@ -556,17 +564,34 @@ def run_case(client: httpx.Client, case: dict, *, jerry: bool = False) -> dict:
     expected = parse_expected_filters(case["expected_filter"])
     endpoint = "/qa/recommend" if jerry else "/recommend"
     t0 = time.perf_counter()
-    try:
-        resp = client.post(endpoint, json={"message": case["message"]}, timeout=60)
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        resp.raise_for_status()
-        _apply_response(row, resp.json(), case, jerry, expected)
-    except httpx.HTTPStatusError as e:
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        row["error"] = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
-    except Exception as e:
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        row["error"] = f"{type(e).__name__}: {e}"
+    last_err = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = client.post(endpoint, json={"message": case["message"]}, timeout=60)
+            if resp.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES - 1:
+                time.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            resp.raise_for_status()
+            _apply_response(row, resp.json(), case, jerry, expected)
+            last_err = None
+            break
+        except httpx.HTTPStatusError as e:
+            last_err = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            if e.response.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES - 1:
+                time.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            row["error"] = last_err
+            break
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+            if attempt < _MAX_RETRIES - 1:
+                time.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            row["error"] = last_err
+            break
     return row
 
 
@@ -579,17 +604,34 @@ async def run_case_async(client: httpx.AsyncClient, case: dict, *, jerry: bool =
     expected = parse_expected_filters(case["expected_filter"])
     endpoint = "/qa/recommend" if jerry else "/recommend"
     t0 = time.perf_counter()
-    try:
-        resp = await client.post(endpoint, json={"message": case["message"]}, timeout=60)
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        resp.raise_for_status()
-        _apply_response(row, resp.json(), case, jerry, expected)
-    except httpx.HTTPStatusError as e:
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        row["error"] = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
-    except Exception as e:
-        row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
-        row["error"] = f"{type(e).__name__}: {e}"
+    last_err = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            resp = await client.post(endpoint, json={"message": case["message"]}, timeout=60)
+            if resp.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            resp.raise_for_status()
+            _apply_response(row, resp.json(), case, jerry, expected)
+            last_err = None
+            break
+        except httpx.HTTPStatusError as e:
+            last_err = f"HTTP {e.response.status_code}: {e.response.text[:200]}"
+            if e.response.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            row["error"] = last_err
+            break
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+            if attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(_BASE_BACKOFF * (2 ** attempt))
+                continue
+            row["latency_ms"] = int((time.perf_counter() - t0) * 1000)
+            row["error"] = last_err
+            break
     return row
 
 
@@ -638,6 +680,10 @@ def main() -> int:
     parser.add_argument("--concurrency", type=int, default=1,
                         help="number of in-flight requests (default 1 = sequential). "
                              "Use e.g. 10 to parallelize against a slow backend.")
+    parser.add_argument("--sleep", type=float, default=0.3,
+                        help="inter-case pause in seconds (sequential mode only). "
+                             "Prevents OpenAI TPM rate-limit trips on long runs. "
+                             "Set 0 to disable.")
     args = parser.parse_args()
 
     cases = load_singleton_cases(args.xlsx)
@@ -675,6 +721,11 @@ def main() -> int:
                     + (f"  {row['error']}" if row["error"] else ""),
                     flush=True,
                 )
+                # Pace requests so OpenAI's TPM limit on gpt-5.4-mini doesn't
+                # trip mid-run. 0.3s between cases keeps ~3 req/s which stays
+                # under the 200k TPM ceiling given typical 6k-token prompts.
+                if i < len(cases):
+                    time.sleep(args.sleep)
 
     df = pd.DataFrame(rows)
     df.to_csv(args.output, index=False)

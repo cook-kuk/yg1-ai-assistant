@@ -831,6 +831,10 @@ def _generate_strong_cot(
             ),
             response_format={"type": "json_object"},
             reasoning_effort="medium",
+            # Hard cap — the UI's 60s client budget leaves no room for a
+            # silent stall here. On timeout the except below drops to light,
+            # which still returns a usable answer instead of -1/HTTP error.
+            timeout=45,
         )
         draft_text = draft_resp.choices[0].message.content or ""
     except Exception:
@@ -883,6 +887,10 @@ def _generate_strong_cot(
             ],
             response_format={"type": "json_object"},
             reasoning_effort="low",
+            # Verifier is the smaller model with less reasoning budget — 20s
+            # is plenty. Draft already passed, so a verify stall is the only
+            # remaining slow path.
+            timeout=20,
         )
         verified = _extract_json(verify_resp.choices[0].message.content or "")
         # Only trust the verifier if it returned an answer; otherwise keep
@@ -1129,6 +1137,10 @@ async def stream_strong_cot(
             response_format={"type": "json_object"},
             reasoning_effort="medium",
             stream=True,
+            # Stream init stall guard — if the model never starts emitting
+            # within 45s, drop to light fallback (below) so the SSE client
+            # sees a real `answer` frame rather than a hung connection.
+            timeout=45,
         )
         async for chunk in stream:
             choices = getattr(chunk, "choices", None) or []
@@ -1202,6 +1214,7 @@ async def stream_strong_cot(
             ],
             response_format={"type": "json_object"},
             reasoning_effort="low",
+            timeout=20,
         )
         return _extract_json(resp.choices[0].message.content or "")
 

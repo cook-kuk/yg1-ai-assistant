@@ -432,8 +432,22 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "shank_diameter": number|null,      // 샹크 직경 정확 값 mm. "샹크 8mm", "shank 6"
   "shank_diameter_min": number|null,  // 샹크 하한 mm
   "shank_diameter_max": number|null,  // 샹크 상한 mm
-  "cutting_edge_shape": string|null   // 절삭날 형상. "Square"/"Ball"/"Corner Radius"/"Taper"/"Chamfer" — subtype과 같은 값; subtype을 쓰면 이 필드는 null.
+  "cutting_edge_shape": string|null,   // 절삭날 형상. subtype 과 같은 값을 가리키지만, **subtype 을 우선** 채울 것 — cutting_edge_shape 는 series_cutting_edge_shape 검색용 보조 필드.
+  "application_shape": string|null     // 가공 방식 / 적용 형상. 사용자가 **가공 목적·절삭 방식**을 말하면 추출. 예: "Side Milling"(측면가공), "Roughing"(황삭), "Facing"(페이싱), "Slotting"(슬로팅), "Profiling"(프로파일링), "Helical Interpolation"(헬리컬), "Trochoidal"(트로코이달), "Die-Sinking"(금형가공). subtype 과 독립적이라 둘 다 값이 있을 수 있음 (예: "Square + Side Milling"). 한글 입력은 canonical 영문으로 변환.
 }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+형상 필드 우선순위 (반드시 준수):
+
+Ball / Square / Corner Radius / Taper / Chamfer / High-Feed / Roughing 같은
+공구 날끝 형태는 **subtype 으로** 채워라. cutting_edge_shape 는 비워두거나
+사용자가 명시적으로 "절삭날 형상이" 라고 말할 때만 사용.
+
+예:
+  "Ball 형상으로만 보여줘"          → subtype="Ball" (cutting_edge_shape=null)
+  "Square 엔드밀 10mm"              → subtype="Square" (cutting_edge_shape=null)
+  "Corner Radius 4날 10mm"          → subtype="Corner Radius" (cutting_edge_shape=null)
+  "볼 절삭날 형상이 뭐야"           → cutting_edge_shape="Ball" (domain_knowledge 질문이라 subtype도 null)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 intent 판별 (반드시 포함):
@@ -444,6 +458,19 @@ intent 판별 (반드시 포함):
 - "domain_knowledge"   → 절삭공구 관련이지만 **특정 제품 검색이 아닌** 질문
                           (떨림 원인, 코팅 비교, 가공 팁, 소재 특성, 용도 분류 등).
                           이 경우 나머지 필터 필드는 전부 null.
+
+intent 판별 보충 (짧은 필터 요청을 잡담으로 오분류 방지):
+- 종결형 "~보여줘", "~보자", "~볼래", "~만 보고 싶어", "~해줘", "~추려줘", "~남겨줘" 는 **필터 요청 (recommendation)**.
+- "~가능하면 그걸로", "~필터 가능하면" 도 **recommendation** (가능 여부 묻는 게 아니라 적용 요청).
+- "~만" 한정어 (예: "Cylindrical만", "Ball 형상으로만") 는 **recommendation** — 해당 값으로 좁혀 달라는 뜻.
+- 반대로 domain_knowledge 는 "~가 뭐야?", "~왜?", "~차이가?", "~특성이?", "~설명해줘" 같은 **순수 지식 질문**에만.
+- 규칙: 메시지에 구체 필터 값 (shank_type / subtype / coating / brand / diameter …) 이 하나라도 나오면 **무조건 recommendation**. 그 필드에 값을 넣어라.
+
+예:
+  "Flat (YG-1 Standard) 타입도 필터 가능하면 그걸로 보여줘" → intent="recommendation", shank_type="Flat (YG-1 Standard)"
+  "일단 Cylindrical만 보자"                               → intent="recommendation", shank_type="Cylindrical"
+  "Ball 형상으로만 보여줘"                                → intent="recommendation", subtype="Ball"
+  "6날 이상인 것들만 추천해줘"                            → intent="recommendation", flute_count=6 (또는 flute_count_min=6)
 
 예시:
   "0.1 + 0.2 == 0.3?"         → intent="general_question", 나머지 전부 null
@@ -463,8 +490,8 @@ intent 판별 (반드시 포함):
   "LOC 15~25 구리"             → intent="recommendation", length_of_cut_min=15, length_of_cut_max=25, workpiece_name="구리", material_tag="N"
   "샹크 8mm 6mm 4날"           → intent="recommendation", shank_diameter=8, diameter=6, flute_count=4
   "샹크 6~12mm 알루미늄"       → intent="recommendation", shank_diameter_min=6, shank_diameter_max=12, material_tag="N", workpiece_name="알루미늄"
-  "볼 절삭날 형상"             → intent="domain_knowledge", cutting_edge_shape="Ball"
-  "Corner Radius 4날 10mm"     → intent="recommendation", cutting_edge_shape="Corner Radius", flute_count=4, diameter=10
+  "볼 절삭날 형상이 뭐야"      → intent="domain_knowledge", cutting_edge_shape="Ball"
+  "Corner Radius 4날 10mm"     → intent="recommendation", subtype="Corner Radius", flute_count=4, diameter=10  (cutting_edge_shape 아님)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 구체 피삭재 (workpiece_name) vs ISO 그룹 (material_tag) — 반드시 **둘 다** 채울 것:
@@ -698,6 +725,12 @@ TPI (thread_tpi):
   "TiAlN 빼고 DLC로 해줘"       → coating="DLC"  (TiAlN 은 제외 대상)
   "스퀘어 말고 볼"              → subtype="Ball"  (스퀘어는 제외 대상)
 
+이중부정 (부정의 부정 = 긍정) — 위 키워드가 "아니면 제외/빼" 식으로 같이 나오면 해당 값은 **검색 포함**:
+  "Weldon 아니면 제외해줘"       → shank_type="Weldon"  (= Weldon 만 남겨줘)
+  "TiAlN 아니면 빼줘"           → coating="TiAlN"       (= TiAlN 만 남겨줘)
+  "V7 PLUS 아닌 건 제외"         → brand="V7 PLUS"       (= V7 PLUS 만 남겨줘)
+  규칙: "X 아니면 (제외|빼)" 패턴이 보이면 X 는 **포함** 대상이지 제외 대상이 아니다.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 규칙:
 - 매핑 표에 없는 재질/형상 표현은 null.
@@ -776,15 +809,30 @@ _NEG_CUE_EN_BEFORE = re.compile(
 )
 
 
+_DOUBLE_NEG_PATTERNS = (
+    "아니면 제외", "아니면 빼", "아닌 건 제외", "아닌 거 빼",
+    "아니면 빼고", "아니면 빼줘",
+)
+
+
 def _is_brand_excluded(message: str, brand: str) -> bool:
     """True when `brand` is positioned as the excluded term in the message.
     Checks two direction patterns:
       KR: "<brand> 말고 …"  — cue comes within 15 chars AFTER brand.
       EN: "no/not <brand>"  — cue comes within 15 chars BEFORE brand.
+
+    Double-negation short-circuit: "Weldon 아니면 제외해줘" (= "Weldon만
+    남겨줘") is semantically *positive* for Weldon. If the message contains
+    any `_DOUBLE_NEG_PATTERNS` phrase, treat the brand as INCLUDED
+    (return False) regardless of the surrounding cue words.
     """
     if not message or not brand:
         return False
     msg_lc = message.lower()
+    # Double-negation: 긍정 의미이므로 exclusion 아님.
+    for dn in _DOUBLE_NEG_PATTERNS:
+        if dn in msg_lc:
+            return False
     b_lc = brand.lower()
     variants = {
         b_lc,
@@ -873,7 +921,7 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         except Exception:
             pass
 
-    resp = client.chat.completions.create(
+    resp = client.with_options(timeout=30.0).chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": _system_prompt(message, session)},
@@ -976,4 +1024,5 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         shank_diameter_min=_as_float(data.get("shank_diameter_min")),
         shank_diameter_max=_as_float(data.get("shank_diameter_max")),
         cutting_edge_shape=(data.get("cutting_edge_shape") or None) or None,
+        application_shape=(data.get("application_shape") or None) or None,
     )

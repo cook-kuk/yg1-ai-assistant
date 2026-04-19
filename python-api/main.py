@@ -220,7 +220,7 @@ def _stock_summary_from_ranked(ranked: list) -> Optional[dict]:
     return {"in_stock": in_stock, "total": total, "pct": pct}
 
 
-def _build_answer(intent, ranked: list) -> str:
+def _build_answer(intent, ranked: list, cutting_range: dict | None = None) -> str:
     if not ranked:
         return "조건에 맞는 제품을 찾지 못했습니다."
     parts = []
@@ -234,10 +234,21 @@ def _build_answer(intent, ranked: list) -> str:
         parts.append(intent.subtype)
     head = ", ".join(parts) if parts else "요청"
     top = ranked[0][0]
-    return (
+    body = (
         f"{head} 조건으로 {len(ranked)}건 추천합니다. "
         f"1위: {top.get('brand') or '-'} / {top.get('series') or '-'} (EDP {top['edp_no']})."
     )
+    # When CoT falls back to this template, preserve the principle-13 Vc/fz/RPM
+    # line so RPM/절삭조건 questions don't silently lose the numbers the user
+    # asked for.
+    if cutting_range and cutting_range.get("row_count"):
+        body += (
+            f" YG-1 카탈로그 기준 Vc={cutting_range.get('vc_min')}~{cutting_range.get('vc_max')} m/min, "
+            f"fz={cutting_range.get('fz_min')}~{cutting_range.get('fz_max')} mm/tooth, "
+            f"RPM={cutting_range.get('n_min')}~{cutting_range.get('n_max')} 범위입니다 "
+            f"(YG-1 카탈로그 절삭조건표 {cutting_range['row_count']}행 기준)."
+        )
+    return body
 
 
 # The UI bar chart reads a `score_breakdown_max` dict keyed the same way
@@ -491,6 +502,37 @@ _NARROW_PHRASES = (
 )
 
 
+def _force_recommendation_on_followup(intent, message: Optional[str], session) -> None:
+    """When the user says "이 중에서 …" / "여기서 …" / "from these …" and the
+    session has a non-empty product set from a prior turn, the intent parser
+    sometimes misroutes to general_question / domain_knowledge (especially on
+    language switches mid-session, e.g. EN turn → KR anaphoric follow-up).
+
+    That misroute makes the endpoint skip search entirely and return 0 results
+    with a generic LLM reply — even though the user is clearly pointing at the
+    last shown candidates. This guard overrides the parser's decision for that
+    specific pattern: carry the previous turn's filters forward as a
+    recommendation turn.
+    """
+    if not message or not session:
+        return
+    prev_products = getattr(session, "previous_products", None) or []
+    if not prev_products:
+        return
+    lower = message.lower()
+    if not any(phrase in lower for phrase in _NARROW_PHRASES):
+        return
+    current = getattr(intent, "intent", None)
+    if current in (None, "", "recommendation"):
+        return
+    try:
+        intent.intent = "recommendation"
+    except Exception:
+        # Pydantic model immutability — swallow and let downstream default-
+        # branch handle it. In practice SCRIntent permits mutation.
+        pass
+
+
 def _should_narrow_by_previous(message: Optional[str], intent, session) -> bool:
     """Decide whether to intersect the new search with session.previous_products.
 
@@ -684,11 +726,15 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         rag_task = asyncio.to_thread(search_knowledge, req.message, 3)
         intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
         if isinstance(intent_res, BaseException):
-            # SCR failure is fatal — no filters to fall back to.
-            raise HTTPException(status_code=502, detail=f"SCR parse failed: {intent_res}")
-        intent = intent_res
+            # SCR timeout/failure: degrade gracefully with an empty intent so
+            # the user gets a response instead of a 502. carry_forward will
+            # still pull session context; 0 results route to clarification.
+            intent = SCRIntent()
+            route = "llm_fallback"
+        else:
+            intent = intent_res
+            route = "llm"
         knowledge = [] if isinstance(rag_res, BaseException) else (rag_res or [])
-        route = "llm"
     else:
         return _empty_products_response(req.session_id)
 
@@ -701,6 +747,11 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # Fill unset intent fields from the session's carried context so
     # abbreviated follow-ups still know the material/diameter from turn 1.
     carry_forward_intent(session, intent)
+
+    # Anaphoric follow-up override — "이 중에서 …" after a result-bearing turn
+    # is always a recommendation narrow, even when the parser misroutes the
+    # message to general/domain (common on mid-session language switches).
+    _force_recommendation_on_followup(intent, req.message, session)
 
     # Brand affinity auto-inject (TS Phase 4+5 port). When the user specified
     # a material (구리/알루미늄/티타늄 or ISO) but NO brand, surface the
@@ -1103,10 +1154,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 session,
                 req.filters.model_dump() if req.filters else None,
             )
-            raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
+            raw_answer = chat_result.get("answer") or _build_answer(intent, ranked, cutting_range)
             chips = chat_result.get("chips") or []
         except Exception:
-            raw_answer = _build_answer(intent, ranked)
+            raw_answer = _build_answer(intent, ranked, cutting_range)
         # Patch the #1 card's rationale post-CoT. Kept here (not inside the
         # try/except) so Light/Strong paths both feed the xAI panel.
         if top10 and isinstance(chat_result, dict):
@@ -1120,7 +1171,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             confidence="medium" if has_web else ("high" if knowledge else "medium"),
         ))
     else:
-        raw_answer = _build_answer(intent, ranked)
+        raw_answer = _build_answer(intent, ranked, cutting_range)
 
     extra_safe: set[str] = set()
     for c, _, _ in ranked[:10]:
@@ -1354,7 +1405,9 @@ async def products_stream(req: ProductsRequest):
             rag_task = asyncio.to_thread(search_knowledge, req.message or "", 3)
             intent_res, rag_res = await asyncio.gather(intent_task, rag_task, return_exceptions=True)
             if isinstance(intent_res, BaseException):
-                intent = await asyncio.to_thread(parse_intent, req.message or "", session)
+                # SCR timeout/failure: degrade to empty intent rather than
+                # retry (the retry in the old code just hung a second time).
+                intent = SCRIntent()
             else:
                 intent = intent_res
             knowledge = [] if isinstance(rag_res, BaseException) else (rag_res or [])
@@ -1366,6 +1419,9 @@ async def products_stream(req: ProductsRequest):
             _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
         carry_forward_intent(session, intent)
+
+        # Anaphoric follow-up override — see sync /products for rationale.
+        _force_recommendation_on_followup(intent, req.message, session)
 
         # Same auto-inject as sync /products — stream path must emit the same
         # EXCELLENT brand for 구리/알루미늄/티타늄 queries so the UI sees

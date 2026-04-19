@@ -216,8 +216,9 @@ _NAME_HITS: dict[str, tuple[str, ...]] = {
 
 # Brands whose name pattern (ALU-*, ALUPOWER, …) identifies them as aluminum-
 # specialized. Used to actively penalize when the request is NOT aluminum so
-# ALU-CUT doesn't rank above CRX S for copper.
-_ALU_NAME_PATS: tuple[str, ...] = ("alu-", "alu ", " alu", "alupower", "alucut")
+# ALU-CUT doesn't rank above CRX S for copper. Word-boundary regex so
+# "Alumax" matches but "Halubond" does not.
+_ALU_NAME_RE = re.compile(r"\b(?:alu[-_]|alu(?=power|cut)|alupower|alucut)", re.IGNORECASE)
 
 
 def specialty_boost(
@@ -282,10 +283,8 @@ def specialty_boost(
                 reasons.append(f"name_hit:{sub}")
 
     # Layer (c): ALU-name penalty when request is NOT aluminum.
-    if sub != "aluminum" and brand:
-        brand_l = str(brand).lower()
-        if any(p in brand_l for p in _ALU_NAME_PATS):
-            total += SPECIALTY_WEIGHTS["alu_name_penalty"]
-            reasons.append("alu_name_penalty")
+    if sub != "aluminum" and brand and _ALU_NAME_RE.search(str(brand)):
+        total += SPECIALTY_WEIGHTS["alu_name_penalty"]
+        reasons.append("alu_name_penalty")
 
     return total, ("|".join(reasons) if reasons else "neutral")

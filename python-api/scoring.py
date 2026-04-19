@@ -7,7 +7,7 @@ skipped (weight is redistributed proportionally so partial intents still rank).
 
 from typing import Optional
 from affinity import get_affinity, hrc_covers
-from brand_specialty import specialty_boost
+from brand_specialty import specialty_boost, SPECIALTY_WEIGHTS
 from db import fetch_all
 
 # Central scoring config — sub-field weights + affinity tier bonuses. Kept as
@@ -41,11 +41,13 @@ SCORING_CONFIG: dict[str, float] = {
     "operation": 15,
     # Brand × sub-material specialty — DB affinity only keys by ISO group,
     # so this discriminates within N (copper vs aluminum vs graphite) and
-    # within H (tool vs mold vs hardened). Magnitude matches
-    # affinity_excellent so the specialty signal dominates ISO-group ties.
-    # Negative pole (wrong-specialty) lives in
-    # brand_specialty.SPECIALTY_WEIGHTS.
-    "specialty": 20,
+    # within H (tool vs mold vs hardened). Pulled from brand_specialty so
+    # the module is the single source of truth for specialty-boost tuning;
+    # the value here is the *positive-pole magnitude* (primary-match) and
+    # only feeds MAX_POSSIBLE_SCORE normalization. The per-hit weights
+    # (primary/secondary/wrong/name_hit/alu_name_penalty) are applied
+    # inside specialty_boost() itself.
+    "specialty": SPECIALTY_WEIGHTS["primary"],
 }
 
 # Sum of every possible contribution — used to normalize final score into
