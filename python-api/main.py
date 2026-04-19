@@ -1515,6 +1515,13 @@ async def products_stream(req: ProductsRequest):
                 "ball_radius": getattr(intent, "ball_radius", None),
                 "unit_system": getattr(intent, "unit_system", None),
                 "in_stock_only": getattr(intent, "in_stock_only", None),
+                # Stock-quantity thresholds — carrying these triggers
+                # needs_db_path(), which routes to search_products so the
+                # EXISTS + total_stock filter actually runs. Without them
+                # here the stream path silently ignored "재고 N개 이상"
+                # and returned low-stock products that match other axes.
+                "stock_min": getattr(intent, "stock_min", None),
+                "stock_max": getattr(intent, "stock_max", None),
             }
             if req.filters:
                 for fld in (
@@ -1534,7 +1541,7 @@ async def products_stream(req: ProductsRequest):
                     "effective_length_min", "effective_length_max",
                     "holemaking_coolant_hole", "threading_coolant_hole",
                     "unit_system", "brand_norm",
-                    "in_stock_only", "warehouse",
+                    "in_stock_only", "stock_min", "stock_max", "warehouse",
                 ):
                     v = getattr(req.filters, fld, None)
                     if v is not None:
