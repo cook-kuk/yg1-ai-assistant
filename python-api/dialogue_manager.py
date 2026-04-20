@@ -155,8 +155,11 @@ def reset_session_for_fresh(session: Any) -> None:
     try:
         if hasattr(session, "current_filters"):
             session.current_filters = {}
-        if hasattr(session, "previous_products"):
-            session.previous_products = []
+        # last_ranked is the SSoT backing previous_products (@property).
+        # Clearing it drops both in one shot and avoids writing to a
+        # read-only property.
+        if hasattr(session, "last_ranked"):
+            session.last_ranked = []
     except Exception:
         # Never let a reset bubble up and fail the request.
         pass

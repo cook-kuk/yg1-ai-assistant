@@ -124,6 +124,11 @@ NARROW_PHRASES: tuple[str, ...] = (
     "저 중에서", "저 중",
     "이거 중", "이중에",
     "in this", "from these",
+    # Step 2 extensions (Q6): explicit narrowing verbs that work on the
+    # current ranked set even without an anaphoric "이 중" phrase.
+    # "4날로 좁혀" / "TiAlN 만" / "DLC 로 필터" / "ALU 걸러" / "Ball 말고"
+    "좁혀", "걸러", "만 보여", "만 남", "으로 필터", "로 필터",
+    "빼고", "말고", "제외",
 )
 
 # ══════════════════════════════════════════════════════════════════════

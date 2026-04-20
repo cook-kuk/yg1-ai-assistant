@@ -279,6 +279,41 @@ PREFIX_INTENT_HINTS = envList(
     ],
 )
 
+# ── Result Refiner (refine_engine.py) ───────────────────────────────
+# In-memory narrowing of the prior ranked list. Avoids the full SCR →
+# DB search → LLM pipeline when the user drills down into an already-
+# surfaced candidate set.
+#
+# REFINE_RANKED_CAP — how many scored rows we keep per session. 50
+# matches the sync /products top-N surfacing cap; above that, later
+# refine chips would reference rows the user never saw. Redis off-load
+# is a followup if session memory growth is observed.
+REFINE_RANKED_CAP = envInt("ARIA_REFINE_RANKED_CAP", 50)
+# When refined result count is ≤ this, skip LLM entirely — just emit a
+# deterministic product roll-up. Saves the 3-5s LLM turn on the common
+# "final narrow to 1-2 products" flow.
+REFINE_LLM_FALLBACK_TH = envInt("ARIA_REFINE_LLM_FALLBACK_TH", 3)
+# Max chips surfaced per field in build_refine_chips. 6 matches the
+# UI row capacity without scrolling.
+REFINE_CHIP_MAX_PER_FIELD = envInt("ARIA_REFINE_CHIP_MAX", 6)
+# Minimum candidate count a bucket must have to surface as a chip.
+# Setting to 1 (default) means "any non-zero" — the zero-count chip
+# defense. Raise to 2+ in ops to drop noisy single-row singletons.
+REFINE_CHIP_MIN_BUCKET = envInt("ARIA_REFINE_CHIP_MIN_BUCKET", 1)
+# Top-N cross-field combinations injected into the LLM prompt when
+# include_cross=True. 3 fits a single compact context line without
+# blowing token budget.
+REFINE_CROSS_TOP_N = envInt("ARIA_REFINE_CROSS_TOP_N", 3)
+# Fields that refine chips should NEVER surface. edp_no and
+# edp_series_name are handled by Phase 0 prefix routing — a refine
+# chip from one of those would hijack the in-memory narrow into a
+# prefix lookup the user didn't ask for.
+REFINE_EXCLUDED_FIELDS = envList(
+    "ARIA_REFINE_EXCLUDED_FIELDS",
+    ["edp_no", "edp_series_name", "series_name", "reference_lookup",
+     "material_suggestions", "material_canonical"],
+)
+
 
 def reload_env() -> None:
     """Re-read env. Intended for tests that monkeypatch envs mid-process."""

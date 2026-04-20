@@ -892,6 +892,47 @@ function NarrowingChat({
                 </div>
               )}
 
+              {/* Step 2 #5 — refineChips row. Rendered above the NL chip
+                  strip when the backend produced structured chips with
+                  real candidate counts. NL chips still render below as
+                  a fallback so a refine-engine regression never blanks
+                  the UI. */}
+              {message.role === "ai" && !message.isLoading && Array.isArray(message.refineChips) && message.refineChips.length > 0 && (() => {
+                const isLatest = index === messages.length - 1 && !isSending
+                // Skip cross-field chips for the first pass — UI render
+                // is identical to single-field, just longer labels.
+                const visible = message.refineChips!.filter(c => c.count > 0).slice(0, 12)
+                if (!visible.length) return null
+                return (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {visible.map((chip, idx) => (
+                      <button
+                        key={`refine-${chip.field}-${idx}`}
+                        disabled={!isLatest || isSending}
+                        onClick={() => {
+                          if (!isLatest || isSending) return
+                          // Send label as natural-language turn — Python
+                          // SCR handles "TiAlN (12)" style inputs via its
+                          // existing numeric-token strip; structured
+                          // dispatch is a followup.
+                          const stripCount = chip.label.replace(/\s*\([^)]*\)\s*$/, "")
+                          setInput("")
+                          onSend(stripCount, null)
+                        }}
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors border ${
+                          isLatest && !isSending
+                            ? "bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100"
+                            : "bg-gray-50 border-gray-200 text-gray-400 opacity-60 cursor-not-allowed"
+                        }`}
+                        title={`${chip.field} = ${typeof chip.value === "object" ? JSON.stringify(chip.value) : chip.value}`}
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
                 const isCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")

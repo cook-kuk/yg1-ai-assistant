@@ -718,6 +718,7 @@ export function useProductRecommendationPage({
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
           validatorWarnings: data.validatorWarnings ?? null,
+          refineChips: data.refineChips ?? null,
         } as ChatMsg
         return updated
       })
@@ -814,6 +815,7 @@ export function useProductRecommendationPage({
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
           validatorWarnings: data.validatorWarnings ?? null,
+          refineChips: data.refineChips ?? null,
         } as ChatMsg
         return updated
       })
@@ -958,6 +960,7 @@ export function useProductRecommendationPage({
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
           validatorWarnings: data.validatorWarnings ?? null,
+          refineChips: data.refineChips ?? null,
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,

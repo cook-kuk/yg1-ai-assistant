@@ -37,6 +37,7 @@ from search import (
     product_count,
     product_count_filtered,
     get_filter_options,
+    collect_dropped_filter_warnings,
 )
 from scoring import rank_candidates
 from affinity import list_excellent_brands, get_affinity_rating
@@ -608,6 +609,33 @@ def _filters_to_dict(
 # to change.
 _NEG_BRAND_RE = NEG_BRAND_RE
 _NARROW_PHRASES = NARROW_PHRASES
+
+
+def _build_refine_chips_safe(ranked, filter_dict: dict) -> list[dict]:
+    """Build structured refine chips over the current ranked set. Never
+    raises — returns [] on any failure so a refine_engine regression
+    can't block a response. Empty ranked / single-row ranked also
+    returns [] (no meaningful narrowing to surface)."""
+    try:
+        if not ranked or len(ranked) < 2:
+            return []
+        from refine_engine import build_refine_chips
+        # ranked is list[tuple(dict, score, breakdown)] in sync path.
+        # build_refine_chips operates on plain dicts — flatten first.
+        if isinstance(ranked[0], tuple):
+            rows = [r[0] for r in ranked if r and isinstance(r[0], dict)]
+        else:
+            rows = [r for r in ranked if isinstance(r, dict)]
+        return build_refine_chips(
+            rows,
+            filter_dict or {},
+            include_counts=True,
+            include_cross=len(rows) >= 10,  # cross chips only when pool has depth
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("build_refine_chips failed")
+        return []
 
 
 def _force_recommendation_on_followup(intent, message: Optional[str], session) -> None:
@@ -1482,6 +1510,10 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         **intent.model_dump(exclude_none=True),
         **{k: v for k, v in filter_dict.items() if v is not None},
     }
+    # Step 2 #5 — persist the scored ranked tuple (not just EDPs) so the
+    # NEXT turn's refine path can operate in-memory. Caps at
+    # config.REFINE_RANKED_CAP; previous_products is a derived @property.
+    session.update_last_ranked(ranked)
     add_turn(
         session,
         role="user",
@@ -1510,6 +1542,17 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     if series_chips:
         existing = set(chips)
         chips = series_chips + [c for c in chips if c not in series_chips and c not in existing]
+
+    # Silently-dropped filter warning. When the user asked for e.g. 선단각
+    # but the backing MV column has been retired, we still return a result
+    # (against the unfiltered set) — but prepend a one-line heads-up so the
+    # 74k response isn't taken as a real narrow. Also exposed as a
+    # structured list (`dropped_filters`) for UI-side banners.
+    _dropped = collect_dropped_filter_warnings(filter_dict)
+    if _dropped:
+        labels = ", ".join(dict.fromkeys(d["label"] for d in _dropped))
+        warn_line = f"⚠️ {labels} 필터는 현재 DB 스키마에 저장돼 있지 않아 적용되지 않았습니다."
+        cleaned_answer = f"{warn_line}\n\n{cleaned_answer}" if cleaned_answer else warn_line
 
     # "조회한 상품" peek — when the user points at an EDP/series mid-session,
     # we do an independent lookup that ignores the live filter session and
@@ -1540,6 +1583,8 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         reference_products=reference_products,
         reference_query=reference_query,
         validator_warnings=validator_warnings_sync,
+        refine_chips=_build_refine_chips_safe(ranked, filter_dict),
+        dropped_filters=collect_dropped_filter_warnings(filter_dict),
     )
 
 
@@ -1958,9 +2003,14 @@ async def products_stream(req: ProductsRequest):
             getattr(intent, "reference_lookup", None), []
         )
         reference_payload_stream = [card.model_dump() for card in _peek_cards]
+        # Silently-dropped filters (missing MV columns) — surface so the UI
+        # can show a warning banner alongside the card stream.
+        _dropped_stream = collect_dropped_filter_warnings(
+            _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
+        )
         yield (
             f"event: products\ndata: "
-            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX, 'reference_products': reference_payload_stream, 'reference_query': reference_query_stream}, ensure_ascii=False)}\n\n"
+            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened, 'series_chips': series_chips_stream, 'stock_summary': stock_summary_stream, 'cutting_range': cutting_range_stream, 'score_breakdown_max': SCORE_BREAKDOWN_MAX, 'reference_products': reference_payload_stream, 'reference_query': reference_query_stream, 'dropped_filters': _dropped_stream}, ensure_ascii=False)}\n\n"
         )
 
         # 3. CoT answer — `knowledge` is already populated from the parallel
@@ -1990,7 +2040,14 @@ async def products_stream(req: ProductsRequest):
             )
             req_filters_dump = req.filters.model_dump() if req.filters else None
 
+            # Pre-compute refine_chips once — merged into every answer
+            # payload (Strong / Light / no_match paths all reuse).
+            _stream_filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
+            _stream_refine_chips = _build_refine_chips_safe(ranked, _stream_filter_dict)
+
             def _merge_series_chips(payload: dict) -> dict:
+                if _stream_refine_chips and "refine_chips" not in payload:
+                    payload["refine_chips"] = _stream_refine_chips
                 if not series_chips_stream:
                     return payload
                 existing = payload.get("chips") or []
@@ -2120,6 +2177,9 @@ async def products_stream(req: ProductsRequest):
             **intent.model_dump(exclude_none=True),
             **{k: v for k, v in stream_effective_filters.items() if v is not None},
         }
+        # Step 2 #5 — same dict-shaped persistence as sync path. The
+        # next turn's refine fast-path reads session.last_ranked.
+        session.update_last_ranked(ranked)
         add_turn(
             session, role="user",
             message=req.message or "(manual filters)",

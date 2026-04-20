@@ -306,6 +306,16 @@ async function streamProductsViaPython(
       evidence_ref?: string | null
       confidence?: number
     }> = []
+    // Step 2 #5 — structured refine chips carried on the `answer` event
+    // payload. Populated in parallel with the legacy `chips: string[]`;
+    // UI renders these when non-empty for the real candidate count.
+    let refineChips: Array<{
+      field: string
+      value: unknown
+      label: string
+      count: number
+      action: string
+    }> = []
     // Elapsed-timer bookends for the reasoning block header.
     const startedAt = Date.now()
 
@@ -383,7 +393,12 @@ async function streamProductsViaPython(
           onThinking(text, { delta: false, kind: "deep" })
         }
       } else if (event === "answer") {
-        const payload = data as StreamAnswerEvent
+        const payload = data as StreamAnswerEvent & {
+          refine_chips?: Array<{
+            field: string; value: unknown; label: string;
+            count: number; action: string
+          }>
+        }
         answer = payload.answer ?? ""
         chips = Array.isArray(payload.chips) ? payload.chips : []
         reasoning = typeof payload.reasoning === "string" ? payload.reasoning : ""
@@ -391,6 +406,9 @@ async function streamProductsViaPython(
           ? payload.cot_level
           : null
         verified = typeof payload.verified === "boolean" ? payload.verified : null
+        if (Array.isArray(payload.refine_chips)) {
+          refineChips = payload.refine_chips
+        }
         if (onThinking && reasoning) {
           onThinking(reasoning, { delta: false, kind: "deep" })
         }
@@ -456,6 +474,9 @@ async function streamProductsViaPython(
     // "⚠ 일부 미검증 내용이 정정됨" badge. Empty array = no badge.
     if (validatorWarnings.length > 0) {
       dto.validatorWarnings = validatorWarnings as any
+    }
+    if (refineChips.length > 0) {
+      dto.refineChips = refineChips as any
     }
     return dto
   } finally {

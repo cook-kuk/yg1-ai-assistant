@@ -107,6 +107,11 @@ python-api/**/__pycache__/
 python-api/results/
 /tmp/golden_*.log
 
+# Runtime-appended capture files — server writes here every time a
+# user enters an unmatched material alias. Grows unbounded with real
+# user input; keep the directory tracked but skip the rolling jsonl.
+testset/material_no_match_capture.jsonl
+
 # Dev-server logs (file-based stdout/stderr captures, per-port).
 *.log
 .dev*.log

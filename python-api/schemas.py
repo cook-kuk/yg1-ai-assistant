@@ -289,6 +289,28 @@ class ProductSummary(BaseModel):
     score: float
 
 
+class RefineChip(BaseModel):
+    """Structured refine-chip payload. Emitted in parallel with the
+    legacy natural-language `chips: list[str]` so the frontend can
+    upgrade-in-place (prefer structured when present, fall back to NL).
+
+    action values:
+      narrow  — intersect ranked with rows matching (field, value)
+      drop    — remove rows matching (field, value)
+      broaden — relax the current filter on `field` (re-runs full search)
+
+    `value` is `Any` because cross-field chips carry a dict
+    `{field1: val1, field2: val2}` while single-field chips carry a
+    scalar. Frontend discriminator: `chip.field.includes("+")` →
+    cross-field payload.
+    """
+    field: str
+    value: Any
+    label: str
+    count: int
+    action: str = "narrow"
+
+
 class ValidatorWarning(BaseModel):
     """One evidence-grounding decision emitted by guard.validate_response.
 
@@ -335,6 +357,12 @@ class ProductsResponse(BaseModel):
     # can surface "일부 미검증 내용이 정정됨" badges for the removed /
     # annotated claims while keeping grounded claims unmarked.
     validator_warnings: List[ValidatorWarning] = Field(default_factory=list)
+    # Step 2 #5 — structured refine chips. Empty on fresh-search turns;
+    # populated by refine_engine.build_refine_chips when the turn was
+    # an in-memory refine or when distributions could produce count-
+    # bearing options. UI prefers these over `chips: list[str]` when
+    # non-empty. Each entry maps to schemas.RefineChip.
+    refine_chips: List[RefineChip] = Field(default_factory=list)
     # Pre-guidance blocks surfaced alongside the product list so the UI /
     # CoT can quote concrete aggregates without an extra round-trip.
     # stock_summary: {in_stock, total, pct} — fraction of today's candidate
@@ -368,6 +396,12 @@ class ProductsResponse(BaseModel):
     # ranked list. Empty list when no peek was requested.
     reference_products: List[ProductCard] = Field(default_factory=list)
     reference_query: Optional[str] = None  # echo back the matched token (e.g. "UGMG34919")
+    # Filters the caller set that target MV columns currently missing from
+    # product_recommendation_mv. Populated by search.collect_dropped_filter_warnings.
+    # Non-empty means "we silently ignored these fields" — the UI should
+    # surface a one-liner so the user knows their 74k result wasn't really
+    # narrowed by e.g. 선단각 / thread pitch. Empty on the happy path.
+    dropped_filters: List[Dict[str, str]] = Field(default_factory=list)
 
 
 class ProductsPageRequest(BaseModel):

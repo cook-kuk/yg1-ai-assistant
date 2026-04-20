@@ -33,6 +33,46 @@ def _mv_column_present(col: str) -> bool:
     return True
 
 
+# Mapping from filter key → (MV column, UI label). Used by
+# collect_dropped_filter_warnings() to surface silently-skipped filters so the
+# user doesn't think a 72k-row result was actually narrowed by their input.
+_FILTER_TO_MV_COL: dict[str, tuple[str, str]] = {
+    "point_angle": ("holemaking_point_angle", "선단각"),
+    "point_angle_min": ("holemaking_point_angle", "선단각"),
+    "point_angle_max": ("holemaking_point_angle", "선단각"),
+    "thread_pitch": ("threading_pitch", "나사 피치"),
+    "thread_pitch_min": ("threading_pitch", "나사 피치"),
+    "thread_pitch_max": ("threading_pitch", "나사 피치"),
+    "thread_tpi": ("threading_tpi", "TPI"),
+    "tpi_min": ("threading_tpi", "TPI"),
+    "tpi_max": ("threading_tpi", "TPI"),
+    "brand_norm": ("norm_brand", "정규화 브랜드"),
+}
+
+
+def collect_dropped_filter_warnings(filters: dict) -> list[dict]:
+    """Return [{filter, column, label}] for every filter set by the caller
+    that targets a column missing from the current MV. Empty list when all
+    requested filters are satisfiable.
+
+    Surfaced in /products + /products/stream so the UI can tell the user
+    "선단각 필터는 DB 에 저장되지 않아 적용되지 않았습니다" rather than silently
+    returning the full 74k result."""
+    out: list[dict] = []
+    seen_cols: set[str] = set()
+    for key, value in (filters or {}).items():
+        if value is None:
+            continue
+        mapping = _FILTER_TO_MV_COL.get(key)
+        if not mapping:
+            continue
+        col, label = mapping
+        if col in _MV_MISSING_COLUMNS and col not in seen_cols:
+            seen_cols.add(col)
+            out.append({"filter": key, "column": col, "label": label})
+    return out
+
+
 def _range_clause(
     column: str,
     lo: Optional[float],
@@ -367,43 +407,46 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
     point_angle = filters.get("point_angle")
     pa_min = filters.get("point_angle_min")
     pa_max = filters.get("point_angle_max")
-    if (pa_min is not None or pa_max is not None) and not _skip("point_angle"):
-        clause = _range_clause("holemaking_point_angle", pa_min, pa_max, params)
-        if clause:
-            where.append(clause)
-    elif point_angle is not None and not _skip("point_angle"):
-        # Drill point angles are usually discrete (118°/135°/140°) so ±1° is
-        # tight enough to map "135도 선단각" onto the intended family.
-        lo, hi = point_angle - 1, point_angle + 1
-        clause = _range_clause("holemaking_point_angle", lo, hi, params)
-        if clause:
-            where.append(clause)
+    if _mv_column_present("holemaking_point_angle"):
+        if (pa_min is not None or pa_max is not None) and not _skip("point_angle"):
+            clause = _range_clause("holemaking_point_angle", pa_min, pa_max, params)
+            if clause:
+                where.append(clause)
+        elif point_angle is not None and not _skip("point_angle"):
+            # Drill point angles are usually discrete (118°/135°/140°) so ±1° is
+            # tight enough to map "135도 선단각" onto the intended family.
+            lo, hi = point_angle - 1, point_angle + 1
+            clause = _range_clause("holemaking_point_angle", lo, hi, params)
+            if clause:
+                where.append(clause)
 
     pitch = filters.get("thread_pitch")
     p_min = filters.get("thread_pitch_min")
     p_max = filters.get("thread_pitch_max")
-    if (p_min is not None or p_max is not None) and not _skip("thread_pitch"):
-        clause = _range_clause("threading_pitch", p_min, p_max, params)
-        if clause:
-            where.append(clause)
-    elif pitch is not None and not _skip("thread_pitch"):
-        # Pitches are exact-valued (1.25 / 1.5 / 2.0) — small ±0.05 tolerance
-        # just absorbs rounding in the raw spec text.
-        clause = _range_clause("threading_pitch", pitch - 0.05, pitch + 0.05, params)
-        if clause:
-            where.append(clause)
+    if _mv_column_present("threading_pitch"):
+        if (p_min is not None or p_max is not None) and not _skip("thread_pitch"):
+            clause = _range_clause("threading_pitch", p_min, p_max, params)
+            if clause:
+                where.append(clause)
+        elif pitch is not None and not _skip("thread_pitch"):
+            # Pitches are exact-valued (1.25 / 1.5 / 2.0) — small ±0.05 tolerance
+            # just absorbs rounding in the raw spec text.
+            clause = _range_clause("threading_pitch", pitch - 0.05, pitch + 0.05, params)
+            if clause:
+                where.append(clause)
 
     tpi = filters.get("thread_tpi")
     tpi_min = filters.get("tpi_min")
     tpi_max = filters.get("tpi_max")
-    if (tpi_min is not None or tpi_max is not None) and not _skip("thread_tpi"):
-        clause = _range_clause("threading_tpi", tpi_min, tpi_max, params)
-        if clause:
-            where.append(clause)
-    elif tpi is not None and not _skip("thread_tpi"):
-        clause = _range_clause("threading_tpi", tpi - 0.5, tpi + 0.5, params)
-        if clause:
-            where.append(clause)
+    if _mv_column_present("threading_tpi"):
+        if (tpi_min is not None or tpi_max is not None) and not _skip("thread_tpi"):
+            clause = _range_clause("threading_tpi", tpi_min, tpi_max, params)
+            if clause:
+                where.append(clause)
+        elif tpi is not None and not _skip("thread_tpi"):
+            clause = _range_clause("threading_tpi", tpi - 0.5, tpi + 0.5, params)
+            if clause:
+                where.append(clause)
 
     tol = filters.get("diameter_tolerance")
     if tol and not _skip("diameter_tolerance"):
@@ -456,7 +499,7 @@ def _build_where(filters: dict, exclude: Optional[str] = None) -> tuple[list[str
         params.append(unit_system)
 
     brand_norm = filters.get("brand_norm")
-    if brand_norm and not _skip("brand_norm"):
+    if brand_norm and not _skip("brand_norm") and _mv_column_present("norm_brand"):
         where.append("norm_brand = %s")
         params.append(str(brand_norm).upper())
 
@@ -695,6 +738,11 @@ def get_filter_options(field: str, current_filters: dict) -> list[dict]:
     the toggle still sees sibling options)."""
     expr = FIELD_TO_EXPR.get(field)
     if expr is None:
+        return []
+    # If the backing column has been dropped from the MV, short-circuit to
+    # an empty option list instead of issuing a query that would 500.
+    if expr in _MV_MISSING_COLUMNS:
+        logger.info(f"[get_filter_options] Skipping {field} — column {expr} absent")
         return []
 
     where, params = _build_where(current_filters, exclude=field)

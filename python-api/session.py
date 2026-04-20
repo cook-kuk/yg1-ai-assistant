@@ -50,7 +50,54 @@ class Session:
     last_used_at: datetime
     turns: list[dict] = field(default_factory=list)        # [{role, message, intent, products, at}]
     current_filters: dict = field(default_factory=dict)    # effective SCRIntent-shaped dict
-    previous_products: list[str] = field(default_factory=list)  # EDP numbers from last reply
+    # Step 2 #5 — scored candidate rows from the last turn, capped at
+    # REFINE_RANKED_CAP. Feeds refine_engine.refine_in_memory so drill-down
+    # turns can skip SCR + DB + LLM. dict shape matches main.py's ranked[0]
+    # (product dict + score dict merged).
+    last_ranked: list[dict] = field(default_factory=list)
+
+    # previous_products is a read-only view over last_ranked — keeps the
+    # legacy "EDP list" API alive without double state. Callers that used
+    # to write `session.previous_products = [...]` must now assign to
+    # `session.last_ranked` (list of dicts) or call `update_last_ranked`.
+    @property
+    def previous_products(self) -> list[str]:
+        out: list[str] = []
+        for r in self.last_ranked:
+            if not isinstance(r, dict):
+                continue
+            edp = r.get("edp_no")
+            if edp:
+                out.append(str(edp))
+        return out
+
+    def update_last_ranked(
+        self,
+        ranked: list,
+        *,
+        cap: Optional[int] = None,
+    ) -> None:
+        """Persist the turn's ranked candidates. Accepts either the raw
+        `list[tuple(dict, score, breakdown)]` shape main.py produces or
+        a pre-flattened `list[dict]`. Cap defaults to config.REFINE_RANKED_CAP
+        so session memory stays bounded at ~25KB per active session."""
+        if cap is None:
+            from config import REFINE_RANKED_CAP
+            cap = REFINE_RANKED_CAP
+        flat: list[dict] = []
+        for item in (ranked or []):
+            if isinstance(item, tuple) and item and isinstance(item[0], dict):
+                merged = dict(item[0])
+                # Attach score + breakdown when present so refine can
+                # surface rank order + explain "why" later.
+                if len(item) >= 2 and isinstance(item[1], (int, float)):
+                    merged.setdefault("_score", float(item[1]))
+                if len(item) >= 3 and isinstance(item[2], dict):
+                    merged.setdefault("_breakdown", dict(item[2]))
+                flat.append(merged)
+            elif isinstance(item, dict):
+                flat.append(dict(item))
+        self.last_ranked = flat[:cap]
 
 
 def get_or_create(session_id: Optional[str]) -> Session:
@@ -106,9 +153,13 @@ def add_turn(
     })
     session.last_used_at = datetime.now()
     if products:
-        # Keep only EDP identifiers — scoping follow-ups doesn't need the
-        # full candidate payload.
-        session.previous_products = list(products)
+        # Legacy callers pass an EDP-only list here (no score/breakdown).
+        # Wrap into dicts so last_ranked's "list[dict]" invariant holds —
+        # refine_engine falls back to unscored behavior when _score is
+        # absent. Skipped when top_products already drove a dict-shaped
+        # update via update_last_ranked on the call site.
+        if not session.last_ranked:
+            session.last_ranked = [{"edp_no": str(p)} for p in products if p]
     if intent:
         # Update the effective filter context with fields the new intent set.
         # None values don't overwrite — they'd erase prior decisions.

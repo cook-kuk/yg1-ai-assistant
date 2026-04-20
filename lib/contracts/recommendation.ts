@@ -326,6 +326,14 @@ export interface RecommendationResponseDto {
    * `annotated` / `passed` are metadata-only.
    */
   validatorWarnings?: ValidatorWarningDto[] | null
+  /**
+   * Structured refine chips with real candidate counts. Prefer these
+   * over the legacy `chips: string[]` when non-empty — they carry
+   * {field, value, count, action} so the frontend can fire a
+   * structured refine payload without sending the natural-language
+   * chip text back through SCR.
+   */
+  refineChips?: RefineChipDto[] | null
   error?: string
   detail?: string
 }
@@ -337,6 +345,22 @@ export interface ValidatorWarningDto {
   action: "removed" | "annotated" | "passed" | string
   confidence?: number
   span: [number, number]
+}
+
+/**
+ * Structured refine chip — emitted by Python's refine_engine when the
+ * response surfaced a distribution with actionable narrowings. Coexists
+ * with the legacy `chips: string[]` (natural-language fallback); frontend
+ * prefers refineChips when non-empty.
+ */
+export interface RefineChipDto {
+  field: string
+  // Scalar for single-field chips; `Record<string, string|number>` for
+  // cross-field chips where `field` has shape "f1+f2".
+  value: string | number | Record<string, string | number>
+  label: string
+  count: number
+  action: "narrow" | "drop" | "broaden" | string
 }
 
 export type RecommendationReasoningVisibility = "hidden" | "simple" | "full"
@@ -625,6 +649,13 @@ export const recommendationResponseSchema = z.object({
     action: z.string(),
     confidence: z.number().optional(),
     span: z.tuple([z.number(), z.number()]),
+  })).nullable().optional(),
+  refineChips: z.array(z.object({
+    field: z.string(),
+    value: z.union([z.string(), z.number(), z.record(z.union([z.string(), z.number()]))]),
+    label: z.string(),
+    count: z.number(),
+    action: z.string(),
   })).nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),

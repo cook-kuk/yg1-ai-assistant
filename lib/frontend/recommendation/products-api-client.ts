@@ -125,6 +125,10 @@ export interface ProductsResponse {
   // main ranked list.
   reference_products?: ProductCard[] | null
   reference_query?: string | null
+  // Filters the caller asked for that hit columns missing from the MV.
+  // When non-empty the UI surfaces a warning banner so the user doesn't
+  // mistake a 74k-row response for a genuinely-narrowed set.
+  dropped_filters?: Array<{ filter: string; column: string; label: string }> | null
 }
 
 export interface FilterOptionsResponse {

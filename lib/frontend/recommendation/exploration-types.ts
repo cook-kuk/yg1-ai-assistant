@@ -68,6 +68,18 @@ export interface ChatMsg {
     span: [number, number]
   }> | null
   /**
+   * Step 2 #5 — structured refine chips. Preferred over {@link chips}
+   * when present; UI renders each chip with its real candidate count
+   * ("4날 (12)"). Legacy natural-language chips stay for fallback.
+   */
+  refineChips?: Array<{
+    field: string
+    value: unknown
+    label: string
+    count: number
+    action: string
+  }> | null
+  /**
    * Inline product-card list rendered directly in the chat (not in the side
    * panel). Populated on every search result and on "제품 보기" CTA so the
    * candidate snapshot lives inside the conversation flow.
