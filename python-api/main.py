@@ -1445,6 +1445,31 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 extra_safe.add(str(val))
     cleaned_answer, _removed = scrub(raw_answer, extra_safe=extra_safe)
 
+    # Evidence-grounded validator — runs after scrub so SKU tokens the
+    # LLM invented are already gone when we extract claims. Lightweight
+    # path fires when Strong-CoT verifier already cross-checked product
+    # specs (skip the per-claim LLM call, only do citation regex + RAG
+    # grounding). See guard.validate_response docstring.
+    from guard import EvidenceBundle, validate_response
+    from config import VALIDATOR_MODE
+    _verifier_passed = bool(
+        isinstance(chat_result, dict) and chat_result.get("verified") is True
+    )
+    try:
+        _evidence_sync = EvidenceBundle.from_chat_state(ranked, knowledge, cutting_range)
+        cleaned_answer, validator_warnings_sync = validate_response(
+            cleaned_answer,
+            evidence=_evidence_sync,
+            mode=VALIDATOR_MODE,
+            skip_product_extraction=_verifier_passed,
+        )
+    except Exception:
+        # Never let validator failure block a response. Downgrade silently
+        # and log so we catch it in ops metrics.
+        import logging
+        logging.getLogger(__name__).exception("validate_response failed (sync path)")
+        validator_warnings_sync = []
+
     # Persist the turn so the next follow-up can narrow/carry state.
     edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
     # Persist the EFFECTIVE filter dict (the same one the search ran on),
@@ -1514,6 +1539,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         score_breakdown_max=SCORE_BREAKDOWN_MAX,
         reference_products=reference_products,
         reference_query=reference_query,
+        validator_warnings=validator_warnings_sync,
     )
 
 
@@ -1895,6 +1921,23 @@ async def products_stream(req: ProductsRequest):
                 "helix_angle": c.get("milling_helix_angle"),
                 "coolant_hole": c.get("milling_coolant_hole"),
                 "shank_type": c.get("search_shank_type"),
+                # P0/P1 detail set — mirrors the sync /products ProductCard
+                # fields so the stream-driven chat cards render the same full
+                # spec table when the user toggles them open.
+                "edp_unit": c.get("edp_unit"),
+                "shank_dia": c.get("milling_shank_dia"),
+                "ball_radius": c.get("milling_ball_radius"),
+                "neck_diameter": c.get("milling_neck_diameter"),
+                "effective_length": c.get("milling_effective_length"),
+                "tool_material": (
+                    c.get("milling_tool_material")
+                    or c.get("holemaking_tool_material")
+                    or c.get("threading_tool_material")
+                ),
+                "diameter_tolerance": c.get("milling_diameter_tolerance"),
+                "taper_angle": c.get("milling_taper_angle"),
+                "point_angle": c.get("holemaking_point_angle"),
+                "thread_pitch": c.get("threading_pitch"),
                 "total_stock": stock_qty_stream,
                 "warehouse_count": _coerce_int(c.get("warehouse_count")),
                 "stock_status": _derive_stock_status(stock_qty_stream),
@@ -2027,6 +2070,44 @@ async def products_stream(req: ProductsRequest):
             if series_chips_stream:
                 chat_result["chips"] = list(series_chips_stream)
             yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+
+        # Evidence-grounded validator — post-stream. Replace-style event
+        # that the frontend applies on top of the already-rendered answer
+        # text. warnings=[] means no changes; frontend checks len > 0
+        # before toggling the "검증됨" / "정정됨" badge.
+        try:
+            from guard import EvidenceBundle as _EB, validate_response as _vr
+            from config import VALIDATOR_MODE as _VMODE
+            _ans_raw = (chat_result or {}).get("answer") or ""
+            _skip_prod = bool(
+                isinstance(chat_result, dict) and chat_result.get("verified") is True
+            )
+            _evidence_stream = _EB.from_chat_state(ranked, knowledge, cutting_range_stream)
+            _cleaned_stream, _warnings_stream = await asyncio.to_thread(
+                _vr,
+                _ans_raw,
+                evidence=_evidence_stream,
+                mode=_VMODE,
+                skip_product_extraction=_skip_prod,
+            )
+            if _warnings_stream or _cleaned_stream != _ans_raw:
+                _final_payload = {
+                    "answer": _cleaned_stream,
+                    "warnings": _warnings_stream,
+                    "removed_spans": [
+                        w["span"] for w in _warnings_stream
+                        if w.get("action") == "removed"
+                    ],
+                }
+                yield f"event: final_cleaned\ndata: {_json.dumps(_final_payload, ensure_ascii=False)}\n\n"
+                # Reflect the cleaned text back onto chat_result so the
+                # turn persistence below writes the validator-cleaned
+                # version to session history (not the raw answer).
+                if isinstance(chat_result, dict):
+                    chat_result["answer"] = _cleaned_stream
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("validate_response failed (stream path)")
 
         # Persist the turn so subsequent stream calls keep state.
         # Same rationale as sync /products: persist the effective filter

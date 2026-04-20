@@ -111,6 +111,19 @@ interface StreamProductsEvent {
     helix_angle?: string | null
     coolant_hole?: string | null
     shank_type?: string | null
+    // P0/P1 detail fields — mirror Python's expanded top10 payload so the
+    // stream-driven CandidateCard expand-state renders a full spec table
+    // instead of a row of "-"s.
+    edp_unit?: string | null
+    shank_dia?: string | null
+    ball_radius?: string | null
+    neck_diameter?: string | null
+    effective_length?: string | null
+    tool_material?: string | null
+    diameter_tolerance?: string | null
+    taper_angle?: string | null
+    point_angle?: string | null
+    thread_pitch?: string | null
     total_stock?: number | null
     warehouse_count?: number | null
     stock_status?: string | null
@@ -178,6 +191,16 @@ function streamTopToProductCards(top10: StreamProductsEvent["top10"]): ProductCa
     helix_angle: row.helix_angle ?? null,
     coolant_hole: row.coolant_hole ?? null,
     shank_type: row.shank_type ?? null,
+    edp_unit: row.edp_unit ?? null,
+    shank_dia: row.shank_dia ?? null,
+    ball_radius: row.ball_radius ?? null,
+    neck_diameter: row.neck_diameter ?? null,
+    effective_length: row.effective_length ?? null,
+    tool_material: row.tool_material ?? null,
+    diameter_tolerance: row.diameter_tolerance ?? null,
+    taper_angle: row.taper_angle ?? null,
+    point_angle: row.point_angle ?? null,
+    thread_pitch: row.thread_pitch ?? null,
     total_stock: row.total_stock ?? null,
     warehouse_count: row.warehouse_count ?? null,
     stock_status: row.stock_status ?? null,
@@ -272,6 +295,17 @@ async function streamProductsViaPython(
     // Dual-CoT metadata — populated from `answer` frame if present.
     let cotLevel: "light" | "strong" | null = null
     let verified: boolean | null = null
+    // Response-validator warnings populated by the `final_cleaned` event
+    // (Phase 2+). Empty = either the validator skipped this turn (short
+    // answer) or every claim grounded cleanly.
+    let validatorWarnings: Array<{
+      category: string
+      claim_text: string
+      action: string
+      span: [number, number]
+      evidence_ref?: string | null
+      confidence?: number
+    }> = []
     // Elapsed-timer bookends for the reasoning block header.
     const startedAt = Date.now()
 
@@ -360,6 +394,24 @@ async function streamProductsViaPython(
         if (onThinking && reasoning) {
           onThinking(reasoning, { delta: false, kind: "deep" })
         }
+      } else if (event === "final_cleaned") {
+        // Evidence-grounded Response Validator post-process. Python's
+        // guard.validate_response ran after the answer event and found
+        // unsupported/contradicted claims to strip. Payload replaces the
+        // displayed answer text in-place; chips / reasoning / verified
+        // stay as-is. `warnings` carries per-claim decisions that the
+        // frontend surfaces as a "일부 미검증 내용이 정정됨" badge.
+        const payload = data as {
+          answer?: string
+          warnings?: Array<{ category: string; claim_text: string; action: string; span: [number, number]; evidence_ref?: string | null; confidence?: number }>
+          removed_spans?: Array<[number, number]>
+        }
+        if (typeof payload.answer === "string" && payload.answer.length > 0) {
+          answer = payload.answer
+        }
+        if (Array.isArray(payload.warnings) && payload.warnings.length > 0) {
+          validatorWarnings = payload.warnings
+        }
       }
       // `done` is a terminator — nothing to emit.
     }
@@ -400,6 +452,11 @@ async function streamProductsViaPython(
     dto.cotLevel = cotLevel
     dto.verified = verified
     dto.cotElapsedSec = Math.round((Date.now() - startedAt) / 1000)
+    // Forward validator warnings so the chat-msg footer can render a
+    // "⚠ 일부 미검증 내용이 정정됨" badge. Empty array = no badge.
+    if (validatorWarnings.length > 0) {
+      dto.validatorWarnings = validatorWarnings as any
+    }
     return dto
   } finally {
     clearTimeout(timer)

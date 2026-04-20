@@ -319,8 +319,24 @@ export interface RecommendationResponseDto {
   cotLevel?: "light" | "strong" | null
   cotElapsedSec?: number | null
   verified?: boolean | null
+  /**
+   * Response Validator warnings. Populated by guard.validate_response
+   * (Python) when unsupported/contradicted claims were detected.
+   * `action: "removed"` entries drive the cleaned-text diff (span info);
+   * `annotated` / `passed` are metadata-only.
+   */
+  validatorWarnings?: ValidatorWarningDto[] | null
   error?: string
   detail?: string
+}
+
+export interface ValidatorWarningDto {
+  category: "numeric" | "categorical" | "citation" | "existential" | string
+  claim_text: string
+  evidence_ref?: string | null
+  action: "removed" | "annotated" | "passed" | string
+  confidence?: number
+  span: [number, number]
 }
 
 export type RecommendationReasoningVisibility = "hidden" | "simple" | "full"
@@ -602,6 +618,14 @@ export const recommendationResponseSchema = z.object({
   cotLevel: z.enum(["light", "strong"]).nullable().optional(),
   cotElapsedSec: z.number().nullable().optional(),
   verified: z.boolean().nullable().optional(),
+  validatorWarnings: z.array(z.object({
+    category: z.string(),
+    claim_text: z.string(),
+    evidence_ref: z.string().nullable().optional(),
+    action: z.string(),
+    confidence: z.number().optional(),
+    span: z.tuple([z.number(), z.number()]),
+  })).nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),
 }).passthrough()

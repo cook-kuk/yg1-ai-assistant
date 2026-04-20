@@ -437,14 +437,18 @@ def _compare_shank_dia(exp_val: str, actual_filters: dict) -> bool:
 
 
 def _compare_series_name(exp_val: str, actual_filters: dict) -> bool:
-    """Case/space-insensitive match of the emitted series_name against the
-    expected token. Accepts "GMF52" ~= "gmf 52" — _norm_brand re-uses the
-    same hyphen/space stripping so "V7-PLUS" matches "V7 PLUS"."""
+    """Case/space-insensitive match. Falls back to `reference_lookup`
+    when `series_name` is empty — SCR emits short series tokens
+    ("SEME75", "GMG16") into reference_lookup instead of series_name
+    when no extra qualifier follows ("…시리즈로 찾아줘")."""
     exp_n = _norm_brand(exp_val)
-    act_n = _norm_brand(actual_filters.get("series_name"))
-    if not exp_n or not act_n:
+    if not exp_n:
         return False
-    return exp_n == act_n or exp_n in act_n or act_n in exp_n
+    for src in ("series_name", "reference_lookup"):
+        act_n = _norm_brand(actual_filters.get(src))
+        if act_n and (exp_n == act_n or exp_n in act_n or act_n in exp_n):
+            return True
+    return False
 
 
 # Expected-field → comparator + whether my API supports it.

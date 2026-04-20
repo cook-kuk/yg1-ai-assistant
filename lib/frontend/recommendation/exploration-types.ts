@@ -53,6 +53,21 @@ export interface ChatMsg {
   cotElapsedSec?: number | null
   verified?: boolean | null
   /**
+   * Response-Validator warnings — populated by guard.validate_response
+   * (Python) when the streamed answer had unsupported/contradicted
+   * claims stripped. `action: "removed"` entries are what drove the
+   * text diff; the badge only renders when the array has ≥1 entry with
+   * action ≠ "passed".
+   */
+  validatorWarnings?: Array<{
+    category: string
+    claim_text: string
+    evidence_ref?: string | null
+    action: string
+    confidence?: number
+    span: [number, number]
+  }> | null
+  /**
    * Inline product-card list rendered directly in the chat (not in the side
    * panel). Populated on every search result and on "제품 보기" CTA so the
    * candidate snapshot lives inside the conversation flow.

@@ -186,3 +186,24 @@ BRAND_KR_ALIAS: dict[str, str] = {
 UNCOATED_LABELS: frozenset[str] = frozenset({
     "UNCOATED", "BRIGHT FINISH",
 })
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Response Validator — fake-citation detection phrases
+# ══════════════════════════════════════════════════════════════════════
+# Phrases the LLM emits when it's pretending to quote a source that
+# doesn't exist (RAG miss + generic filler). Detection is pattern-based
+# but judgement stays evidence-driven: every hit gets checked against
+# evidence.has_rag_mention before the validator decides removed vs
+# annotated. Kept as a frozenset so downstream callers can't mutate the
+# set and silently change behavior for other modules.
+FAKE_CITATION_PHRASES: frozenset[str] = frozenset({
+    "공식 정보 기반 AI 추론",
+    "공식 정보 기반",
+    "공개 정보 참고",
+    "AI 지식 추론",
+    "AI 추론에 따르면",
+    "일반적으로 알려진 바에 따르면",
+    "공식 문서에 따르면",
+    "제조사 자료에 따르면",
+})

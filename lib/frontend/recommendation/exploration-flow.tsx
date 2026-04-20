@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
+  AlertCircle,
   Brain,
   ChevronDown,
   ChevronRight,
@@ -867,6 +868,28 @@ function NarrowingChat({
                   cotLevel={message.cotLevel ?? null}
                   verified={message.verified ?? null}
                 />
+              )}
+
+              {/* Response-Validator badge — renders only when the post-stream
+                  final_cleaned event surfaced ≥1 removed/annotated claim.
+                  Kept compact (icon + tooltip) so it doesn't compete with
+                  the reasoning-block header for visual weight. */}
+              {message.role === "ai" && !message.isLoading && Array.isArray(message.validatorWarnings) && message.validatorWarnings.some(w => w.action !== "passed") && (
+                <div
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1 text-[10px] text-amber-800"
+                  title={message.validatorWarnings
+                    .filter(w => w.action !== "passed")
+                    .slice(0, 6)
+                    .map(w => `[${w.action}] ${w.category}: ${w.claim_text.slice(0, 60)}`)
+                    .join("\n")}
+                >
+                  <AlertCircle size={11} className="text-amber-600" />
+                  <span>
+                    {language === "ko"
+                      ? `일부 미검증 내용이 정정됨 · ${message.validatorWarnings.filter(w => w.action !== "passed").length}건`
+                      : `Some unverified content was corrected · ${message.validatorWarnings.filter(w => w.action !== "passed").length}`}
+                  </span>
+                </div>
               )}
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {

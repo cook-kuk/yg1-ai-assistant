@@ -717,6 +717,7 @@ export function useProductRecommendationPage({
           cotLevel: data.cotLevel ?? null,
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
+          validatorWarnings: data.validatorWarnings ?? null,
         } as ChatMsg
         return updated
       })
@@ -812,6 +813,7 @@ export function useProductRecommendationPage({
           cotLevel: data.cotLevel ?? null,
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
+          validatorWarnings: data.validatorWarnings ?? null,
         } as ChatMsg
         return updated
       })
@@ -955,6 +957,7 @@ export function useProductRecommendationPage({
           cotLevel: data.cotLevel ?? null,
           cotElapsedSec: data.cotElapsedSec ?? null,
           verified: data.verified ?? null,
+          validatorWarnings: data.validatorWarnings ?? null,
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
