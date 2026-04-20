@@ -529,6 +529,45 @@ def _format_cutting_range_block(cr: dict | None) -> str:
     return "\n".join(bits + [footer])
 
 
+def _format_material_suggestions_block(intent: Any) -> str:
+    """Surface alias_resolver's disambiguation pool to the composer prompt.
+
+    Two distinct shapes based on what scr._enrich_material_match resolved:
+
+    (a) intent.material_suggestions present + material_canonical present
+        → fuzzy/low-confidence match. User input was interpreted as
+        canonical but close alternatives exist. Ask the composer to
+        append a one-line "혹시 X / Y 이신지" check at the end of the
+        answer (principle: don't silently mis-resolve).
+
+    (b) intent.material_suggestions present + material_canonical absent
+        → no_match. Direct user towards the nearest real materials in
+        the catalog; forbid the silent material_tag fallback answer.
+
+    Returns "" when neither case applies, and the block is omitted."""
+    if intent is None:
+        return ""
+    suggestions = getattr(intent, "material_suggestions", None) or []
+    wp = (getattr(intent, "workpiece_name", None) or "").strip()
+    if not suggestions or not wp:
+        return ""
+    canonical = getattr(intent, "material_canonical", None)
+    joined = " / ".join(str(s) for s in suggestions[:3])
+    if canonical:
+        return (
+            f'사용자 입력 "{wp}" 을 {canonical} 로 해석했으나 유사 후보도 있음: {joined}.\n'
+            f"응답 끝에 한 줄 확인 유도 (예: '혹시 {suggestions[0]} 이신지 확인 부탁드립니다'). "
+            f"이미 canonical 로 결론 내렸으므로 답변 본문은 정상 진행하고, "
+            f"마지막 문장만 확인 요청을 덧붙여라."
+        )
+    return (
+        f'사용자가 "{wp}" 을 언급했으나 DB 에 직접 매치되는 소재 없음.\n'
+        f"가장 가까운 실존 소재: {joined}.\n"
+        f"이 중에서 고르도록 유도하라. Silent material_tag fallback 금지 — "
+        f"추천을 곧바로 주지 말고, 위 후보 중 하나를 사용자가 선택하게 하라."
+    )
+
+
 def _generate_light_cot(
     message: str,
     intent: Any,
@@ -558,6 +597,7 @@ def _generate_light_cot(
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
+    material_suggest_block = _format_material_suggestions_block(intent)
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
     )
@@ -575,6 +615,8 @@ def _generate_light_cot(
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if material_suggest_block:
+        parts.append(f"[소재 제안]\n{material_suggest_block}")
     if facets_str:
         parts.append(f"[facets]\n{facets_str}")
     if clarify and clarify.get("groups"):
@@ -737,6 +779,7 @@ async def stream_light_cot(
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
+    material_suggest_block = _format_material_suggestions_block(intent)
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
     )
@@ -751,6 +794,8 @@ async def stream_light_cot(
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if material_suggest_block:
+        parts.append(f"[소재 제안]\n{material_suggest_block}")
     if facets_str:
         parts.append(f"[facets]\n{facets_str}")
     if clarify and clarify.get("groups"):
@@ -1034,6 +1079,7 @@ def _generate_strong_cot(
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
+    material_suggest_block = _format_material_suggestions_block(intent)
     product_ground_truth = _strong_product_block(products or [], limit=10)
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
@@ -1049,6 +1095,8 @@ def _generate_strong_cot(
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if material_suggest_block:
+        parts.append(f"[소재 제안]\n{material_suggest_block}")
     if product_ground_truth:
         parts.append(f"[매칭 제품 (ground truth — 여기 없는 건 인용 금지)]\n{product_ground_truth}")
     if facets_str:
@@ -1312,6 +1360,7 @@ def _build_strong_user_turn(
     facets_str = _summarize_facets(available_filters)
     stock_block = _format_stock_summary_block(stock_summary)
     cutting_block = _format_cutting_range_block(cutting_range)
+    material_suggest_block = _format_material_suggestions_block(intent)
     product_ground_truth = _strong_product_block(products or [], limit=10)
     ui_context = _build_ui_context(
         intent, req_filters, available_filters, products, total_count, relaxed_fields,
@@ -1327,6 +1376,8 @@ def _build_strong_user_turn(
     parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
     if ui_context:
         parts.append(f"[UI 컨텍스트]\n{ui_context}")
+    if material_suggest_block:
+        parts.append(f"[소재 제안]\n{material_suggest_block}")
     if product_ground_truth:
         parts.append(f"[매칭 제품 (ground truth — 여기 없는 건 인용 금지)]\n{product_ground_truth}")
     if facets_str:

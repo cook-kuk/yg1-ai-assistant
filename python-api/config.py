@@ -167,6 +167,23 @@ CLARIFY_MAX_FIELDS = envInt("ARIA_CLARIFY_MAX_FIELDS", 2)
 FUZZY_LEV_MAX = envInt("ARIA_FUZZY_LEV_MAX", 2)
 FUZZY_LEV_MIN_TARGET_LEN = envInt("ARIA_FUZZY_LEV_MIN_TARGET", 4)
 
+# ── MaterialMapping (alias_resolver.resolve_rich) ────────────────────
+# Cross-standard + slang + fuzzy + embedding match tiers. Each threshold
+# gates a different stage of the match cascade so ops can tune recall
+# vs precision without touching code. Ordered fast→slow in the resolver.
+MATERIAL_FUZZY_THRESHOLD = envFloat("ARIA_MATERIAL_FUZZY_TH", 0.8)
+MATERIAL_EMBED_THRESHOLD = envFloat("ARIA_MATERIAL_EMBED_TH", 0.75)
+# Below this match confidence the pipeline treats the result as no_match
+# (alternatives are still populated). Above it but below SUGGEST_THRESHOLD
+# → accept canonical and surface alternatives for a disambiguation prompt.
+MATERIAL_CONFIDENCE_THRESHOLD = envFloat("ARIA_MATERIAL_CONF_TH", 0.6)
+MATERIAL_SUGGEST_THRESHOLD = envFloat("ARIA_MATERIAL_SUGGEST_TH", 0.85)
+MATERIAL_CSV_PATH = envStr("ARIA_MATERIAL_CSV", "data/materials/iso_mapping.csv")
+MATERIAL_SLANG_PATH = envStr("ARIA_MATERIAL_SLANG", "data/materials/slang_ko.csv")
+MATERIAL_NO_MATCH_LOG = envStr(
+    "ARIA_MATERIAL_NO_MATCH_LOG", "../testset/material_no_match_capture.jsonl"
+)
+
 # ── Few-shot nearest neighbor (few_shot.select_adaptive_examples) ───
 # How many embedding-cosine-ranked exemplars to keep. Separate from
 # FEW_SHOT_PROMPT_SHOTS which counts exemplars actually surfaced in the
@@ -207,6 +224,33 @@ COT_FILLED_MANY_THRESHOLD = envInt("ARIA_COT_FILLED_MANY", 4)
 COT_FILLED_LONG_THRESHOLD = envInt("ARIA_COT_FILLED_LONG", 3)
 COT_LONG_MSG_CHARS = envInt("ARIA_COT_LONG_MSG_CHARS", 50)
 COT_KNOWLEDGE_MIN = envInt("ARIA_COT_KNOWLEDGE_MIN", 2)
+
+# ── Evidence-grounded Response Validator (guard.validate_response) ───
+# mode  : strict → unsupported 문장 전부 제거
+#         balanced → numeric/citation 제거, existential 주석 처리
+#         loose → 전부 warnings 로만 남기고 텍스트 유지
+VALIDATOR_MODE = envStr("ARIA_VALIDATOR_MODE", "balanced")
+# Claim extractor LLM — cook-forge 일관성 유지 (chat._get_client 재사용).
+VALIDATOR_LLM_MODEL = envStr("ARIA_VALIDATOR_LLM", "gpt-5.4-mini")
+# answer 가 이 길이 미만이면 LLM 호출 생략 — 짧은 응답은 팩트가 적고 비용↑.
+VALIDATOR_LLM_MIN_CHARS = envInt("ARIA_VALIDATOR_LLM_MIN_CHARS", 120)
+# 숫자 grounding 허용 편차 (±1% 기본).
+VALIDATOR_NUMERIC_TOLERANCE = envFloat("ARIA_VALIDATOR_NUM_TOL", 0.01)
+# RAG mention cosine similarity 하한.
+VALIDATOR_SEMANTIC_THRESHOLD = envFloat("ARIA_VALIDATOR_SIM_TH", 0.75)
+# Claim extractor system prompt — 하드코딩 예시 없음. {fields} 는 런타임에
+# EvidenceBundle.schema_fields() 로 채워짐.
+_VALIDATOR_DEFAULT_PROMPT = (
+    "You are extracting factual claims from an LLM response.\n"
+    "Evidence schema fields: {fields}\n"
+    "For each sentence, determine if it makes a verifiable factual claim.\n"
+    "Output JSON object with key 'claims', an array of objects with:\n"
+    "  text (str), type, subject (str), payload (obj), grounding_required (bool), span ([int,int]).\n"
+    "Types: numeric | categorical | citation | existential | domain_knowledge\n"
+    "grounding_required=false ONLY for domain_knowledge (general machining facts).\n"
+    "Return ONLY JSON, no prose."
+)
+VALIDATOR_EXTRACTOR_PROMPT = envStr("ARIA_VALIDATOR_PROMPT", _VALIDATOR_DEFAULT_PROMPT)
 
 # ── SCR diameter sanity range ───────────────────────────────────────
 # Phase 0 post-validation: LLM occasionally leaks an EDP token's tail

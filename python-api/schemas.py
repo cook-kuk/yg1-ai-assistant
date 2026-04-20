@@ -78,6 +78,21 @@ class SCRIntent(BaseModel):
     # `reference_products` on the response. Filter session and ranked list
     # are untouched so the user can keep narrowing after the peek.
     reference_lookup: Optional[str] = None
+    # MaterialMapping enrichment — populated by scr.parse_intent's
+    # post-process when alias_resolver.resolve_rich matched the user's
+    # workpiece_name to a cross-standard canonical. DB filtering still
+    # uses material_tag (ISO group) since product_recommendation_mv
+    # carries no concrete material column, but downstream response
+    # composition can quote `material_canonical` in the "왜 이 제품" line.
+    # cross_refs / hardness are NOT mirrored here — callers that need them
+    # re-invoke resolve_rich(material_canonical) on demand, keeping the
+    # SCRIntent DTO lean.
+    material_canonical: Optional[str] = None
+    # "Did you mean …?" pool. Populated when resolve_rich returned status
+    # ∈ {fuzzy (low conf), no_match} so the LLM response composer can
+    # surface a disambiguation prompt instead of silently falling back to
+    # material_tag. None when confidence is high enough to skip suggesting.
+    material_suggestions: Optional[List[str]] = None
 
 
 class Candidate(BaseModel):
@@ -274,6 +289,24 @@ class ProductSummary(BaseModel):
     score: float
 
 
+class ValidatorWarning(BaseModel):
+    """One evidence-grounding decision emitted by guard.validate_response.
+
+    Emitted for every extracted factual claim, regardless of action —
+    'passed' entries let the UI show "검증됨" badges for grounded claims
+    if desired, 'removed' / 'annotated' entries drive the cleaned-text
+    diff. Serialized into ProductsResponse.validator_warnings as plain
+    dicts so the frontend can display without introducing another
+    shared-type dependency.
+    """
+    category: str              # numeric | categorical | citation | existential
+    claim_text: str
+    evidence_ref: Optional[str] = None  # "products[2].diameter" | "knowledge.material_guide[0]" | None
+    action: str                # removed | annotated | passed
+    confidence: float = 0.0
+    span: List[int] = Field(default_factory=list)  # [start, end]
+
+
 class SourceAttribution(BaseModel):
     """Per-stage evidence — lets the UI surface *why* an answer was
     produced this way and with what confidence."""
@@ -296,6 +329,12 @@ class ProductsResponse(BaseModel):
     session_id: str
     broadened: bool = False  # True when follow-up narrow hit 0 and we used the global set
     sources: List[SourceAttribution] = Field(default_factory=list)
+    # Evidence-grounded validator output. Empty = either the answer was
+    # short enough to skip LLM claim extraction (< VALIDATOR_LLM_MIN_CHARS)
+    # or every claim verified. Each entry carries span info so the UI
+    # can surface "일부 미검증 내용이 정정됨" badges for the removed /
+    # annotated claims while keeping grounded claims unmarked.
+    validator_warnings: List[ValidatorWarning] = Field(default_factory=list)
     # Pre-guidance blocks surfaced alongside the product list so the UI /
     # CoT can quote concrete aggregates without an extra round-trip.
     # stock_summary: {in_stock, total, pct} — fraction of today's candidate

@@ -24,6 +24,9 @@ from db import fetch_all
 from config import (
     FUZZY_LEV_MAX,
     FUZZY_LEV_MIN_TARGET_LEN,
+    MATERIAL_CONFIDENCE_THRESHOLD,
+    MATERIAL_NO_MATCH_LOG,
+    MATERIAL_SUGGEST_THRESHOLD,
     NEGATION_PROXIMITY_CHARS,
     OPENAI_LIGHT_MODEL,
     SCR_TIMEOUT,
@@ -1435,4 +1438,90 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
     # occasionally leaks an EDP tail-digit when masking was incomplete or
     # when the user interleaves bare numbers with EDP-shape tokens.
     _validate_diameter(_parsed)
+    # MaterialMapping enrichment — cross-standard + slang + fuzzy + embedding
+    # lookup on the LLM-extracted workpiece_name. Populates material_canonical
+    # and, for fuzzy/no_match, material_suggestions. Runs last so a failure
+    # in the new index can't mask the upstream intent extraction.
+    _enrich_material_match(_parsed, session)
     return _parsed
+
+
+def _enrich_material_match(intent: SCRIntent, session: Any) -> None:
+    """Populate intent.material_canonical / intent.material_suggestions via
+    alias_resolver.resolve_rich. Runs after the LLM pass so the enrichment
+    sees the final workpiece_name (possibly post-fuzzy-resolve).
+
+    Non-destructive towards material_tag — the LLM's guess stays unless it
+    was null, in which case the resolver's iso_group fills it in. Fuzzy /
+    embedding matches below MATERIAL_SUGGEST_THRESHOLD still populate
+    material_canonical (downstream can trust the canonical) but also flag
+    alternatives so the response composer can offer a confirmation chip.
+
+    no_match results append to testset/material_no_match_capture.jsonl so
+    ops can periodically harvest unseen slang and extend slang_ko.csv
+    without changing code."""
+    wp = (intent.workpiece_name or "").strip()
+    if not wp:
+        return
+    try:
+        from alias_resolver import resolve_rich
+        match = resolve_rich(wp)
+    except Exception:
+        return
+
+    if match.status == "no_match":
+        intent.material_suggestions = match.alternatives or None
+        _log_no_match_capture(wp, match.alternatives, session)
+        return
+
+    if match.confidence < MATERIAL_CONFIDENCE_THRESHOLD:
+        # Below confidence floor — treat as no_match for routing purposes
+        # but surface alternatives so the user can disambiguate.
+        intent.material_suggestions = match.alternatives or None
+        _log_no_match_capture(wp, match.alternatives, session)
+        return
+
+    intent.material_canonical = match.canonical_iso
+    if not intent.material_tag and match.iso_group:
+        intent.material_tag = match.iso_group
+    # Fuzzy / embedding / even slang below 0.85 → surface top alternatives
+    # so chat.py can render a "혹시 X / Y 이신지" footer without re-running
+    # the resolver. High-confidence exact / cross_standard skips this.
+    if match.confidence < MATERIAL_SUGGEST_THRESHOLD and match.alternatives:
+        intent.material_suggestions = list(match.alternatives)[:3]
+
+
+def _log_no_match_capture(
+    raw_input: str,
+    alternatives: list[str],
+    session: Any,
+) -> None:
+    """Append-only JSONL log for material expressions the resolver couldn't
+    place. Each line is self-contained: timestamp + raw + top-3 fuzzy
+    guesses + session id. Failure is silent — logging must not take down
+    the SCR path.
+
+    Log path resolves relative to the python-api cwd by default
+    (config.MATERIAL_NO_MATCH_LOG = "../testset/material_no_match_capture.jsonl")
+    so test harnesses can point at a tmp file via env override."""
+    try:
+        import datetime as _dt
+        from pathlib import Path as _Path
+
+        path = _Path(MATERIAL_NO_MATCH_LOG)
+        if not path.is_absolute():
+            path = _Path(__file__).resolve().parent / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        sid: Optional[str] = None
+        if session is not None:
+            sid = getattr(session, "session_id", None) or getattr(session, "id", None)
+        entry = {
+            "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "raw_input": raw_input,
+            "fuzzy_top3": list(alternatives or [])[:3],
+            "session_id": str(sid) if sid else None,
+        }
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # intentional: capture is diagnostic — must not break SCR

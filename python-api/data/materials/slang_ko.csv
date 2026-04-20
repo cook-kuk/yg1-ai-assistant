@@ -1,0 +1,38 @@
+# Source: yg1-ai-cutting-tool-master VP benchmark (_KOREAN_ALIASES dict extracted to CSV) / Adapted 2026-04-20
+# iso_group column is a fallback — used only when canonical_iso is not present in iso_mapping.csv
+# (e.g. trade names like NAK80 / Inconel 718 that aren't in the VP CSV's standard-code columns).
+slang,canonical_iso,iso_group,confidence,source
+스뎅304,SUS304,M,1.0,vp_seed
+서스304,SUS304,M,1.0,vp_seed
+스테인리스304,SUS304,M,1.0,vp_seed
+스댕304,SUS304,M,1.0,vp_seed
+스뎅316,SUS316,M,1.0,vp_seed
+서스316,SUS316,M,1.0,vp_seed
+스테인리스316,SUS316,M,1.0,vp_seed
+스뎅316L,SUS316L,M,1.0,vp_seed
+서스316L,SUS316L,M,1.0,vp_seed
+서스420,SUS420,M,1.0,vp_seed
+서스430,SUS430,M,1.0,vp_seed
+사오시,S45C,P,1.0,vp_seed
+에스사오시,S45C,P,1.0,vp_seed
+S45씨,S45C,P,1.0,vp_seed
+에스씨엠440,SCM440,P,1.0,vp_seed
+크로몰리440,SCM440,P,1.0,vp_seed
+에스씨엠435,SCM435,P,1.0,vp_seed
+에스케이디11,SKD11,H,1.0,vp_seed
+SKD열한,SKD11,H,1.0,vp_seed
+스키디십일,SKD11,H,0.9,vp_seed
+에스케이디61,SKD61,H,1.0,vp_seed
+SKD육일,SKD61,H,1.0,vp_seed
+낙팔공,NAK80,H,1.0,vp_seed
+NAK팔공,NAK80,H,1.0,vp_seed
+주철250,FC250,K,1.0,vp_seed
+에프씨250,FC250,K,1.0,vp_seed
+구상흑연주철450,FCD450,K,1.0,vp_seed
+에프씨디450,FCD450,K,1.0,vp_seed
+티타늄64,Ti-6Al-4V,S,1.0,vp_seed
+티육사,Ti-6Al-4V,S,1.0,vp_seed
+Ti64,Ti-6Al-4V,S,1.0,vp_seed
+인코넬718,Inconel 718,S,1.0,vp_seed
+인코718,Inconel 718,S,1.0,vp_seed
+인코넬칠일팔,Inconel 718,S,1.0,vp_seed
