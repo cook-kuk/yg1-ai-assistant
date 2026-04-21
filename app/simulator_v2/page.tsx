@@ -1,0 +1,89 @@
+"use client"
+
+import { Suspense, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Calculator, ArrowLeftRight } from "lucide-react"
+import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulator-v2"
+import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
+
+function SimulatorV2Content() {
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<"simulator" | "competitor">("simulator")
+
+  const product = searchParams.get("product") ?? undefined
+  const material = searchParams.get("material") ?? undefined
+  const operation = searchParams.get("operation") ?? undefined
+
+  return (
+    <div className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
+      {/* Header */}
+      <div className="border-b bg-white/95">
+        <div className="mx-auto max-w-6xl px-4 py-5">
+          <div className="mb-2 h-1 w-14 rounded-full bg-red-600" />
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold tracking-[-0.03em] text-gray-950">
+              가공조건 시뮬레이터
+            </h1>
+            <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-purple-700">
+              v2 · BETA
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            YG-1 엔드밀 전용 · Harvey MAP + SpeedLab 장점 결합
+          </p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setTab("simulator")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === "simulator"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Calculator className="h-4 w-4" />
+              절삭조건 시뮬레이터
+            </button>
+            <button
+              onClick={() => setTab("competitor")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === "competitor"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              경쟁사 대체 추천
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        {tab === "simulator" ? (
+          <CuttingSimulatorV2
+            initialProduct={product}
+            initialMaterial={material}
+            initialOperation={operation}
+          />
+        ) : (
+          <CompetitorTab />
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function SimulatorV2Page() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
+      <SimulatorV2Content />
+    </Suspense>
+  )
+}

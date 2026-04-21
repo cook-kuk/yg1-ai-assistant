@@ -89,6 +89,14 @@ const navItems = [
     roles: ["sales", "rnd", "admin"],
   },
   {
+    title: "가공조건 시뮬레이터 v2",
+    titleEn: "Cutting Simulator v2",
+    href: "/simulator_v2",
+    icon: Calculator,
+    roles: ["sales", "rnd", "admin"],
+    badge: "Beta",
+  },
+  {
     title: "특주 티켓",
     titleEn: "Special Tickets",
     href: "/tickets/special",

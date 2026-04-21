@@ -112,6 +112,11 @@ python-api/results/
 # user input; keep the directory tracked but skip the rolling jsonl.
 testset/material_no_match_capture.jsonl
 
+# Debug screenshots at repo root (`Capture_YYYY_MMDD_HHMMSS.png`).
+# These are temp drops during UI debugging — never intended for source.
+Capture_*.png
+/*.png
+
 # Dev-server logs (file-based stdout/stderr captures, per-port).
 *.log
 .dev*.log

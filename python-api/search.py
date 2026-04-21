@@ -10,9 +10,11 @@ logger = logging.getLogger("aria")
 # trace gaps). See docs/mv-schema-gaps.md for each column's origin and
 # the ALTER that would restore it.
 _MV_MISSING_COLUMNS: frozenset[str] = frozenset({
-    "holemaking_point_angle",
-    "threading_pitch",
-    "threading_tpi",
+    # Restored 2026-04-20 via scripts/restore_mv_columns.sql:
+    #   holemaking_point_angle / threading_pitch / threading_tpi
+    # norm_brand / norm_coating are computed columns — no source table yet,
+    # so they stay gated. Filters on brand_norm still fall back to edp_brand_name
+    # via the regular `brand` path.
     "norm_brand",
     "norm_coating",
 })
@@ -134,14 +136,11 @@ SELECT_COLS = """
     milling_shank_dia,
     holemaking_tool_material,
     holemaking_coolant_hole,
-    -- holemaking_point_angle column is not present in the current MV
-    -- definition; point_angle filters in _build_where still reference it
-    -- but only fire when the caller sets a point_angle intent, so the
-    -- default /products and /recommend paths don't hit the missing column.
+    holemaking_point_angle,
     threading_tool_material,
     threading_coolant_hole,
-    -- threading_pitch / threading_tpi are likewise absent from the current
-    -- MV; filters that reference them are conditional in _build_where.
+    threading_pitch,
+    threading_tpi,
     series_application_shape,
     country_codes,
     -- norm_brand / norm_coating are absent from the current MV. _build_where

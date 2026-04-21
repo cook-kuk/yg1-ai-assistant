@@ -756,10 +756,21 @@ Bright Finish · Uncoated
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 숫자 파싱:
 
-직경 (diameter, mm):
-  "10mm" · "10 mm" · "φ10" · "ø10" · "Φ10" · "D10" · "파이10" · "10파이" · "직경 10" · "지름 10" → 10
-  공구 맥락에서 숫자만 있으면 diameter 로.
+직경 (diameter, mm) — **명시 마커가 있을 때만 추출**:
+  "10mm" · "10 mm" · "φ10" · "ø10" · "Φ10" · "D10" · "파이10" · "10파이" · "직경 10" · "지름 10" · "dia 10" → 10
   한글 수사: 한/두/세/네/다섯/여섯/일곱/여덟/아홉/열 파이 = 1~10
+
+  규칙: 단위(mm/파이/phi/φ/ø/Φ/D/dia/직경/지름) 없이 **단독 숫자**만 있으면 diameter 로 추정하지 마라.
+  "16" 만 쓰인 경우 diameter=null. 같은 숫자가 "16날"/"16mm"/"16도" 중 뭘 의미하는지 메시지에서 판단할 수 있을 때만 해당 필드에 넣을 것.
+
+  예시 (단독 숫자의 올바른 처리):
+    "16"                    → 모든 숫자 필드 null (clarify 유도). 직경이라고 추정 금지.
+    "16으로"                → 모든 숫자 필드 null. 이전 턴 context 없이 단독이면 추정 금지.
+    "16mm"                  → diameter=16
+    "16날"                  → flute_count=16, diameter=null
+    "16도 헬릭스"           → helix_angle=16, diameter=null
+    "16mm 4날"              → diameter=16, flute_count=4 (각각 명시 마커 있음)
+    "16, 4날"               → flute_count=4, diameter=null (콤마로 분리된 단독 16은 마커 없어 null)
 
 날수 (flute_count) — **절대 놓치지 말 것. 숫자가 "날" 바로 앞에 있으면 반드시 추출**:
   "4날" · "4 날" · "4F" · "4f" · "4 flute" · "4플루트" · "날수 4" · "4낭"(오타) → 4
@@ -860,7 +871,8 @@ TPI (thread_tpi):
 추출 체크리스트 — JSON 출력 전에 반드시 확인:
 
 1. 메시지에 숫자+날/F/f/flute 패턴이 있는가? → 있으면 flute_count 필수
-2. 메시지에 숫자+mm/파이/phi/직경 패턴이 있는가? → 있으면 diameter 필수
+2. 메시지에 숫자+mm/파이/phi/φ/ø/Φ/D/dia/직경/지름 **마커가 명시된** 패턴이 있는가? → 있으면 diameter 필수.
+   마커 없이 단독 숫자(예: "16", "10으로")만 있으면 diameter=null. 디폴트로 추정하지 말 것.
 3. 메시지에 코팅 관련 단어가 있는가? → 있으면 coating 필수
 4. 메시지에 소재 관련 단어가 있는가? → 있으면 material_tag 필수
 5. "말고/제외/빼고/아닌/not/except/no" 뒤에 나오는 브랜드/코팅은 제외 대상이다 → 해당 필드를 null로 둘 것. "X 말고"에서 X를 brand에 넣으면 오답.
@@ -1286,21 +1298,47 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
     # SDK default is 2, which paired with the 30s timeout drops requests
     # mid-backoff when the org's 200k TPM quota is saturated. 5 adds a
     # bit of headroom without materially extending the happy-path latency.
-    resp = client.with_options(
-        timeout=SCR_TIMEOUT,
-        max_retries=5,
-    ).chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": _system_prompt(message, session)},
-            {"role": "user", "content": user_content},
-        ],
-        response_format={"type": "json_object"},
-        reasoning_effort="low",
-        # NOTE: gpt-5.4-mini rejects custom temperature — only default (1) allowed.
-    )
-    text = resp.choices[0].message.content or ""
-    data = _extract_json(text)
+    # Catch-all fallback — SDK max_retries=5 handles most 429/timeout, but
+    # rare uvicorn-level drops (TPM saturation + socket close races observed
+    # at 12%ish under concurrency=2) still bubble exceptions. Returning a
+    # safe SCRIntent with intent="general_question" lets /products emit a
+    # graceful fallback answer instead of 500. Test harness retry then has
+    # a chance to succeed on the next case against a warm client.
+    try:
+        resp = client.with_options(
+            timeout=SCR_TIMEOUT,
+            max_retries=5,
+        ).chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _system_prompt(message, session)},
+                {"role": "user", "content": user_content},
+            ],
+            response_format={"type": "json_object"},
+            reasoning_effort="low",
+            # NOTE: gpt-5.4-mini rejects custom temperature — only default (1) allowed.
+        )
+        text = resp.choices[0].message.content or ""
+        data = _extract_json(text)
+    except Exception as exc:
+        # Graceful degradation — emit minimal intent so downstream pipeline
+        # continues. Don't re-raise; log via print (uvicorn captures stdout).
+        print(f"[scr.parse_intent] LLM call failed, using fallback intent. err={type(exc).__name__}: {str(exc)[:200]}")
+        # Default intent to "recommendation" (not "general_question") — on a
+        # 429/TPM fail, routing the query to the recommendation path still
+        # lets the deterministic pre_material/pre_brand + detected_edp run
+        # the DB search. general_question would shunt the user to a chat
+        # fallback even when we have solid deterministic filters in hand.
+        # The downstream return(...) already defaults to "recommendation"
+        # when data["intent"] is falsy, so emit None here for parity.
+        data = {
+            "intent": None,
+            "diameter": None, "flute_count": None,
+            "material_tag": None, "workpiece_name": None,
+            "tool_type": None, "subtype": None,
+            "brand": None, "coating": None,
+            "tool_material": None, "shank_type": None,
+        }
 
     # Fuzzy (fast path) — handles exact/ci/prefix/substring/Levenshtein.
     raw_brand = data.get("brand")

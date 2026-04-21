@@ -273,6 +273,22 @@ def carry_forward_intent(session: Session, intent: Any) -> Any:
     callers decide whether to invoke this each turn or just on follow-ups."""
     if intent is None or not session.current_filters:
         return intent
+
+    # Workpiece/material change resets brand. Brands are workpiece-specific
+    # (CRX-S for 구리, ALU-CUT for 알루미늄, TitaNox-Power for 티타늄 …) so
+    # when the user's new turn names a DIFFERENT workpiece than what's
+    # carried, the previously-pinned brand is almost never still intended.
+    # Drop the carried brand in that case — the scoring path's auto-inject
+    # will re-apply the right specialist brand if material affinity warrants.
+    incoming_wp = getattr(intent, "workpiece_name", None)
+    incoming_mat = getattr(intent, "material_tag", None)
+    carried_wp = session.current_filters.get("workpiece_name")
+    carried_mat = session.current_filters.get("material_tag")
+    wp_switched = (
+        (incoming_wp is not None and carried_wp is not None and incoming_wp != carried_wp)
+        or (incoming_mat is not None and carried_mat is not None and incoming_mat != carried_mat)
+    )
+
     for field_name in intent.__class__.model_fields:
         if getattr(intent, field_name, None) is None:
             carried = session.current_filters.get(field_name)
@@ -281,7 +297,18 @@ def carry_forward_intent(session: Session, intent: Any) -> Any:
                 # earlier turn's LLM emitted before the prompt fix landed.
                 if field_name == "brand" and str(carried) in INVALID_BRANDS:
                     continue
+                # Skip brand carry-forward when the workpiece/material
+                # switched — stops "구리 CRX-S" from pinning CRX-S onto a
+                # subsequent "알루미늄 …" turn and capping the result set.
+                if field_name == "brand" and wp_switched:
+                    continue
                 setattr(intent, field_name, carried)
+
+    # Purge the stale brand from the persisted filter dict too. add_turn
+    # only overwrites non-None fields, so without this the next turn would
+    # resurrect the same brand via carry_forward again.
+    if wp_switched and "brand" in session.current_filters:
+        del session.current_filters["brand"]
     return intent
 
 

@@ -21,7 +21,10 @@ export function Markdown({
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        // singleTilde: false → "Vc=8.0~230.0 m/min" 에서 ~ 가 GFM
+        // strikethrough 로 먹혀 "Vc=8.0230.0" 로 렌더되던 문제 차단. 이중
+        // 틸드(~~word~~)만 strikethrough 로 파싱.
+        remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
         components={{
           table: ({ children }) => (
             <div className="overflow-x-auto my-2">
