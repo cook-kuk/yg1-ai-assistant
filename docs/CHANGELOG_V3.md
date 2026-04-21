@@ -8,7 +8,7 @@
 ## STEP 진행 상태
 
 - [x] **STEP 1** — 현재 v2 코드 감사 · `V3_CURRENT_STATE_AUDIT.md` 작성 (413줄, 2 subagent 병렬)
-- [ ] **STEP 2** — MAP Gap 3분류 · `V3_MAP_BENCHMARK_GAPS.md`
+- [x] **STEP 2** — MAP Gap 3분류 · `V3_MAP_BENCHMARK_GAPS.md`
 - [ ] **STEP 3** — 🎓 교육 모드 토글 시스템 (80~100 콘텐츠 entry + 5 widgets + 헤더 컨트롤)
 - [ ] **STEP 4** — Harvey MAP 자동로드 파이프라인 (Speeds&Feeds DB + UI 자동로드 + provenance 패널)
 - [ ] **STEP 5** — MAP 대비 부족 기능 4종 보강 (Tool Path 모달 · Corner · PDF · Workholding)
@@ -31,3 +31,12 @@
   - Calculator exported 함수 **21개** + 상수 5개
   - P0 미구현: Tool Path Info 모달, Tool#→SFM 자동로드, 교육 모드 전체
   - P1 보강: PDF 단조로움, Workholding 그라데이션, Corner Reference Only 배너, Speed/Feed dial ±20%
+
+### STEP 2 완료 (2026-04-22)
+- `feat(sim-v3): STEP 2 - MAP Gap 3분류 + 구현 매트릭스`
+- 변경: `docs/V3_MAP_BENCHMARK_GAPS.md` (신규)
+- **카테고리 A** (MAP 有 / v2 無): 4 항목 (A-1~A-4, A-5는 재검토로 제외)
+- **카테고리 B** (v2 有 / MAP 약함): 6 항목 (B-1~B-6)
+- **카테고리 C** (MAP 無 / v2 有 · 차별화 유지): 12 항목 (C-1~C-12)
+- **STEP 3~6 구현 매트릭스**: 14 항목, P0 7개 / P1 7개 / P2 3개
+- **연구소장 대면 P0 필수 7 항목**: 교육 모드 · Speeds&Feeds · Tool Path Info · PDF 개선 · AI 코치 · 다중공구 비교 · 학습 모드
