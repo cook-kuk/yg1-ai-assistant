@@ -100,6 +100,33 @@ const TIP_LIGHT_COLOR = "#ff8844"
 const TIP_LIGHT_INTENSITY = 1.8
 const TIP_LIGHT_DISTANCE = 30
 
+// Polished carbide PBR (공구 본체)
+const TOOL_PBR_COLOR = "#d4d4d4"
+const TOOL_PBR_METALNESS = 1.0
+const TOOL_PBR_ROUGHNESS = 0.25
+
+// Stock materials (PBR 팔레트)
+export type StockMaterialKind = "steel" | "aluminum" | "copper" | "titanium"
+interface StockMaterialStyle {
+  color: string
+  metalness: number
+  roughness: number
+}
+const STOCK_MATERIAL_STYLES: Record<StockMaterialKind, StockMaterialStyle> = {
+  steel:     { color: "#9aa4b2", metalness: 0.3, roughness: 0.6 },
+  aluminum:  { color: "#c9cdd2", metalness: 0.3, roughness: 0.6 },
+  copper:    { color: "#c97a4a", metalness: 0.3, roughness: 0.6 },
+  titanium:  { color: "#a5aab0", metalness: 0.3, roughness: 0.6 },
+}
+
+// Coolant stream (particle cone)
+const MAX_COOLANT_PARTICLES = 90
+const COOLANT_SPAWN_HZ = 180
+const COOLANT_LIFETIME_SEC = 0.5
+const COOLANT_COLOR = "#7fd4ff"
+const COOLANT_SPEED = 44
+const COOLANT_SPREAD = 0.08
+
 // ─────────────────────────────────────────────
 // Public Types
 // ─────────────────────────────────────────────
@@ -131,6 +158,9 @@ export interface Cutting3DSceneProps {
   darkMode?: boolean
   autoRotate?: boolean
   height?: number
+  stockMaterial?: StockMaterialKind
+  fluteCount?: 2 | 3 | 4 | 5 | 6
+  coolant?: boolean
 }
 
 // ─────────────────────────────────────────────
@@ -261,25 +291,28 @@ interface StockProps {
   grooveWidth: number
   grooveProgress01: number
   operationType: OperationType
+  stockMaterial: StockMaterialKind
 }
 
-function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, operationType }: StockProps) {
+function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, operationType, stockMaterial }: StockProps) {
   const cutLen = Math.max(0.001, L * grooveProgress01)
   const isTurning = operationType === "turning"
   const isDrilling = operationType === "drilling"
   const tex = useWorkpieceTexture(color)
+  const mat = STOCK_MATERIAL_STYLES[stockMaterial]
 
   return (
     <group>
-      {/* 본체 */}
+      {/* 본체 — PBR (metalness/roughness depends on stockMaterial) */}
       {isTurning ? (
         <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[H * 0.7, H * 0.7, L, 48]} />
           <meshStandardMaterial
             color={color}
             map={tex ?? undefined}
-            metalness={0.78}
-            roughness={0.32}
+            metalness={mat.metalness}
+            roughness={mat.roughness}
+            envMapIntensity={1.0}
           />
         </mesh>
       ) : (
@@ -288,8 +321,9 @@ function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, ope
           <meshStandardMaterial
             color={color}
             map={tex ?? undefined}
-            metalness={0.68}
-            roughness={0.38}
+            metalness={mat.metalness}
+            roughness={mat.roughness}
+            envMapIntensity={1.0}
           />
         </mesh>
       )}
@@ -351,9 +385,46 @@ interface EndmillProps {
   coatingStyle: CoatingStyle
   rpm: number
   reducedMotion: boolean
+  fluteCount: 2 | 3 | 4 | 5 | 6
 }
 
-function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion }: EndmillProps) {
+// Build a helical flute groove as an ExtrudeGeometry that sweeps a small
+// cross-section along a spiral path. Reused per flute index.
+function buildHelicalFluteGeometry(
+  fluteR: number,
+  LOC: number,
+  helixTurns: number,
+  grooveWidth: number,
+  grooveDepth: number,
+  segments: number,
+): THREE.BufferGeometry {
+  // Cross-section (almond / lens shape) in XY plane; extrude along Z then bend.
+  // Simplified: use a TubeGeometry along a helix curve — easier & robust.
+  class HelixCurve extends THREE.Curve<THREE.Vector3> {
+    constructor(
+      private r: number,
+      private h: number,
+      private turns: number,
+    ) {
+      super()
+    }
+    getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+      const a = this.turns * Math.PI * 2 * t
+      return target.set(
+        Math.cos(a) * this.r,
+        -this.h / 2 + this.h * t,
+        Math.sin(a) * this.r,
+      )
+    }
+  }
+  const curve = new HelixCurve(fluteR * 0.98, LOC, helixTurns)
+  const tube = new THREE.TubeGeometry(curve, segments, grooveWidth * 0.5, 8, false)
+  // Slightly squash tube on radial axis to mimic a scoop
+  tube.scale(1.0, 1.0, grooveDepth > 0 ? 1.0 : 1.0)
+  return tube
+}
+
+function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, fluteCount }: EndmillProps) {
   const groupRef = useRef<THREE.Group>(null)
   const shankR = (dia / 2) * SHANK_RATIO
   const shankLen = Math.max(4, OAL - LOC) * SHANK_LEN_RATIO * 0.5
@@ -365,80 +436,118 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion }:
     groupRef.current.rotation.y += angVel * delta
   })
 
-  // spiral groove: 여러 작은 box 를 helix angle로 회전 배치
-  const helixElements = useMemo(() => {
-    const out: { y: number; rot: number }[] = []
-    const steps = HELIX_STRIPES
-    const helixTurns = 1.2 // full helix 감김 횟수
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1)
-      out.push({
-        y: -LOC / 2 + LOC * t,
-        rot: t * Math.PI * 2 * helixTurns,
-      })
+  // Build helical flute geometry once per (dia, LOC, fluteCount).
+  const fluteGeom = useMemo(() => {
+    const helixTurns = 1.1
+    const grooveWidth = Math.max(0.25, fluteR * 0.28)
+    const grooveDepth = fluteR * 0.22
+    return buildHelicalFluteGeometry(fluteR, LOC, helixTurns, grooveWidth, grooveDepth, 48)
+  }, [fluteR, LOC])
+
+  // Cutting-edge helix (slight radial offset, brighter) — one per flute
+  const edgeGeom = useMemo(() => {
+    const helixTurns = 1.1
+    // TubeGeometry는 CurvePath/Curve 인스턴스 요구 — function 기반 Curve 로 구성
+    const curve = new (THREE.Curve as unknown as new () => THREE.Curve<THREE.Vector3>)()
+    ;(curve as unknown as { getPoint: (t: number, target?: THREE.Vector3) => THREE.Vector3 }).getPoint = (t: number, target = new THREE.Vector3()) => {
+      const a = helixTurns * Math.PI * 2 * t
+      return target.set(
+        Math.cos(a) * (fluteR * 1.015),
+        -LOC / 2 + LOC * t,
+        Math.sin(a) * (fluteR * 1.015),
+      )
     }
-    return out
-  }, [LOC])
+    return new THREE.TubeGeometry(curve, 48, Math.max(0.06, fluteR * 0.04), 6, false)
+  }, [fluteR, LOC])
+
+  const fluteAngles = useMemo(
+    () => Array.from({ length: fluteCount }, (_, i) => (i / fluteCount) * Math.PI * 2),
+    [fluteCount],
+  )
 
   return (
     <group ref={groupRef}>
-      {/* Shank — 거울에 가까운 반사 */}
+      {/* Shank — PBR polished carbide */}
       <mesh position={[0, shankLen / 2 + LOC / 2, 0]} castShadow>
         <cylinderGeometry args={[shankR, shankR, shankLen, 32]} />
-        <meshStandardMaterial color="#d1d5db" metalness={1.0} roughness={0.15} envMapIntensity={1.5} />
+        <meshStandardMaterial
+          color={TOOL_PBR_COLOR}
+          metalness={TOOL_PBR_METALNESS}
+          roughness={TOOL_PBR_ROUGHNESS}
+          envMapIntensity={1.5}
+        />
       </mesh>
 
       {/* Shank-to-flute fillet */}
       <mesh position={[0, LOC / 2, 0]} castShadow>
         <cylinderGeometry args={[shankR * 1.02, fluteR * 1.02, Math.max(0.6, dia * 0.1), 24]} />
-        <meshStandardMaterial color="#9ca3af" metalness={0.98} roughness={0.18} />
-      </mesh>
-
-      {/* Flute body — coating별 emissive */}
-      <mesh position={[0, 0, 0]} castShadow>
-        <cylinderGeometry args={[fluteR, fluteR, LOC, 32]} />
         <meshStandardMaterial
-          color={cs.color}
-          metalness={0.85}
-          roughness={0.3}
-          emissive={cs.emissive}
-          emissiveIntensity={cs.emissiveIntensity}
-          envMapIntensity={1.2}
+          color={TOOL_PBR_COLOR}
+          metalness={TOOL_PBR_METALNESS}
+          roughness={TOOL_PBR_ROUGHNESS + 0.05}
+          envMapIntensity={1.3}
         />
       </mesh>
 
-      {/* Spiral flutes — helix angle로 회전된 얇은 box 다수 */}
-      {helixElements.map((el, i) => (
-        <group key={i} position={[0, el.y, 0]} rotation={[0, el.rot, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[fluteR * 2.02, LOC / HELIX_STRIPES * 1.15, fluteR * HELIX_THICKNESS]} />
+      {/* Flute body — polished carbide PBR base */}
+      <mesh position={[0, 0, 0]} castShadow>
+        <cylinderGeometry args={[fluteR, fluteR, LOC, 48]} />
+        <meshStandardMaterial
+          color={TOOL_PBR_COLOR}
+          metalness={TOOL_PBR_METALNESS}
+          roughness={TOOL_PBR_ROUGHNESS}
+          emissive={cs.emissive}
+          emissiveIntensity={cs.emissiveIntensity * 0.5}
+          envMapIntensity={1.4}
+        />
+      </mesh>
+
+      {/* Helical flute channels — proper tube-sweep along helix, one per flute */}
+      {fluteAngles.map((a, i) => (
+        <group key={`f-${i}`} rotation={[0, a, 0]}>
+          <mesh castShadow geometry={fluteGeom}>
             <meshStandardMaterial
               color="#1f2937"
-              metalness={0.7}
-              roughness={0.45}
+              metalness={0.6}
+              roughness={0.55}
               emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 0.4}
+              emissiveIntensity={cs.emissiveIntensity * 0.3}
+            />
+          </mesh>
+          {/* Cutting edge — slight radial offset, brighter coating tint */}
+          <mesh castShadow geometry={edgeGeom}>
+            <meshStandardMaterial
+              color={cs.color}
+              metalness={0.95}
+              roughness={0.18}
+              emissive={cs.emissive}
+              emissiveIntensity={cs.emissiveIntensity * 1.4}
+              envMapIntensity={1.6}
             />
           </mesh>
         </group>
       ))}
 
-      {/* Tip shapes — 고해상도 */}
+      {/* Tip shapes — PBR polished carbide + coating emissive tint */}
       {shape === "square" && (
         <mesh position={[0, -LOC / 2 - 0.05, 0]} castShadow>
           <cylinderGeometry args={[fluteR, fluteR, 0.4, TIP_SEGMENTS]} />
-          <meshStandardMaterial color="#4b5563" metalness={0.95} roughness={0.18} />
+          <meshStandardMaterial
+            color={TOOL_PBR_COLOR}
+            metalness={TOOL_PBR_METALNESS}
+            roughness={TOOL_PBR_ROUGHNESS}
+          />
         </mesh>
       )}
       {shape === "ball" && (
         <mesh position={[0, -LOC / 2, 0]} rotation={[Math.PI, 0, 0]} castShadow>
           <sphereGeometry args={[fluteR, TIP_SEGMENTS, TIP_SEGMENTS, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial
-            color={cs.color}
-            metalness={0.88}
-            roughness={0.25}
+            color={TOOL_PBR_COLOR}
+            metalness={TOOL_PBR_METALNESS}
+            roughness={TOOL_PBR_ROUGHNESS}
             emissive={cs.emissive}
-            emissiveIntensity={cs.emissiveIntensity * 0.8}
+            emissiveIntensity={cs.emissiveIntensity * 0.6}
           />
         </mesh>
       )}
@@ -447,21 +556,21 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion }:
           <mesh castShadow>
             <cylinderGeometry args={[fluteR, fluteR * 0.85, fluteR * 0.4, TIP_SEGMENTS]} />
             <meshStandardMaterial
-              color={cs.color}
-              metalness={0.88}
-              roughness={0.25}
+              color={TOOL_PBR_COLOR}
+              metalness={TOOL_PBR_METALNESS}
+              roughness={TOOL_PBR_ROUGHNESS}
               emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 0.8}
+              emissiveIntensity={cs.emissiveIntensity * 0.6}
             />
           </mesh>
           <mesh position={[0, -fluteR * 0.2, 0]} castShadow>
             <sphereGeometry args={[fluteR * 0.85, TIP_SEGMENTS, TIP_SEGMENTS, 0, Math.PI * 2, 0, Math.PI / 2]} />
             <meshStandardMaterial
-              color={cs.color}
-              metalness={0.88}
-              roughness={0.25}
+              color={TOOL_PBR_COLOR}
+              metalness={TOOL_PBR_METALNESS}
+              roughness={TOOL_PBR_ROUGHNESS}
               emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 0.8}
+              emissiveIntensity={cs.emissiveIntensity * 0.6}
             />
           </mesh>
         </group>
@@ -470,11 +579,11 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion }:
         <mesh position={[0, -LOC / 2 - dia * 0.15, 0]} rotation={[Math.PI, 0, 0]} castShadow>
           <coneGeometry args={[fluteR, dia * 0.3, TIP_SEGMENTS]} />
           <meshStandardMaterial
-            color={cs.color}
-            metalness={0.9}
-            roughness={0.2}
+            color={TOOL_PBR_COLOR}
+            metalness={TOOL_PBR_METALNESS}
+            roughness={TOOL_PBR_ROUGHNESS}
             emissive={cs.emissive}
-            emissiveIntensity={cs.emissiveIntensity * 0.8}
+            emissiveIntensity={cs.emissiveIntensity * 0.6}
           />
         </mesh>
       )}
@@ -845,6 +954,125 @@ function Sparks({ tipPosRef, vcMPerMin, reducedMotion, maxSparks }: SparksProps)
 }
 
 // ─────────────────────────────────────────────
+// Coolant stream — thin particle cone emitted from side toward contact point
+// ─────────────────────────────────────────────
+interface CoolantProps {
+  tipPosRef: React.MutableRefObject<THREE.Vector3>
+  active: boolean
+  reducedMotion: boolean
+}
+
+interface CoolantState {
+  pos: THREE.Vector3
+  vel: THREE.Vector3
+  age: number
+  alive: boolean
+}
+
+function Coolant({ tipPosRef, active, reducedMotion }: CoolantProps) {
+  const meshRef = useRef<THREE.InstancedMesh>(null)
+  const dropsRef = useRef<CoolantState[]>(
+    Array.from({ length: MAX_COOLANT_PARTICLES }, () => ({
+      pos: new THREE.Vector3(),
+      vel: new THREE.Vector3(),
+      age: 0,
+      alive: false,
+    })),
+  )
+  const spawnAccumRef = useRef(0)
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+  // Nozzle offset (to the side/above the tool tip in world space)
+  const nozzleOffset = useMemo(() => new THREE.Vector3(18, 16, 10), [])
+
+  useFrame((_state, delta) => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    if (!active || reducedMotion) {
+      for (let i = 0; i < MAX_COOLANT_PARTICLES; i++) {
+        dummy.position.set(0, -9999, 0)
+        dummy.scale.set(0, 0, 0)
+        dummy.updateMatrix()
+        mesh.setMatrixAt(i, dummy.matrix)
+      }
+      mesh.instanceMatrix.needsUpdate = true
+      return
+    }
+
+    spawnAccumRef.current += delta * COOLANT_SPAWN_HZ
+    let toSpawn = Math.floor(spawnAccumRef.current)
+    spawnAccumRef.current -= toSpawn
+
+    // Nozzle source in world coords
+    const source = tipPosRef.current.clone().add(nozzleOffset)
+    // Direction from nozzle toward tip
+    const dir = tipPosRef.current.clone().sub(source).normalize()
+
+    for (let i = 0; i < MAX_COOLANT_PARTICLES; i++) {
+      const p = dropsRef.current[i]
+      if (!p.alive && toSpawn > 0) {
+        p.alive = true
+        p.age = 0
+        p.pos.copy(source)
+        // Spread: small random jitter perpendicular
+        const jx = (Math.random() - 0.5) * COOLANT_SPREAD
+        const jy = (Math.random() - 0.5) * COOLANT_SPREAD
+        const jz = (Math.random() - 0.5) * COOLANT_SPREAD
+        p.vel
+          .copy(dir)
+          .multiplyScalar(COOLANT_SPEED)
+          .add(new THREE.Vector3(jx, jy, jz).multiplyScalar(COOLANT_SPEED))
+        toSpawn--
+      }
+      if (p.alive) {
+        p.age += delta
+        if (p.age >= COOLANT_LIFETIME_SEC) {
+          p.alive = false
+          dummy.position.set(0, -9999, 0)
+          dummy.scale.set(0, 0, 0)
+          dummy.updateMatrix()
+          mesh.setMatrixAt(i, dummy.matrix)
+          continue
+        }
+        // Slight gravity
+        p.vel.y += CHIP_GRAVITY * 0.15 * delta
+        p.pos.addScaledVector(p.vel, delta)
+        const t01 = p.age / COOLANT_LIFETIME_SEC
+        const scale = 0.35 * (1 - t01 * 0.5)
+        dummy.position.copy(p.pos)
+        // Streak along velocity
+        const velLen = p.vel.length()
+        dummy.scale.set(scale, scale, scale + Math.min(1.6, velLen * 0.015))
+        // Orient streak toward velocity
+        const q = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, 1),
+          p.vel.clone().normalize(),
+        )
+        dummy.quaternion.copy(q)
+        dummy.updateMatrix()
+        mesh.setMatrixAt(i, dummy.matrix)
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true
+  })
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_COOLANT_PARTICLES]}>
+      <cylinderGeometry args={[0.12, 0.18, 1, 6]} />
+      <meshStandardMaterial
+        color={COOLANT_COLOR}
+        emissive={COOLANT_COLOR}
+        emissiveIntensity={0.8}
+        metalness={0.0}
+        roughness={0.2}
+        transparent
+        opacity={0.65}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  )
+}
+
+// ─────────────────────────────────────────────
 // Camera Dolly-in controller (마운트 시 카메라 zoom-in)
 // ─────────────────────────────────────────────
 function CameraDolly({ active }: { active: boolean }) {
@@ -905,6 +1133,9 @@ function InnerScene(props: InnerSceneProps) {
     reducedMotion,
     isMobile,
     enableEnvironment,
+    stockMaterial = "steel",
+    fluteCount,
+    coolant = false,
   } = props
 
   const [progress, setProgress] = useState(0)
@@ -917,7 +1148,14 @@ function InnerScene(props: InnerSceneProps) {
   )
   const vc = calcVc(diameter, rpm)
   const cs = coatingStyle(coating)
-  const stockColor = materialColor ?? (darkMode ? "#64748b" : "#94a3b8")
+  const stockColor = materialColor ?? STOCK_MATERIAL_STYLES[stockMaterial].color
+  // Clamp fluteCount prop to supported set; fall back to runtime `flutes` if valid, else 4.
+  const allowedFlutes: Array<2 | 3 | 4 | 5 | 6> = [2, 3, 4, 5, 6]
+  const resolvedFluteCount: 2 | 3 | 4 | 5 | 6 =
+    fluteCount ??
+    ((allowedFlutes as number[]).includes(flutes)
+      ? (flutes as 2 | 3 | 4 | 5 | 6)
+      : 4)
   const gridMajor = darkMode ? GRID_MAJOR_DARK : GRID_MAJOR_LIGHT
   const gridMinor = darkMode ? GRID_MINOR_DARK : GRID_MINOR_LIGHT
 
@@ -969,9 +1207,14 @@ function InnerScene(props: InnerSceneProps) {
       {/* Subtle floor bounce */}
       <hemisphereLight args={["#93c5fd", "#1e293b", 0.25]} />
 
-      {/* 바닥 그리드 */}
+      {/* 바닥 그리드 + shadow-catcher 플레인 */}
       <group position={[0, -stockH / 2 - 0.1, 0]}>
         <gridHelper args={[GRID_SIZE, GRID_DIVISIONS, gridMajor, gridMinor]} />
+        {/* 그림자 받는 바닥면 (미세한 offset) */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+          <planeGeometry args={[GRID_SIZE, GRID_SIZE]} />
+          <shadowMaterial transparent opacity={0.35} />
+        </mesh>
       </group>
 
       {/* 공작물 */}
@@ -984,6 +1227,7 @@ function InnerScene(props: InnerSceneProps) {
         grooveWidth={grooveWidth}
         grooveProgress01={progress}
         operationType={operationType}
+        stockMaterial={stockMaterial}
       />
 
       {/* 공구 + 이송 */}
@@ -1008,6 +1252,7 @@ function InnerScene(props: InnerSceneProps) {
           coatingStyle={cs}
           rpm={rpm}
           reducedMotion={reducedMotion}
+          fluteCount={resolvedFluteCount}
         />
       </ToolMover>
 
@@ -1027,6 +1272,9 @@ function InnerScene(props: InnerSceneProps) {
         reducedMotion={reducedMotion}
         maxSparks={sparkBudget}
       />
+
+      {/* 냉각유(coolant) 분사 스트림 */}
+      <Coolant tipPosRef={tipPosRef} active={coolant} reducedMotion={reducedMotion} />
 
       <CameraDolly active={!reducedMotion} />
     </>
