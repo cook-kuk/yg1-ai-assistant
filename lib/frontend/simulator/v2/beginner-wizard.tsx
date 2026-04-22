@@ -50,6 +50,7 @@ interface MaterialOption {
   description: string
   examples: string
   gradient: string
+  hoverTip: string
 }
 
 interface OperationOption {
@@ -59,6 +60,7 @@ interface OperationOption {
   description: string
   hint: string
   gradient: string
+  hoverTip: string
 }
 
 interface PriorityOption {
@@ -68,6 +70,7 @@ interface PriorityOption {
   description: string
   hint: string
   gradient: string
+  hoverTip: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -79,6 +82,7 @@ const MATERIALS: MaterialOption[] = [
     description: "일반 철 / 기계 부품",
     examples: "예시: S45C, SCM440, SM45C",
     gradient: "from-blue-400 to-sky-500",
+    hoverTip: "P (탄소강): S45C, SM45C, SCM440 등. 일반 기계 부품용. Vc 150~250 m/min · AlTiN 코팅 범용.",
   },
   {
     key: "M",
@@ -87,6 +91,7 @@ const MATERIALS: MaterialOption[] = [
     description: "SUS304/316 등 녹 방지",
     examples: "예시: SUS304, SUS316L, 17-4PH",
     gradient: "from-emerald-400 to-teal-500",
+    hoverTip: "M (스테인리스): SUS304/316 등. 내부식. 가공경화 주의 → ae ≥ 30%D 유지. Vc 80~150.",
   },
   {
     key: "K",
@@ -95,6 +100,7 @@ const MATERIALS: MaterialOption[] = [
     description: "GC/FCD 등 무거운 부품",
     examples: "예시: GC250, FCD450, FC300",
     gradient: "from-stone-400 to-slate-500",
+    hoverTip: "K (주철): GC250/FCD450 등. 분진 주의 · 건식 가공 가능. Vc 130~250 · TiAlN 권장.",
   },
   {
     key: "N",
@@ -103,6 +109,7 @@ const MATERIALS: MaterialOption[] = [
     description: "알루미늄/구리/황동",
     examples: "예시: Al6061, Al7075, C3604",
     gradient: "from-amber-400 to-yellow-500",
+    hoverTip: "N (비철): 알루미늄/구리/황동. 고속 가공 가능 (Vc 300~800). 무코팅 또는 DLC · AlTiN 금지.",
   },
   {
     key: "S",
@@ -111,6 +118,7 @@ const MATERIALS: MaterialOption[] = [
     description: "Inconel/Ti 등 어려움",
     examples: "예시: Inconel 718, Ti-6Al-4V",
     gradient: "from-rose-500 to-red-600",
+    hoverTip: "S (내열합금): Inconel 718, Ti-6Al-4V. 열 집중 위험 · 쿨런트 필수. Vc 30~80 · AlCrN 코팅.",
   },
   {
     key: "H",
@@ -119,6 +127,7 @@ const MATERIALS: MaterialOption[] = [
     description: "HRC 45+ 경화 금형",
     examples: "예시: SKD11 (HRC52), STAVAX",
     gradient: "from-violet-500 to-purple-600",
+    hoverTip: "H (고경도강): HRC 45+ 경화강, 금형. 미세 fz 필수. Vc 40~120 · AlCrN/nACo 코팅.",
   },
 ]
 
@@ -130,6 +139,7 @@ const OPERATIONS: OperationOption[] = [
     description: "옆면 깎기",
     hint: "벽이나 둘레를 다듬을 때",
     gradient: "from-sky-400 to-blue-500",
+    hoverTip: "측면(Side): 옆면 깎기, 가장 흔한 밀링. ap 0.5D · ae 0.3D 권장. 벽·둘레 정형 작업에 적합.",
   },
   {
     key: "slotting",
@@ -138,6 +148,7 @@ const OPERATIONS: OperationOption[] = [
     description: "홈 파기",
     hint: "공구 전체 지름으로 파고들 때",
     gradient: "from-indigo-400 to-violet-500",
+    hoverTip: "슬롯(Slot): 홈 가공, ae=D 풀 컨택. 채터·칩 배출 위험 높음 · 램핑 진입 권장.",
   },
   {
     key: "finishing",
@@ -146,6 +157,7 @@ const OPERATIONS: OperationOption[] = [
     description: "깔끔하게 마감",
     hint: "치수·면조도 우선, 얇게",
     gradient: "from-emerald-400 to-green-500",
+    hoverTip: "정삭(Finish): 표면 품질 최우선, 얕게 · 빠르게. Ra 0.8~1.6μm 목표 · ap 0.2mm · ae 0.1D.",
   },
   {
     key: "roughing",
@@ -154,6 +166,7 @@ const OPERATIONS: OperationOption[] = [
     description: "빠르게 많이",
     hint: "재료를 많이 제거할 때",
     gradient: "from-orange-400 to-rose-500",
+    hoverTip: "황삭(Rough): 재료 최대 제거, HEM 전략. ap 1.5D · ae 0.1D 트로코이달 경로로 MRR 극대화.",
   },
 ]
 
@@ -165,6 +178,7 @@ const PRIORITIES: PriorityOption[] = [
     description: "생산성 우선",
     hint: "Vc ↑ · fz ↑ · 공구 조금 아껴요",
     gradient: "from-amber-400 to-orange-500",
+    hoverTip: "생산성: 빠르게 많이 깎기. MRR·Vf 우선 · Vc와 fz를 15~20% 상향. 공구 수명은 다소 짧아짐.",
   },
   {
     key: "life",
@@ -173,6 +187,7 @@ const PRIORITIES: PriorityOption[] = [
     description: "공구 오래 쓰기",
     hint: "Vc ↓ · fz ↓ · 가장 안전한 선택",
     gradient: "from-sky-400 to-indigo-500",
+    hoverTip: "수명: 공구 오래 쓰기. Vc/fz 낮춰 Taylor 공식 기반 장수명. 생산성은 감소하지만 안정적.",
   },
   {
     key: "quality",
@@ -181,6 +196,7 @@ const PRIORITIES: PriorityOption[] = [
     description: "표면조도 우선",
     hint: "fz ↓ · 정삭 스타일 · 매끄럽게",
     gradient: "from-emerald-400 to-teal-500",
+    hoverTip: "품질: 표면 깔끔하게. finish 스타일 + 얕게 · 느리게 · fz 30% 감. 검사·면 품질 중심.",
   },
 ]
 
@@ -670,6 +686,7 @@ function StepMaterial({
               onBlur={() => onHover(null)}
               aria-pressed={isSelected}
               aria-label={`ISO ${m.key} ${m.title} 선택 — ${m.description}`}
+              title={m.hoverTip}
               className={`group relative h-full text-left rounded-xl p-3 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${m.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
@@ -773,6 +790,7 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
               onClick={() => onSelect(o.key)}
               aria-pressed={isSelected}
               aria-label={`${o.title} 선택 — ${o.hint}`}
+              title={o.hoverTip}
               className={`h-full text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${o.gradient} text-white shadow-lg ring-2 ring-white scale-[1.01]`
@@ -1009,6 +1027,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
               onClick={() => onSelect(p.key)}
               aria-pressed={isSelected}
               aria-label={`${p.title} 우선 — ${p.description}`}
+              title={p.hoverTip}
               className={`flex h-full flex-col text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${p.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`

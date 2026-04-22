@@ -30,6 +30,8 @@ export interface ExamplePreset {
     activeShape: string
   }
   badge?: string
+  /** 카드 hover 시 브라우저 툴팁으로 표시되는 한글 설명 */
+  hoverTip?: string
 }
 
 export interface WelcomeModalProps {
@@ -50,6 +52,7 @@ export const WELCOME_EXAMPLES: ExamplePreset[] = [
     icon: "🔹",
     color: "sky",
     badge: "인기",
+    hoverTip: "Al6061 비철 · Vc 450 · ISO N · 고속 가공. 주의: 칩이 공구에 끈적이면 쿨런트 필수. 언제 쓰나: 알루미늄 프로파일·지그를 빠르게 깎을 때.",
     params: {
       isoGroup: "N",
       subgroupKey: "aluminum-wrought",
@@ -70,6 +73,7 @@ export const WELCOME_EXAMPLES: ExamplePreset[] = [
     subtitle: "오스테나이트 SUS · 저속 정밀",
     icon: "🟢",
     color: "emerald",
+    hoverTip: "스테인리스 오스테나이트 · Vc 120 · ISO M. 주의: 가공경화 때문에 ae ≥ 30%D 유지. 언제 쓰나: 표면 Ra 1.6 이하 마감이 필요한 SUS304/316 부품.",
     params: {
       isoGroup: "M",
       subgroupKey: "austenitic-ss",
@@ -91,6 +95,7 @@ export const WELCOME_EXAMPLES: ExamplePreset[] = [
     icon: "🔴",
     color: "rose",
     badge: "고난이도",
+    hoverTip: "내열합금 · Vc 35 · ISO S. 주의: 열이 공구에 집중되니 절삭유 대량 분사. 언제 쓰나: 항공·발전 터빈 부품에 홈을 파는 고난이도 작업.",
     params: {
       isoGroup: "S",
       subgroupKey: "inconel",
@@ -291,6 +296,7 @@ export function WelcomeModal({
                   key={preset.id}
                   type="button"
                   onClick={() => handlePick(preset)}
+                  title={preset.hoverTip ?? `${preset.title} — ${preset.subtitle}`}
                   className={`group relative flex h-full min-w-0 flex-col text-left rounded-xl border p-4 transition-all duration-200 ring-0 hover:ring-2 hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${borderCls} ${bgCls} ${ringCls} ${
                     darkMode ? "hover:bg-slate-800/80" : "hover:bg-white"
                   }`}

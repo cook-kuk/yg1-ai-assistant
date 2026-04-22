@@ -34,6 +34,7 @@ interface OperationDef {
   materials: string
   recommend?: string
   illustration: (darkMode: boolean) => ReactElement
+  hoverTip: string
 }
 
 // ── Color tokens (darkMode-aware) ─────────────────────────────────────
@@ -260,6 +261,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "P/M/K/N/H",
     recommend: "ap 0.5D · ae 0.3D",
     illustration: IlEndmillGeneral,
+    hoverTip: "일반 엔드밀: 측면 가공 · 가장 흔한 밀링 · P/M/K/N/H 전재질 지원. ap 0.5D · ae 0.3D 권장.",
   },
   {
     key: "roughing",
@@ -269,6 +271,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "P/M/K",
     recommend: "ap 1.5D · ae 0.1D (트로코이달)",
     illustration: IlRoughing,
+    hoverTip: "러핑 (HEM): 고효율 밀링 · 많이 깎기 · 트로코이달 경로. ap 1.5D · ae 0.1D. MRR 극대화, 열·칩 관리 유리.",
   },
   {
     key: "finishing",
@@ -278,6 +281,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "전체",
     recommend: "ap 0.2mm · ae 0.1D",
     illustration: IlFinishing,
+    hoverTip: "마감(정삭): 표면 품질 우선 · 얕게 · Ra 0.8μm 목표. ap 0.2mm · ae 0.1D로 가볍게 쓸기.",
   },
   {
     key: "slotting",
@@ -287,6 +291,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "P/K",
     recommend: "ap 0.5D · ae 1.0D",
     illustration: IlSlotting,
+    hoverTip: "슬로팅: 홈 파기 · ae = D 풀 컨택 · 채터 주의. 램핑 진입 + ap 0.5D로 부하 분산 권장.",
   },
   {
     key: "drilling",
@@ -296,6 +301,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "전체",
     recommend: "peck cycle",
     illustration: IlDrilling,
+    hoverTip: "드릴: 구멍 가공 · 수직 · peck 사이클. 깊이 > 3D면 중간 후퇴로 칩 배출 · 냉각유 꼭 사용.",
   },
   {
     key: "turning",
@@ -305,6 +311,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "전체",
     recommend: "feed mm/rev",
     illustration: IlTurning,
+    hoverTip: "터닝: 회전 공작물 · 선반 · feed mm/rev 단위. 밀링과 달리 fz 대신 f(mm/rev) 기준.",
   },
   {
     key: "profiling",
@@ -313,6 +320,7 @@ const OPERATIONS: OperationDef[] = [
     desc: "외곽 윤곽선 따라가기",
     materials: "P/M/K/N",
     illustration: IlProfiling,
+    hoverTip: "프로파일링: 외곽 곡선 따라가기 · 2D 형상. 내·외곽 contour 가공, compensation 방향 주의.",
   },
   {
     key: "pocketing",
@@ -322,6 +330,7 @@ const OPERATIONS: OperationDef[] = [
     materials: "전체",
     recommend: "스파이럴 엔트리",
     illustration: IlPocketing,
+    hoverTip: "포켓: 내부 공간 파내기 · 스파이럴 entry 권장. 램프·헬릭스 진입으로 공구 보호.",
   },
 ]
 
@@ -381,6 +390,7 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
               onClick={() => onChange(op.key)}
               aria-pressed={active}
               aria-label={`${op.title} — ${op.desc}`}
+              title={op.hoverTip}
               className={`relative flex h-full min-w-0 flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all duration-150 ${border} ${
                 active ? activeBg : `${baseBg} ${hoverBg}`
               }`}

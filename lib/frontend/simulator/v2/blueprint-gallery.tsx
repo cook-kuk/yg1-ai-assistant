@@ -45,6 +45,7 @@ interface GalleryToolDisplay extends BlueprintGalleryTool {
   description: string
   bestFor: string
   pricePoint: string
+  hoverTip: string
 }
 
 // ─── 6개 도면 데이터 (SSOT) ────────────────────────────────────────────
