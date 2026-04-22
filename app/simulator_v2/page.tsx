@@ -10,6 +10,8 @@ import { EducationControl } from "@/lib/frontend/simulator/v2/education-widgets"
 import { ManualDownloadButton } from "@/lib/frontend/simulator/v2/manual-download-button"
 import { ModeProvider } from "@/lib/frontend/simulator/v2/mode-context"
 import { ModeToggle } from "@/lib/frontend/simulator/v2/mode-toggle"
+import CinematicBackdrop from "@/lib/frontend/simulator/v2/cinematic-backdrop"
+import CyberpunkHud from "@/lib/frontend/simulator/v2/cyberpunk-hud"
 
 function EducationControlMount() {
   return (
@@ -30,7 +32,20 @@ function SimulatorV2Content() {
   const operation = searchParams.get("operation") ?? undefined
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
+    <div className="relative min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
+      {/* 🎬 시네마틱 배경 (aurora + 금속 파티클) */}
+      <CinematicBackdrop intensity="medium" theme="aurora" />
+
+      {/* 🤖 사이버펑크 HUD 코너 브래킷 */}
+      <CyberpunkHud
+        rpm={8218}
+        Vf={5095}
+        Pc={4.25}
+        chatterLevel="low"
+        mode="LIVE"
+        theme="cyan"
+        cornerOnly
+      />
       {/* Header */}
       <div className="border-b bg-white/95">
         <div className="mx-auto max-w-6xl px-4 py-5">
