@@ -40,7 +40,7 @@ import { ToolRecommender } from "./tool-recommender"
 import { EduLabel } from "./education-widgets"
 import { ChipColorDiagnostic, SymptomMatrix, CommonMistakes } from "./diagnostic-panels"
 import { SfmIptTable } from "./sfm-ipt-table"
-import { CornerFeedPanel } from "./corner-panel"
+// CornerFeedPanel 대체: corner-panel-v2의 CornerFeedPanelV2 사용
 import { CuttingAction } from "./cutting-action"
 import { ToolSilhouette } from "./tool-silhouette"
 import { EngagementCircle } from "./engagement-circle"
@@ -326,6 +326,41 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     if (ae > cap.aeMax) setAe(parseFloat(cap.aeMax.toFixed(1)))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workholding, diameter])
+
+  // Speeds/Feeds 자동로드: 공구/재질/op/코팅 바뀔 때 /api/simulator/speeds-feeds 조회
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const toolId = realEdp || productCode.trim()
+    if (!toolId) { setSpeedsFeedsBaseline(null); return }
+    const opMap: Record<string, "slotting"|"finishing"|"roughing"|"max"> = {
+      Slotting: "slotting", Side_Milling: "finishing",
+      Profiling: "finishing", Facing: "roughing", Pocketing: "roughing",
+    }
+    const mappedOp = opMap[operation] ?? "finishing"
+    const coatingKey = coating.toUpperCase()
+    const params = new URLSearchParams({
+      toolId,
+      operation: mappedOp,
+    })
+    if (subgroupKey) params.set("materialSubgroup", subgroupKey)
+    if (coatingKey) params.set("coating", coatingKey)
+    let cancelled = false
+    fetch(`/api/simulator/speeds-feeds?${params.toString()}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (cancelled || !j || !j.matched || !j.row) {
+          setSpeedsFeedsBaseline(null); return
+        }
+        setSpeedsFeedsBaseline({
+          sfm: j.row.sfm, iptInch: j.row.iptInch,
+          source: j.source ?? "estimated",
+          confidence: j.confidence ?? 1,
+          sourceRef: j.row.sourceRef,
+        })
+      })
+      .catch(() => setSpeedsFeedsBaseline(null))
+    return () => { cancelled = true }
+  }, [productCode, realEdp, subgroupKey, operation, coating])
 
   // localStorage 프리셋
   useEffect(() => {
@@ -712,32 +747,34 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   const printPdf = async () => {
     if (typeof window === "undefined") return
-    const target = reportAreaRef.current
-    if (!target) { window.print(); return }
     try {
-      const [{ jsPDF }, h2c] = await Promise.all([import("jspdf"), import("html2canvas")])
-      const canvas = await h2c.default(target, { scale: 2, backgroundColor: darkMode ? "#0f172a" : "#ffffff", logging: false })
-      const pdf = new jsPDF("p", "mm", "a4")
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const imgH = (canvas.height / canvas.width) * pageW
-      if (imgH < pageH) {
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, imgH)
-      } else {
-        let y = 0
-        const ratio = pageW / canvas.width
-        while (y < canvas.height) {
-          const sliceH = Math.min(pageH / ratio, canvas.height - y)
-          const slice = document.createElement("canvas")
-          slice.width = canvas.width; slice.height = sliceH
-          slice.getContext("2d")?.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH)
-          if (y > 0) pdf.addPage()
-          pdf.addImage(slice.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceH * ratio)
-          y += sliceH
-        }
-      }
-      pdf.save(`YG1-sim-${productCode || "report"}-${Date.now()}.pdf`)
-    } catch {
+      const { generateReportPDF } = await import("./pdf-generator")
+      const edu = typeof window !== "undefined"
+        ? localStorage.getItem("yg1-sim-v3-education")?.includes('"enabled":true') ?? false
+        : false
+      await generateReportPDF({
+        state: {
+          seriesOrProduct: productCode, edp: realEdp ?? undefined,
+          diameter, fluteCount, shape: activeShape, LOC, OAL, cornerR,
+          isoGroup, subgroupKey, condition, hardnessScale, hardnessValue,
+          operation, toolPath, strategy: strategy || undefined,
+          spindleKey, holderKey, maxRpm, maxKw, workholding,
+          stickoutMm, Vc: VcEff, fz: fzEff, ap, ae,
+          coolant, coating,
+        },
+        results: {
+          n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc,
+          Fc: advanced.Fc, deflection: advanced.deflection,
+          toolLife: toolLifeMin, raUm,
+          chatterRisk: chatter.level,
+        },
+        warnings,
+        url: window.location.href,
+        educationMode: edu,
+        filename: `YG1-sim-${productCode || "report"}-${Date.now()}.pdf`,
+      })
+    } catch (e) {
+      console.error("PDF 생성 실패:", e)
       window.print()
     }
   }
@@ -971,9 +1008,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           )}
 
           <div className="grid grid-cols-2 gap-1.5">
-            <MiniSelect label="Flutes" value={String(fluteCount)} onChange={v => setFluteCount(parseInt(v))}
+            <MiniSelect eduId="flutes" label="Flutes" value={String(fluteCount)} onChange={v => setFluteCount(parseInt(v))}
               options={[1,2,3,4,5,6].map(n => ({ value: String(n), label: `${n}날` }))} />
-            <MiniSelect label="재질" value={toolMaterial} onChange={setToolMaterial}
+            <MiniSelect eduId="edp" label="재질" value={toolMaterial} onChange={setToolMaterial}
               options={TOOL_MATERIALS.map(m => ({ value: m.key, label: m.label }))} />
           </div>
 
@@ -1029,10 +1066,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               </button>
             ))}
           </div>
-          <MiniSelect label="Subgroup" value={subgroupKey} onChange={setSubgroupKey}
+          <MiniSelect eduId="iso-p" label="Subgroup" value={subgroupKey} onChange={setSubgroupKey}
             options={[{ value: "", label: "— 선택 —" }, ...activeSubgroups.map(s => ({ value: s.key, label: s.label }))]} />
           {currentSubgroup && currentSubgroup.conditions.length > 0 && (
-            <MiniSelect label="Condition" value={condition} onChange={setCondition}
+            <MiniSelect eduId="iso-p" label="Condition" value={condition} onChange={setCondition}
               options={currentSubgroup.conditions.map(c => ({ value: c, label: c }))} />
           )}
           <div>
@@ -1062,17 +1099,17 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
         {/* ─ OPERATION ─ */}
         <CardShell title="OPERATION" icon={<span className="text-[12px]">📐</span>} onReset={() => { setOperation("Side_Milling"); setToolPath("conventional") }} eduId="hem" eduSection="operation">
-          <MiniSelect label="Type" value={operation} onChange={setOperation} options={[
+          <MiniSelect eduId="slotting" label="Type" value={operation} onChange={setOperation} options={[
             { value: "Side_Milling", label: "Side Milling 측면" },
             { value: "Slotting", label: "Slotting 슬롯" },
             { value: "Profiling", label: "Profiling 윤곽" },
             { value: "Facing", label: "Facing 정면" },
             { value: "Pocketing", label: "Pocketing 포켓" },
           ]} />
-          <MiniSelect label="Tool Path" value={toolPath} onChange={v => { setToolPath(v); setStrategy("") }}
+          <MiniSelect eduId="hem" label="Tool Path" value={toolPath} onChange={v => { setToolPath(v); setStrategy("") }}
             options={TOOL_PATHS.map(tp => ({ value: tp.key, label: tp.label }))} />
           {STRATEGY_OPTIONS[toolPath] && (
-            <MiniSelect label="Strategy (MAP 2.0)" value={strategy} onChange={setStrategy}
+            <MiniSelect eduId="hem" label="Strategy (MAP 2.0)" value={strategy} onChange={setStrategy}
               options={[{ value: "", label: "— 기본 —" }, ...STRATEGY_OPTIONS[toolPath]]} />
           )}
           <div>
@@ -1126,9 +1163,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
         {/* ─ MACHINE ─ */}
         <CardShell title="MACHINE" icon={<Cog className="h-3.5 w-3.5" />} onReset={resetMachine} eduId="workholding-security" eduSection="machine">
-          <MiniSelect label="Spindle" value={spindleKey} onChange={setSpindleKey}
+          <MiniSelect eduId="spindle-preset" label="Spindle" value={spindleKey} onChange={setSpindleKey}
             options={SPINDLE_PRESETS.map(s => ({ value: s.key, label: s.label }))} />
-          <MiniSelect label="Holder" value={holderKey} onChange={setHolderKey}
+          <MiniSelect eduId="er-collet" label="Holder" value={holderKey} onChange={setHolderKey}
             options={HOLDER_PRESETS.map(h => ({ value: h.key, label: `${h.label} (${h.rigidity}%)` }))} />
           <div className="grid grid-cols-3 gap-1.5">
             <NumInputSmall label="MAX RPM" value={maxRpm} onChange={setMaxRpm} />
@@ -1142,9 +1179,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             currentAp={ap}
             currentAe={ae}
           />
-          <MiniSelect label="Coolant 💧" value={coolant} onChange={setCoolant}
+          <MiniSelect eduId="flood-coolant" label="Coolant 💧" value={coolant} onChange={setCoolant}
             options={COOLANTS.map(c => ({ value: c.key, label: c.label }))} />
-          <MiniSelect label="Coating ✨" value={coating} onChange={setCoating}
+          <MiniSelect eduId="altin-coating" label="Coating ✨" value={coating} onChange={setCoating}
             options={COATINGS.map(c => ({ value: c.key, label: `${c.label} ×${c.vcMultiplier}` }))} />
           <div className="text-[9px] text-gray-400">
             Vc 보정 = coolant ×{coolantMult} · coating ×{coatingMult}
@@ -1467,7 +1504,13 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             {/* 코너 보정 */}
             <div>
               <h5 className="text-xs font-bold text-gray-800 mb-2">📐 비선형 경로 코너 이송 보정</h5>
-              <CornerFeedPanel baseFeed={result.Vf} toolDiameter={diameter} />
+              <CornerFeedPanelV2
+                toolPath={toolPath}
+                baseFeed={result.Vf}
+                toolDiameter={diameter}
+                cornerReductionPct={cornerReductionPct}
+                onReductionChange={setCornerReductionPct}
+              />
             </div>
 
             {/* SFM/IPT 대조표 */}
@@ -1805,10 +1848,13 @@ function DimRow({ label, value, onChange, min, max, step, unit }: { label: strin
   )
 }
 
-function MiniSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }> }) {
+function MiniSelect({ label, value, onChange, options, eduId }: { label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }>; eduId?: string }) {
   return (
     <div>
-      <label className="text-[10px] text-gray-500">{label}</label>
+      <label className="text-[10px] text-gray-500 flex items-center gap-1">
+        {label}
+        {eduId && <EduLabel id={eduId} size="xs" />}
+      </label>
       <select value={value} onChange={e => onChange(e.target.value)}
         className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs focus:border-blue-400 focus:outline-none">
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
