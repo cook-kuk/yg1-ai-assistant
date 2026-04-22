@@ -686,7 +686,7 @@ export function BenchmarkLeaderboard({
                 return (
                   <motion.li
                     key={r.entry.id}
-                    layout
+                    layout="position"
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}

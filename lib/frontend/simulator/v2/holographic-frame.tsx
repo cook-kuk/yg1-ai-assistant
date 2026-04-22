@@ -198,7 +198,7 @@ function HolographicFrame({
     boxShadow: cfg.pulse
       ? undefined
       : `0 0 18px rgba(${palette.rgb}, ${cfg.glowOpacity * 0.9}), inset 0 0 12px rgba(${palette.rgb}, ${cfg.glowOpacity * 0.5})`,
-    animation: cfg.pulse ? `${kfPulse} 2.4s ease-in-out infinite` : undefined,
+    animation: cfg.pulse ? `${kfPulse} 4s ease-in-out infinite` : undefined,
   }
 
   // Holographic glow (레이어 1)
@@ -209,18 +209,18 @@ function HolographicFrame({
     background: `linear-gradient(135deg, rgba(${palette.rgb}, ${cfg.glowOpacity}) 0%, transparent 35%, transparent 65%, rgba(${palette.rgb}, ${cfg.glowOpacity * 0.7}) 100%)`,
     filter: "blur(14px)",
     opacity: 1,
-    animation: `${kfGlow} 8s ease-in-out infinite alternate`,
+    animation: `${kfGlow} 12s ease-in-out infinite alternate`,
     willChange: "transform, background-position",
   }
 
-  // Scanlines (레이어 2)
+  // Scanlines (레이어 2) — duration 증가 (UI 성능 최적화, 덜 빈번한 리페인트)
   const scanlineStyle: React.CSSProperties = {
     position: "absolute",
     inset: 0,
     pointerEvents: "none",
     backgroundImage: `repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(${palette.rgb}, ${cfg.scanlineOpacity}) 2px, rgba(${palette.rgb}, ${cfg.scanlineOpacity}) 3px)`,
     mixBlendMode: "screen",
-    animation: `${kfScan} 3.2s linear infinite`,
+    animation: `${kfScan} 5s linear infinite`,
     willChange: "transform",
   }
 
@@ -253,7 +253,7 @@ function HolographicFrame({
       0%, 100% { opacity: 1; }
       50%      { opacity: 0.45; }
     }
-    .holo-bracket-${uid} { animation: ${kfBlink} 1.8s ease-in-out infinite; }
+    .holo-bracket-${uid} { animation: ${kfBlink} 3s ease-in-out infinite; }
   `
 
   return (

@@ -771,7 +771,7 @@ function IterationCard({
   const scorePct = Math.round(iter.score * 100)
   return (
     <motion.div
-      layout
+      layout="position"
       initial={{ opacity: 0, x: 20, scale: 0.96 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
