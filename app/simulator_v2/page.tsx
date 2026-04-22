@@ -65,7 +65,13 @@ function EducationControlMount() {
 
 function SimulatorV2Content() {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<"simulator" | "competitor" | "machine-impact">("simulator")
+
+  // ?lab=<preset-key> 딥링크 — 탭 자동 전환 + 프리셋 자동 로드 (demo/share-URL 용)
+  const labPreset = searchParams.get("lab") ?? undefined
+  const initialTab: "simulator" | "competitor" | "machine-impact" = labPreset
+    ? "machine-impact"
+    : "simulator"
+  const [tab, setTab] = useState<"simulator" | "competitor" | "machine-impact">(initialTab)
 
   const product = searchParams.get("product") ?? undefined
   const material = searchParams.get("material") ?? undefined
@@ -155,7 +161,7 @@ function SimulatorV2Content() {
         ) : tab === "competitor" ? (
           <CompetitorTab />
         ) : (
-          <MachineImpactLab />
+          <MachineImpactLab initialPresetKey={labPreset} />
         )}
       </div>
     </div>

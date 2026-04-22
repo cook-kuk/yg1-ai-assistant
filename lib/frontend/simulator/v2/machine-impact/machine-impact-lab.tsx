@@ -31,19 +31,36 @@ interface Props {
   operation?: typeof DEFAULT_LOCKED_OPERATION
   /** Starting machine config. Defaults to BASELINE (ideal combination). */
   initialConfig?: MachineConfigState
+  /** Preset key (e.g. "disaster", "premium") — wins over initialConfig when
+   * supplied. Used by the ?lab=<key> deep-link on /simulator_v2. Unknown
+   * keys silently fall back to BASELINE. */
+  initialPresetKey?: string
 }
 
 const BASELINE_CONFIG: MachineConfigState = {
   ...IMPACT_PRESETS.baseline.config,
 }
 
+function resolveInitialConfig(
+  initialConfig: MachineConfigState | undefined,
+  initialPresetKey: string | undefined,
+): MachineConfigState {
+  if (initialPresetKey && initialPresetKey in IMPACT_PRESETS) {
+    return { ...IMPACT_PRESETS[initialPresetKey].config }
+  }
+  return initialConfig ?? BASELINE_CONFIG
+}
+
 export const MachineImpactLab = memo(function MachineImpactLab({
   tool = DEFAULT_LOCKED_TOOL,
   material = DEFAULT_LOCKED_MATERIAL,
   operation = DEFAULT_LOCKED_OPERATION,
-  initialConfig = BASELINE_CONFIG,
+  initialConfig,
+  initialPresetKey,
 }: Props) {
-  const [config, setConfig] = useState<MachineConfigState>(initialConfig)
+  const [config, setConfig] = useState<MachineConfigState>(() =>
+    resolveInitialConfig(initialConfig, initialPresetKey),
+  )
 
   // Locked-context slice — shared by both the live compute and the
   // scenario compare table.
