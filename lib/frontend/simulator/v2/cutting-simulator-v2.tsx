@@ -73,6 +73,12 @@ import VibrationOscilloscope from "./vibration-oscilloscope"
 import TemperatureHeatmap from "./temperature-heatmap"
 import ForceVectorDiagram from "./force-vector-diagram"
 import { copyText } from "./clipboard-util"
+import BeginnerWizard from "./beginner-wizard"
+import InteractiveTutorial from "./interactive-tutorial"
+import BeginnerLessonCards from "./beginner-lesson-cards"
+import CheatSheetPanel from "./cheat-sheet-panel"
+import FeatureExplainer from "./feature-explainer"
+import { AiQueryBar } from "./ai-query-bar"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
 import { ProvenancePanel } from "./provenance-panel"
@@ -267,6 +273,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showVibration, setShowVibration] = useState(false)
   const [showTempHeatmap, setShowTempHeatmap] = useState(false)
   const [showForceVec, setShowForceVec] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [showLessonCards, setShowLessonCards] = useState(true)
+  const [showCheatSheet, setShowCheatSheet] = useState(false)
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
 
@@ -1100,6 +1110,19 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       </div>
 
+      {/* 💡 초보자 오늘의 팁 — 초보 모드일 때 상단 노출 */}
+      {simMode.isBeginner && showLessonCards && (
+        <BeginnerLessonCards darkMode={darkMode} onClose={() => setShowLessonCards(false)} />
+      )}
+
+      {/* 🔮 AI 자연어 검색바 — 모든 모드에서 상시 */}
+      <AiQueryBar
+        darkMode={darkMode}
+        onApplyPreset={(p) => {
+          applyWelcomePreset({ id: "ai-nl", title: "AI 자연어 추천", subtitle: "Claude Haiku 생성", icon: "🔮", color: "violet", params: p as WelcomePreset["params"] } as WelcomePreset)
+        }}
+      />
+
       {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 모든 모드에서 표시 */}
       <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
           <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
@@ -1143,6 +1166,24 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             ➡ 힘 벡터
           </button>
+          <ToolbarDivider darkMode={darkMode} />
+          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider px-1">🎓 학습</span>
+          <button onClick={() => setWizardOpen(true)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🧙 위저드
+          </button>
+          <button onClick={() => setTutorialOpen(true)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🎯 투어
+          </button>
+          <button onClick={() => setShowCheatSheet(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            📋 치트시트
+          </button>
+          <a href="/simulator_v2/glossary" target="_blank" rel="noreferrer"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            📚 용어사전 ↗
+          </a>
           {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
       </div>
 
@@ -1327,22 +1368,59 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               options={currentSubgroup.conditions.map(c => ({ value: c, label: c }))} />
           )}
           <div>
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] text-gray-500">경도</label>
-              <div className="flex gap-0.5">
-                {(["HRC","HBW","HRB","HBS"] as HardnessScale[]).map(sc => (
-                  <button key={sc} onClick={() => {
-                    const newVal = convertHardness(hardnessValue, hardnessScale, sc)
-                    setHardnessScale(sc); setHardnessValue(newVal)
-                  }}
-                    className={`text-[9px] px-1.5 py-0.5 rounded ${hardnessScale === sc ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>{sc}</button>
-                ))}
-              </div>
+            <label className="text-[10px] text-gray-500 dark:text-slate-400 font-medium">경도 (Hardness)</label>
+            {/* Harvey MAP 스타일 — 세그먼트 토글 한 줄 */}
+            <div className={`mt-1 inline-flex w-full items-stretch rounded-lg border p-0.5 ${darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-white"}`}>
+              {(["HRC","HBW","HRB","HBS"] as HardnessScale[]).map(sc => {
+                const active = hardnessScale === sc
+                const tooltip = sc === "HRC" ? "록웰 C (강철 경화용, 20~70)"
+                  : sc === "HBW" ? "브리넬 W (무른 금속, 100~650)"
+                  : sc === "HRB" ? "록웰 B (연강/비철, 40~100)"
+                  : "브리넬 S (참고 · HBW 동의어)"
+                return (
+                  <button key={sc} title={tooltip}
+                    onClick={() => {
+                      const newVal = convertHardness(hardnessValue, hardnessScale, sc)
+                      setHardnessScale(sc); setHardnessValue(newVal)
+                    }}
+                    className={`flex-1 rounded-md px-2 py-1 text-[10px] font-bold tracking-wider transition-all ${
+                      active
+                        ? "bg-gradient-to-b from-blue-500 to-blue-600 text-white shadow-sm ring-1 ring-blue-700/40"
+                        : darkMode
+                          ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+                          : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                    }`}>
+                    {sc}
+                  </button>
+                )
+              })}
             </div>
-            <input type="number" value={hardnessValue}
-              onChange={e => setHardnessValue(parseFloat(e.target.value) || 0)}
-              min={0} max={hardnessScale === "HBW" ? 700 : 100}
-              className="w-full rounded border border-gray-300 px-2 py-1 text-xs font-mono" />
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="number" value={hardnessValue}
+                onChange={e => setHardnessValue(parseFloat(e.target.value) || 0)}
+                min={0} max={hardnessScale === "HBW" ? 700 : 100} step={1}
+                className={`flex-1 rounded-md border px-2 py-1.5 text-sm font-mono font-bold ${darkMode ? "border-slate-700 bg-slate-900 text-slate-100" : "border-slate-300 bg-white text-slate-900"}`} />
+              <span className={`text-[11px] font-semibold ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{hardnessScale}</span>
+            </div>
+            {/* 경도 범위 시각화 바 (Harvey 느낌) */}
+            <div className={`mt-1.5 relative h-1.5 rounded-full overflow-hidden ${darkMode ? "bg-slate-800" : "bg-slate-100"}`}>
+              {(() => {
+                const maxVal = hardnessScale === "HBW" ? 700 : 100
+                const pct = Math.min(100, Math.max(0, (hardnessValue / maxVal) * 100))
+                const color = hardnessValue < (hardnessScale === "HBW" ? 200 : 25) ? "from-emerald-400 to-emerald-500"
+                  : hardnessValue < (hardnessScale === "HBW" ? 400 : 45) ? "from-amber-400 to-amber-500"
+                  : "from-rose-500 to-rose-600"
+                return (
+                  <>
+                    <div className={`absolute inset-y-0 left-0 bg-gradient-to-r ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                    <div className="absolute inset-0 flex justify-between px-1 text-[7px] font-mono text-white/80 items-center pointer-events-none">
+                      <span>연</span>
+                      <span>경</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
           </div>
           {catalogData?.facets && catalogData.facets.workpieces.length > 0 && (
             <MiniSelect label={`세부소재 (${catalogData.facets.workpieces.length})`} value={workpiece} onChange={setWorkpiece}
@@ -2009,6 +2087,37 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
         <ConfettiBurst trigger={confettiTrigger} />
       </div>
+
+      {/* 🧙 초보자 위저드 모달 */}
+      <BeginnerWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onApply={(preset) => {
+          // BeginnerWizardPreset 구조가 WelcomePreset.params 와 동일 — 어댑터로 래핑
+          applyWelcomePreset({ id: "wizard", title: "위저드 추천", subtitle: "5단계 질문 결과", icon: "🧙", color: "violet", params: preset as WelcomePreset["params"] } as WelcomePreset)
+        }}
+        darkMode={darkMode}
+      />
+
+      {/* 🎯 인터랙티브 튜토리얼 */}
+      <InteractiveTutorial
+        open={tutorialOpen}
+        onOpenChange={setTutorialOpen}
+        darkMode={darkMode}
+      />
+
+      {/* 📋 CNC 치트시트 */}
+      {showCheatSheet && (
+        <CheatSheetPanel
+          currentIsoGroup={isoGroup}
+          currentCoating={coating}
+          currentVc={VcEff}
+          currentFz={fzEff}
+          darkMode={darkMode}
+          expanded={showCheatSheet}
+          onToggle={() => setShowCheatSheet(v => !v)}
+        />
+      )}
 
       {/* 🛡 플로팅 실시간 경고 HUD (우하단 sticky) */}
       <FloatingWarnings
