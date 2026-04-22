@@ -9,6 +9,20 @@
  *
  * Re-uses `SPINDLE_PRESETS`, `HOLDER_PRESETS`, `COOLANTS` from
  * presets.ts via the key lookups — no data duplication.
+ *
+ * v2 physics refinements (2026-04-22):
+ *   * `rigidityMul` saturates at r=80 — above that the holder is "rigid
+ *     enough" and isn't the bottleneck, so shrink-fit / milling-chuck
+ *     land at 1.0 instead of the linear 0.97/1.00. Matches BASELINE's
+ *     "ideal combination" interpretation.
+ *   * Tool life gets an extra chatter kill factor (1 - 0.5·chatterRisk):
+ *     HIGH chatter halves the Taylor prediction, since vibration-driven
+ *     spalling is the real failure mode that Taylor doesn't model.
+ *   * Dry coolant on demanding ISO groups (P/M/S/H) adds an explicit
+ *     warning + additional tool-life derate — aluminum (N) is exempt,
+ *     matching the BASELINE 942332 uncoated-on-aluminum happy case.
+ *   * Efficiency score `vs baseline` lets the compare table render
+ *     "X% of BASELINE MRR" without the UI recomputing.
  */
 import {
   SPINDLE_PRESETS,
@@ -36,7 +50,40 @@ const TAYLOR_N = 0.25
 // Power derate — Pc = MRR·kc / (60·10^6·η). η ~ 0.8 for VMC trains.
 const POWER_EFFICIENCY = 0.8
 
+// Rigidity saturation threshold — holders rigid enough that the
+// remaining variance comes from the tool + workholding, not the clamp.
+// Below this point the rigidity linearly derates; above it reads 1.0.
+const RIGIDITY_SATURATION = 80
+
+// Chatter is the real tool killer in the field — Taylor ignores it. We
+// apply a multiplicative derate of (1 − CHATTER_LIFE_KILL · chatterRisk)
+// to the Taylor prediction. 0.5 means HIGH chatter (risk 0.8) strips
+// 40% of life, consistent with the "채터 30분 가공 → 공구 폐기" rule of thumb.
+const CHATTER_LIFE_KILL = 0.5
+
+// Dry-cutting penalty on material groups that actually care. N (non-
+// ferrous) is exempt — aluminum is the one group that runs better dry
+// on uncoated carbide (BUE avoidance).
+const DRY_LIFE_DERATE = 0.55
+const DRY_DEMANDING_ISO = new Set(["P", "M", "K", "S", "H"])
+
+// Workholding < 70 is too loose to hide — flagged as a distinct warning
+// even when chatter thresholds haven't fired yet.
+const WORKHOLDING_WARNING_PCT = 70
+
+// Tool-life warnings. <20 min means the operator will swap tools more
+// often than they set up the part; anything under 10 is practically
+// unusable and escalates the warning severity.
+const TOOL_LIFE_WARN_MIN = 20
+const TOOL_LIFE_CRITICAL_MIN = 10
+
+// Efficiency score — MRR_actual / MRR_baseline. Below this ratio we
+// surface "BASELINE 대비 N%" as a productivity warning.
+const EFFICIENCY_WARN_RATIO = 0.4
+
 // ── Input / output types ─────────────────────────────────────────────
+
+export type IsoGroup = "P" | "M" | "K" | "N" | "S" | "H" | "O"
 
 export interface ComputeInput {
   /** Tool Ø in inches — used for RPM = 3.82 SFM / D and L/D. */
@@ -52,6 +99,8 @@ export interface ComputeInput {
   iptBase: number
   /** Specific cutting force (N/mm²) of the material — drives the power estimate. */
   kc: number
+  /** ISO group of the locked material. Drives coolant-compatibility warnings. */
+  isoGroup?: IsoGroup
 
   /** Axial depth of cut in inches (fixed by the locked operation). */
   adocInch: number
@@ -65,6 +114,12 @@ export interface ComputeInput {
   stickoutInch: number
   /** 0..100 — how rigid the workholding setup is. */
   workholdingPct: number
+}
+
+export interface Warning {
+  level: "info" | "warn" | "critical"
+  code: string
+  message: string
 }
 
 export interface ComputeResult {
@@ -81,6 +136,8 @@ export interface ComputeResult {
   stickMul: number
   whMul: number
   tirMul: number
+  /** Aggregate life-side multiplier (TIR × stick × WH × chatter × dry). */
+  lifeMul: number
 
   /** SFM after all coolant / rigidity / stickout / workholding derates. */
   effSFM: number
@@ -106,15 +163,29 @@ export interface ComputeResult {
   /** Pc_kW / spindle.maxKw — >0.8 starts surfacing "부하 위험". */
   pwrPct: number
 
-  /** Taylor-style tool life in minutes, with rigidity / TIR / WH dampers. */
+  /** Taylor-style tool life in minutes, with rigidity / TIR / WH / chatter / dry dampers. */
   toolLife_min: number
 
   /** 0..1 composite score, driven by L/D + TIR + WH. */
   chatterRisk: number
   chatterLevel: "LOW" | "MED" | "HIGH"
 
+  /** 100-part cycle time incl. tool swaps (5 min each) — Infinity when MRR ≤ 0. */
+  cycleTime100_min: number
+  /** Tools consumed in that 100-part run. */
+  toolsNeeded100: number
+
+  /** Ratio vs BASELINE (same tool/material/op, ideal machine knobs). */
+  efficiency: {
+    mrrRatio: number
+    lifeRatio: number
+    cycleRatio: number
+  }
+
   /** Human-readable warnings for the KPI banner + limit panels. */
-  warnings: string[]
+  warnings: Warning[]
+  /** Back-compat plain string array for any consumer that doesn't care about severity. */
+  warningMessages: string[]
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -164,14 +235,31 @@ export function tirDerate(tirMicron: number): number {
   return 0.8
 }
 
+/**
+ * Rigidity → SFM multiplier.
+ *
+ *   r ≥ 80  → 1.00 (holder no longer the bottleneck)
+ *   r < 80  → 0.80..1.00 linear
+ *
+ * The saturation matters for BASELINE ("이상적 조합") — shrink-fit (85)
+ * and milling-chuck (90) both deserve 1.0, otherwise we double-count a
+ * penalty that's already captured in TIR.
+ */
 export function rigidityMul(rigidity: number): number {
-  // rigidity 0..100 → 0.8..1.0 linear. Milling-chuck (90) lands at 0.98.
-  return 0.8 + 0.2 * (rigidity / 100)
+  if (rigidity >= RIGIDITY_SATURATION) return 1.0
+  // Map 0..SATURATION → 0.8..1.0 linearly.
+  return 0.8 + 0.2 * (rigidity / RIGIDITY_SATURATION)
 }
 
 export function whMul(workholdingPct: number): number {
   // 0..100 → 0.85..1.00. Loose vise (60) → 0.94.
   return 0.85 + 0.15 * (workholdingPct / 100)
+}
+
+function coolantCompatibilityDerate(coolantKey: string, iso: IsoGroup | undefined): number {
+  if (coolantKey !== "dry") return 1.0
+  if (!iso || !DRY_DEMANDING_ISO.has(iso)) return 1.0
+  return DRY_LIFE_DERATE
 }
 
 // ── Main compute ─────────────────────────────────────────────────────
@@ -212,18 +300,7 @@ export function computeImpact(input: ComputeInput): ComputeResult {
   const Pc_kW = (MRR_mm3 * input.kc) / (60 * 1e6 * POWER_EFFICIENCY)
   const pwrPct = spindle.maxKw > 0 ? Pc_kW / spindle.maxKw : 0
 
-  // Taylor life, scaled by the same rigidity/TIR/WH dampers — a happy
-  // holder + rigid setup keeps the tool alive longer than Taylor alone says.
-  const Vc_actual_m_min = actualSFM * 0.3048
-  const Vc_ref_m_min = input.sfmBase * 0.3048
-  let toolLife =
-    Vc_actual_m_min > 0
-      ? TAYLOR_T_REF_MIN * Math.pow(Vc_ref_m_min / Vc_actual_m_min, 1 / TAYLOR_N)
-      : TAYLOR_T_REF_MIN
-  toolLife *= tirM * stickM * whM
-  toolLife = clamp(toolLife, 5, 500)
-
-  // Chatter = 50% L/D + 30% TIR + 20% workholding laxity.
+  // Chatter composite. Precompute because the life model needs it.
   const chatterBase =
     (LD / 8) * 0.5 +
     ((holder.tirMicron ?? DEFAULT_HOLDER_TIR_MICRON) / 25) * 0.3 +
@@ -232,25 +309,134 @@ export function computeImpact(input: ComputeInput): ComputeResult {
   const chatterLevel: ComputeResult["chatterLevel"] =
     chatterRisk > 0.6 ? "HIGH" : chatterRisk > 0.35 ? "MED" : "LOW"
 
-  const warnings: string[] = []
+  // Taylor life, stacked with the physically-motivated dampers.
+  const Vc_actual_m_min = actualSFM * 0.3048
+  const Vc_ref_m_min = input.sfmBase * 0.3048
+  let toolLife =
+    Vc_actual_m_min > 0
+      ? TAYLOR_T_REF_MIN * Math.pow(Vc_ref_m_min / Vc_actual_m_min, 1 / TAYLOR_N)
+      : TAYLOR_T_REF_MIN
+  // Mechanical dampers — uneven loading, deflection, fixture laxity.
+  const mechMul = tirM * stickM * whM
+  // Chatter kills tools faster than Taylor says (vibration spalling).
+  const chatterMul = 1 - CHATTER_LIFE_KILL * chatterRisk
+  // Dry on demanding ISO groups — heat accumulation → edge wear.
+  const coolantLifeMul = coolantCompatibilityDerate(input.coolantKey, input.isoGroup)
+  toolLife *= mechMul * chatterMul * coolantLifeMul
+  toolLife = clamp(toolLife, 2, 500)
+
+  const lifeMul = mechMul * chatterMul * coolantLifeMul
+
+  // Cycle-time for 100 parts (50 in³ each, 5 min per tool swap).
+  const { totalMin: cycleTime100, toolsNeeded: toolsNeeded100 } = compute100PartsTime(
+    MRR_inch3,
+    toolLife,
+  )
+
+  // Efficiency vs BASELINE (same tool/material/op, ideal machine knobs).
+  // Recursion-guarded — the engine skips the vs-baseline calc when input
+  // already IS the baseline config (saves a full re-run per call).
+  const isBaselineConfig =
+    input.spindleKey === "vmc-std" &&
+    input.holderKey === "shrink-fit" &&
+    input.coolantKey === "flood" &&
+    input.stickoutInch === 1.5 &&
+    input.workholdingPct === 100
+  let efficiency = { mrrRatio: 1, lifeRatio: 1, cycleRatio: 1 }
+  if (!isBaselineConfig) {
+    const baseline = computeImpact({
+      ...input,
+      spindleKey: "vmc-std",
+      holderKey: "shrink-fit",
+      coolantKey: "flood",
+      stickoutInch: 1.5,
+      workholdingPct: 100,
+    })
+    efficiency = {
+      mrrRatio: baseline.MRR_inch3_min > 0 ? MRR_inch3 / baseline.MRR_inch3_min : 0,
+      lifeRatio: baseline.toolLife_min > 0 ? toolLife / baseline.toolLife_min : 0,
+      cycleRatio:
+        baseline.cycleTime100_min > 0 && Number.isFinite(baseline.cycleTime100_min)
+          ? cycleTime100 / baseline.cycleTime100_min
+          : 0,
+    }
+  }
+
+  // ── Warning collection ────────────────────────────────────────────
+  const warnings: Warning[] = []
+  const push = (level: Warning["level"], code: string, message: string) =>
+    warnings.push({ level, code, message })
+
   if (rpmCappedPct > 0.95) {
-    warnings.push(
+    push(
+      "warn",
+      "rpm-cap",
       `스핀들 Max RPM 도달 (계산 ${Math.round(calcRPM).toLocaleString()} → 실제 ${Math.round(rpmCapped).toLocaleString()})`,
     )
   }
   if (pwrPct > 0.8) {
-    warnings.push(`파워 ${Math.round(pwrPct * 100)}% 소모 — 부하 위험`)
+    push("warn", "power", `파워 ${Math.round(pwrPct * 100)}% 소모 — 부하 위험`)
   }
   if (chatterRisk > 0.6) {
-    warnings.push("채터 위험 HIGH — 진동 · 파손 우려")
+    push("critical", "chatter", "채터 위험 HIGH — 진동 · 파손 우려")
+  } else if (chatterRisk > 0.35) {
+    push("info", "chatter-med", `채터 위험 MED (${Math.round(chatterRisk * 100)}%)`)
   }
   if (LD > 5) {
-    warnings.push(`L/D ${LD.toFixed(1)} — 공구 처짐 우려`)
+    push("warn", "ld", `L/D ${LD.toFixed(1)} — 공구 처짐 우려`)
   }
   const minStick = holder.minStickoutInch ?? DEFAULT_HOLDER_MIN_STICKOUT
   if (input.stickoutInch < minStick) {
-    warnings.push(
+    push(
+      "warn",
+      "min-stickout",
       `Stickout ${input.stickoutInch.toFixed(2)}" — ${holder.label} 최소값 ${minStick.toFixed(2)}" 미만`,
+    )
+  }
+  if (
+    input.coolantKey === "dry" &&
+    input.isoGroup !== undefined &&
+    DRY_DEMANDING_ISO.has(input.isoGroup)
+  ) {
+    push(
+      "warn",
+      "dry-coolant",
+      `Dry 가공 — ${input.isoGroup}군은 무냉각 시 공구 수명 ${Math.round((1 - DRY_LIFE_DERATE) * 100)}% 단축`,
+    )
+  }
+  if (input.workholdingPct < WORKHOLDING_WARNING_PCT) {
+    push(
+      "warn",
+      "workholding-loose",
+      `Workholding ${Math.round(input.workholdingPct)}% — 강성 부족, 진동 전파 위험`,
+    )
+  }
+  if (toolLife < TOOL_LIFE_CRITICAL_MIN) {
+    push(
+      "critical",
+      "life-critical",
+      `Tool life ${toolLife.toFixed(0)} min — 교체 빈도 극심 (BASELINE 대비 ${Math.round(efficiency.lifeRatio * 100)}%)`,
+    )
+  } else if (toolLife < TOOL_LIFE_WARN_MIN) {
+    push(
+      "info",
+      "life-short",
+      `Tool life ${toolLife.toFixed(0)} min — 짧음 (BASELINE 대비 ${Math.round(efficiency.lifeRatio * 100)}%)`,
+    )
+  }
+  if (!isBaselineConfig && efficiency.mrrRatio < EFFICIENCY_WARN_RATIO) {
+    push(
+      "warn",
+      "low-mrr",
+      `MRR ${Math.round(efficiency.mrrRatio * 100)}% (BASELINE 대비) — 생산성 저하`,
+    )
+  }
+  const holderMaxRpmLimit = holder.maxRpm ?? DEFAULT_HOLDER_MAX_RPM
+  if (calcRPM > holderMaxRpmLimit && holderMaxRpmLimit < spindle.maxRpm) {
+    push(
+      "warn",
+      "holder-rpm-cap",
+      `${holder.label} Max ${holderMaxRpmLimit.toLocaleString()} RPM — 스핀들보다 먼저 한계 도달`,
     )
   }
 
@@ -264,6 +450,7 @@ export function computeImpact(input: ComputeInput): ComputeResult {
     stickMul: stickM,
     whMul: whM,
     tirMul: tirM,
+    lifeMul,
     effSFM,
     effIPT,
     calcRPM,
@@ -279,7 +466,11 @@ export function computeImpact(input: ComputeInput): ComputeResult {
     toolLife_min: toolLife,
     chatterRisk,
     chatterLevel,
+    cycleTime100_min: cycleTime100,
+    toolsNeeded100,
+    efficiency,
     warnings,
+    warningMessages: warnings.map((w) => w.message),
   }
 }
 
@@ -345,6 +536,35 @@ export const IMPACT_PRESETS: Record<string, ImpactPreset> = {
   },
 }
 
+// ── Default locked-context — used when the lab is opened standalone ──
+
+export const DEFAULT_LOCKED_TOOL = {
+  code: "942332",
+  seriesLabel: "Harvey Variable Helix Aluminum — Square",
+  diameter: 12.7,
+  diameterInch: 0.5,
+  flutes: 3,
+  coating: "Uncoated",
+  sourceUrl: "https://harveyperformance.widen.net/content/gpcwfoqsfl/pdf/SF_942300.pdf",
+} as const
+
+export const DEFAULT_LOCKED_MATERIAL = {
+  label: "Wrought Aluminum 6061-T6 (ISO N)",
+  sfmBase: 1500,
+  iptBase: 0.00866,
+  fzBaseMetric: 0.22,
+  kc: 800,
+  isoGroup: "N" as IsoGroup,
+}
+
+export const DEFAULT_LOCKED_OPERATION = {
+  type: "finishing" as const,
+  adocRatio: 0.1,
+  rdocRatio: 0.5,
+  adocInch: 0.05,
+  rdocInch: 0.25,
+}
+
 // ── Number formatters for the UI ─────────────────────────────────────
 
 export const fmt = {
@@ -358,6 +578,13 @@ export const fmt = {
     Number.isFinite(n) ? `${(n * 100).toFixed(dp)}%` : "—",
   sign: (n: number, dp = 1): string =>
     !Number.isFinite(n) ? "—" : n >= 0 ? `+${n.toFixed(dp)}` : n.toFixed(dp),
+  duration: (minutes: number): string => {
+    if (!Number.isFinite(minutes)) return "—"
+    if (minutes < 60) return `${minutes.toFixed(0)} min`
+    const h = Math.floor(minutes / 60)
+    const m = Math.round(minutes - h * 60)
+    return `${h}h ${m}m`
+  },
 }
 
 // ── Internal ─────────────────────────────────────────────────────────
