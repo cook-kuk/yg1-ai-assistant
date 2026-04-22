@@ -1,0 +1,26 @@
+{
+  "artifactType": "recommendation",
+  "resolutionStatus": "resolved_exact",
+  "primaryRecommendation": {
+    "code": "E5D7004010",
+    "seriesName": "E5D70",
+    "brand": "YG-1",
+    "whySelected": [
+      "Matches 10 mm diameter constraint",
+      "Matches 4-flute preference",
+      "Fits stainless-steel finishing scenario"
+    ]
+  },
+  "alternatives": [
+    {
+      "code": "E5D7004020",
+      "seriesName": "E5D70",
+      "brand": "YG-1"
+    }
+  ],
+  "counts": {
+    "displayedCount": 2,
+    "artifactPoolCount": 3
+  },
+  "note": "Illustrative placeholder. displayedCount must not be described as total matched count."
+}

@@ -1,0 +1,19 @@
+{
+  "artifactType": "comparison",
+  "selectedCodes": [
+    "E5D7004010",
+    "E5D7004020"
+  ],
+  "criteria": [
+    "diameter",
+    "flute",
+    "toolSubtype",
+    "seriesName"
+  ],
+  "summary": {
+    "sameSeries": true,
+    "sameDiameter": true,
+    "differentSku": true
+  },
+  "note": "Illustrative placeholder for lastComparisonArtifact shape."
+}

@@ -84,6 +84,8 @@ export function estimateHeat(params: {
   ae: number; // mm
   D: number; // mm
   materialGroup: string;
+  thermalConductivityWmk?: number;
+  thermalMultiplier?: number;
   ambientC?: number;
 }): HeatEstimation {
   const { Pc, Vc, fz, ap, ae, D } = params;
@@ -115,12 +117,15 @@ export function estimateHeat(params: {
   const chipDeltaT = chipHeatW / denomChip;
   const chipTempC = ambient + chipDeltaT;
 
-  const toolMult = TOOL_TEMP_MULT[iso] ?? 1.3;
+  const conductivity = Math.max(1, params.thermalConductivityWmk ?? 0);
+  const conductivityFactor = conductivity > 0 ? clamp(Math.sqrt((iso === "N" ? 150 : iso === "M" ? 16 : iso === "S" ? 10 : 50) / conductivity), 0.75, 1.9) : 1;
+  const materialThermalFactor = params.thermalMultiplier ?? conductivityFactor;
+  const toolMult = (TOOL_TEMP_MULT[iso] ?? 1.3) * materialThermalFactor;
   const toolTempC = chipTempC * toolMult;
 
   // workpiece: 1 kg lump assumption, 0.3 coupling factor
   const workpieceHeatW = totalPowerW * (1 - chipHeatPct / 100);
-  const workpieceDeltaT = (workpieceHeatW * 0.3) / (1 * cHeat);
+  const workpieceDeltaT = ((workpieceHeatW * 0.3) / (1 * cHeat)) * materialThermalFactor;
   const workpieceTempC = ambient + workpieceDeltaT;
 
   return {

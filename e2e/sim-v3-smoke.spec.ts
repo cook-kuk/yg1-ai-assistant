@@ -33,8 +33,15 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     expect(hydrationErrors).toEqual([])
     await expect(page.getByRole("heading", { name: "가공조건 시뮬레이터" })).toBeVisible()
     await expect(page.getByText("Director-Ready")).toBeVisible()
-    await expect(page.getByText("Harvey MAP")).toBeVisible()
+    await expect(page.getByText("🇺🇸 Harvey MAP")).toBeVisible()
     await expect(page.getByText("🇰🇷 + YG-1 Original")).toBeVisible()
+    await expect(page.getByRole("button", { name: /📐 도면 업로드/ })).toBeVisible()
+    await expect(page.getByRole("button", { name: /📐 계산식 보기 \(현재값 대입 상세\)/ })).toBeVisible()
+    await expect(page.getByText("① 회전수 · 이송 (머신 언어)")).toBeVisible()
+    await expect(page.getByRole("button", { name: /🎯 Harvey 도메인 지식 · 진단 가이드/ })).toBeVisible()
+    await expect(page.getByText("📊 재질별 SFM/IPT 권장 출발값")).toBeVisible()
+    await expect(page.getByRole("button", { name: /🚀 차세대 기능 \(MAP 초월\)/ })).toBeVisible()
+    await expect(page.getByTestId("ai-coach-panel")).toBeVisible()
   })
 
   test("비주얼 토글 스트립 존재", async ({ page }) => {
@@ -43,6 +50,8 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(page.getByRole("button", { name: "🔄 3D 엔드밀" })).toBeVisible()
     await expect(page.getByRole("button", { name: "📐 도면", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "💰 Break-Even" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "🧱 피삭재 영향" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "💠 Cost Surface" })).toBeVisible()
   })
 
   test("비주얼 토글로 실시간 절삭 패널을 열면 스테이지에서 바로 렌더된다", async ({ page }) => {
@@ -53,6 +62,44 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     const livePanel = page.locator('[data-visual-panel="live"]')
     await expect(livePanel).toBeVisible()
     await expect(livePanel.getByText("🎬 실시간 절삭 시뮬레이션")).toBeVisible()
+    await expect(livePanel.locator("[data-removal-signature]").first()).toHaveAttribute("data-removal-signature", /x.*-r\d+-f\d+-/)
+  })
+
+  test("Cost Surface 패널은 화려한 3D 원가 지형을 연다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    await page.getByRole("button", { name: /💠 Cost Surface/ }).click()
+
+    const panel = page.locator('[data-visual-panel="cost-surface"]')
+    await expect(panel).toBeVisible()
+    await expect(panel.getByText("💠 Cost Surface 3D")).toBeVisible()
+    await expect(panel.getByText(/Taylor-Ackoff/)).toBeVisible()
+  })
+
+  test("피삭재 영향 패널은 세부 재질 기반 결과를 보여준다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    await page.getByRole("button", { name: /🧱 피삭재 영향/ }).click()
+
+    const panel = page.locator('[data-visual-panel="workpiece-impact"]')
+    await expect(panel).toBeVisible()
+    await expect(panel.getByTestId("workpiece-impact-panel")).toBeVisible()
+    await expect(panel.getByText("Workpiece Impact")).toBeVisible()
+    await expect(panel.getByText(/kc_eff/i)).toBeVisible()
+  })
+
+  test("3D 씬의 A/B 비교 모드는 split view와 양쪽 패널을 보여준다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    await page.getByRole("button", { name: /🎮 3D 씬/ }).click()
+    await page.locator("label", { hasText: "🔀 A/B 비교 모드" }).click()
+
+    const compareView = page.getByTestId("compare-view")
+    await expect(compareView).toBeVisible()
+    await expect(page.getByTestId("compare-pane-sky")).toBeVisible()
+    await expect(page.getByTestId("compare-pane-amber")).toBeVisible()
+    await expect(page.getByText(/A · Live/)).toBeVisible()
+    await expect(page.getByText(/B · Pitch/)).toBeVisible()
   })
 
   test("LIVE 상관관계 팝업 + 주요 파라미터 맵 고정", async ({ page }) => {

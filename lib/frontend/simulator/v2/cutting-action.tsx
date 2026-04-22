@@ -12,10 +12,16 @@ interface CuttingActionProps {
   ap: number
   ae: number
   toolPath: string  // full-slotting, side-milling, etc.
+  stockWidthMm?: number
+  stockHeightMm?: number
+  roughPasses?: number
+  finishPasses?: number
   className?: string
 }
 
-export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae, toolPath, className }: CuttingActionProps) {
+export const CuttingAction = memo(function CuttingAction({
+  shape, D, LOC, ap, ae, toolPath, stockWidthMm = 50, stockHeightMm = 20, roughPasses = 1, finishPasses = 2, className,
+}: CuttingActionProps) {
   const W = 200
   const H = 260
   const MIN_VISUAL_AP_PX = 4
@@ -28,8 +34,10 @@ export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae
   const apPxVisual = ap > 0 ? Math.max(apPx, MIN_VISUAL_AP_PX) : 0
   const aePxVisual = ae > 0 ? Math.max(aePx, MIN_VISUAL_AE_PX) : 0
 
-  const blockW = 120
-  const blockH = 100
+  const stockWidthRatio = Math.max(0.55, Math.min(1, stockWidthMm / Math.max(stockWidthMm, stockHeightMm * 2)))
+  const stockHeightRatio = Math.max(0.45, Math.min(1, stockHeightMm / Math.max(D * 2, 1)))
+  const blockW = 120 * stockWidthRatio
+  const blockH = 100 * stockHeightRatio
   const blockX = (W - blockW) / 2
   const blockY = H - blockH - 30
 
@@ -120,6 +128,9 @@ export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae
 
       {/* 스핀들 회전 방향 */}
       <text x={toolCx} y={toolTop - 10} textAnchor="middle" fontSize={10} fill="#2563eb">↻ n</text>
+      <text x={blockX + blockW / 2} y={blockY + blockH + 26} textAnchor="middle" fontSize={8} fill="#64748b">
+        stock {stockWidthMm.toFixed(0)}w × {stockHeightMm.toFixed(0)}h · rough {roughPasses}P · finish {finishPasses}P
+      </text>
     </svg>
   )
 })

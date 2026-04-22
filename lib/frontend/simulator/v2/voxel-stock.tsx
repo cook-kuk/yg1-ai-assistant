@@ -18,6 +18,12 @@ import * as THREE from "three"
 // `disposeBoundsTree` / `acceleratedRaycast`) and fall back gracefully at
 // runtime if the package isn't actually resolvable.
 import * as MeshBVH from "three-mesh-bvh"
+// `mergeVertices` shares duplicate (position + attributes) corner vertices so a
+// follow-up `computeVertexNormals()` produces smoothed, area-weighted normals
+// across coplanar / adjacent quads. Used only on the optional smooth-surface
+// path. Imported statically because three already ships this helper alongside
+// every install (no extra dependency).
+import { mergeVertices as bguMergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js"
 
 // ─────────────────────────────────────────────
 // SSOT constants
@@ -168,6 +174,24 @@ export interface VoxelStockProps {
    * on the next rebuild or on unmount.
    */
   onGeometryUpdate?: (geom: THREE.BufferGeometry) => void
+  /**
+   * When true, the exposed-face voxel mesh is post-processed with
+   * `BufferGeometryUtils.mergeVertices` + `computeVertexNormals()` every time
+   * it is (re)built. This shares duplicate corner vertices across coplanar and
+   * adjacent quads and then derives smooth, area-weighted vertex normals,
+   * giving a noticeably smoother shaded surface without needing a true
+   * marching-cubes implementation.
+   *
+   * Non-breaking: defaults to false → behavior is bit-identical to prior
+   * releases. Falls back silently to the raw blocky mesh if merging throws for
+   * any reason (e.g. degenerate attributes) — logged once per rebuild.
+   *
+   * Note: per-vertex color / heat gradient is preserved because `mergeVertices`
+   * only merges vertices with identical position AND all attributes (including
+   * `color` / `heat`), so gradient discontinuities at carve boundaries remain
+   * sharp while uniform regions smooth out.
+   */
+  smoothSurface?: boolean
 }
 
 // Hard upper bound on any geometry-derived voxelization (nx*ny*nz).
@@ -725,6 +749,7 @@ function buildGeometry(
   baseRGB: [number, number, number],
   thermalIntensity: number,
   showRaOverlay: boolean,
+  smoothSurface: boolean = false,
 ): THREE.BufferGeometry {
   const [L, W, H] = dimensions
   const { nx, ny, nz, vx, vy, vz, data, temperature, raValue } = grid
@@ -844,9 +869,45 @@ function buildGeometry(
   // using the maximum stock temperature instead.
   geom.setAttribute("heat", new THREE.BufferAttribute(heats, 1))
   geom.setIndex(new THREE.BufferAttribute(indices, 1))
-  geom.computeBoundingSphere()
-  geom.computeBoundingBox()
-  return geom
+
+  // Optional smoothing pass — mergeVertices collapses duplicate corner vertices
+  // that share all attributes (position + normal + color + heat), then we
+  // recompute vertex normals so shaders get an area-weighted average across
+  // coplanar / adjacent quads. Net visual effect: the voxel blocks gain soft
+  // shaded transitions while the Ra/thermal vertex-color pipeline remains
+  // intact (gradient discontinuities keep corners un-merged → sharp at cut
+  // boundaries, smooth elsewhere).
+  //
+  // Guarded: if merging throws for any reason we fall back to the raw blocky
+  // geometry so the simulator keeps rendering.
+  let finalGeom = geom
+  if (smoothSurface && faceCount > 0) {
+    try {
+      const merged = bguMergeVertices(geom, 1e-4)
+      if (merged && merged !== geom) {
+        // mergeVertices returns a new BufferGeometry; the source geom's GPU
+        // buffers are still fresh (nothing was uploaded yet) so just drop it.
+        geom.dispose()
+        merged.computeVertexNormals()
+        finalGeom = merged
+      } else {
+        // No merge happened (e.g. all vertices already unique under the
+        // attribute hash). Still recompute normals for consistent shading.
+        geom.computeVertexNormals()
+      }
+    } catch (err) {
+      // Log once and fall back to the blocky mesh.
+      console.warn(
+        "[VoxelStock] smoothSurface mergeVertices failed; using blocky mesh.",
+        err,
+      )
+      finalGeom = geom
+    }
+  }
+
+  finalGeom.computeBoundingSphere()
+  finalGeom.computeBoundingBox()
+  return finalGeom
 }
 
 export function VoxelStock({
@@ -863,6 +924,7 @@ export function VoxelStock({
   cornerRadius = 0.4,
   showRaOverlay = false,
   onGeometryUpdate,
+  smoothSurface = false,
 }: VoxelStockProps): React.ReactElement {
   const meshRef = useRef<THREE.Mesh>(null)
   const gridRef = useRef<VoxelGrid | null>(null)
@@ -918,11 +980,12 @@ export function VoxelStock({
       [initColor.r, initColor.g, initColor.b],
       thermalIntensity,
       showRaOverlay,
+      smoothSurface,
     )
     // NOTE: we intentionally DO NOT include `material` / `thermalIntensity` /
-    // `showRaOverlay` in the dep list — changes to any of these should NOT
-    // blow away the current carving state. They are re-read on the next
-    // throttled rebuild inside useFrame via the refs below.
+    // `showRaOverlay` / `smoothSurface` in the dep list — changes to any of
+    // these should NOT blow away the current carving state. They are re-read
+    // on the next throttled rebuild inside useFrame via the refs below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dimensions, resolution, seedGeometry])
 
@@ -973,6 +1036,10 @@ export function VoxelStock({
   cornerRadiusRef.current = cornerRadius
   const showRaOverlayRef = useRef(showRaOverlay)
   showRaOverlayRef.current = showRaOverlay
+  // Mirror smoothSurface through a ref so the throttled useFrame rebuild path
+  // sees the latest value without needing to depend on the prop identity.
+  const smoothSurfaceRef = useRef(smoothSurface)
+  smoothSurfaceRef.current = smoothSurface
   // Ra [µm] = (fz² / (32·r_nose)) × 1000. Guard against r_nose ≤ 0.
   const raUm = useMemo(() => {
     const r = cornerRadius > 0 ? cornerRadius : 0.4
@@ -1047,6 +1114,7 @@ export function VoxelStock({
         baseRGBRef.current,
         intensity,
         showRaOverlayRef.current,
+        smoothSurfaceRef.current,
       )
       const old = mesh.geometry
       mesh.geometry = next
@@ -1059,10 +1127,11 @@ export function VoxelStock({
     }
   })
 
-  // When the overlay toggle flips, we need to re-color the mesh right away
-  // — otherwise the user would only see the switch take effect on the next
-  // carve or heat-decay rebuild. We force a rebuild outside useFrame via a
-  // tiny dedicated effect that skips the throttle.
+  // When the overlay toggle or the smooth-surface toggle flips, re-color /
+  // re-normalize the mesh right away — otherwise the user would only see the
+  // switch take effect on the next carve or heat-decay rebuild. We force a
+  // rebuild outside useFrame via a tiny dedicated effect that skips the
+  // throttle.
   useEffect(() => {
     const grid = gridRef.current
     const mesh = meshRef.current
@@ -1073,6 +1142,7 @@ export function VoxelStock({
       baseRGBRef.current,
       thermalIntensityRef.current,
       showRaOverlay,
+      smoothSurface,
     )
     const old = mesh.geometry
     mesh.geometry = next
@@ -1081,7 +1151,7 @@ export function VoxelStock({
     flippedSinceBuildRef.current = 0
     framesSinceBuildRef.current = 0
     onGeometryUpdateRef.current?.(next)
-  }, [showRaOverlay])
+  }, [showRaOverlay, smoothSurface])
 
   // Also dispose any live geometry on full unmount. Additionally drop the
   // grid reference so the parallel typed arrays (`data`, `temperature`,

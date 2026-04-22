@@ -1,0 +1,88 @@
+{
+  "taskKind": "recommendation",
+  "lastAction": "recommend_products",
+  "activeSeriesGroupKey": "E5D70",
+  "displayedProducts": [
+    {
+      "code": "E5D7004010",
+      "seriesName": "E5D70",
+      "brand": "YG-1",
+      "toolSubtype": "square",
+      "diameter": 10,
+      "flute": 4,
+      "score": 0.94,
+      "matchStatus": "resolved_exact"
+    },
+    {
+      "code": "E5D7004020",
+      "seriesName": "E5D70",
+      "brand": "YG-1",
+      "toolSubtype": "square",
+      "diameter": 10,
+      "flute": 4,
+      "score": 0.91,
+      "matchStatus": "resolved_exact"
+    }
+  ],
+  "displayedOptions": [
+    {
+      "kind": "series_group",
+      "label": "E5D70",
+      "value": "E5D70",
+      "candidateCount": 2
+    }
+  ],
+  "displayedSeriesGroups": [
+    {
+      "seriesKey": "E5D70",
+      "seriesName": "E5D70",
+      "candidateCount": 2
+    }
+  ],
+  "uiNarrowingPath": [
+    {
+      "kind": "filter",
+      "field": "material",
+      "label": "Workpiece",
+      "value": "stainless steel",
+      "candidateCount": 12
+    },
+    {
+      "kind": "filter",
+      "field": "diameter",
+      "label": "Diameter",
+      "value": "10 mm",
+      "candidateCount": 4
+    },
+    {
+      "kind": "group",
+      "field": "series",
+      "label": "Series",
+      "value": "E5D70",
+      "candidateCount": 2
+    }
+  ],
+  "lastRecommendationArtifact": [
+    {
+      "code": "E5D7004010",
+      "seriesName": "E5D70"
+    },
+    {
+      "code": "E5D7004020",
+      "seriesName": "E5D70"
+    },
+    {
+      "code": "ALTERNATE_PLACEHOLDER",
+      "seriesName": "ALT10"
+    }
+  ],
+  "lastComparisonArtifact": null,
+  "checkpointHistory": [
+    {
+      "action": "recommend_products",
+      "displayedCount": 2,
+      "artifactCount": 3
+    }
+  ],
+  "note": "Illustrative placeholder based on observed session-state fields."
+}

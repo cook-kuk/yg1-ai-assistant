@@ -52,6 +52,24 @@ const SPARK_VC_RED = 400
 // 진동
 const VIBRATION_AMPLITUDE_PX = 2
 
+// ─────────────────────────────────────────────
+// 안정화 (댐핑) — raw prop 대신 lerp 된 값으로 렌더해 Vf/rpm 슬라이더를
+// 확 움직였을 때 공구가 급가속/급감속하며 딱딱해 보이는 것을 방지.
+// tau 는 exponential decay 시간상수 (초) — 90% 도달 ≈ 2.3 × tau.
+const FEED_SMOOTH_TAU_SEC = 0.16
+const RPM_SMOOTH_TAU_SEC = 0.18
+
+// 부러짐 애니메이션 임계. breakProgress 0→1 누적, 최대치에서 crack
+// 오버레이 + 카오틱 쉐이크 + 적색 파편 버스트 발동.
+const BREAK_VC_THRESHOLD = 380        // m/min — chatter high 와 AND 조건
+const BREAK_FEED_RATIO_THRESHOLD = 7  // Vf / (diameter·60) — OR 조건
+const BREAK_RAMP_SEC = 1.5            // 트리거 지속 시 0→1 까지 걸리는 시간
+const BREAK_DECAY_SEC = 0.9           // 해제 시 1→0 감쇠
+const BREAK_BURST_INTERVAL_MS = 180
+
+// 경로 양끝 fade 구간 — 하드 리셋 시 텔레포트 티 안 나게.
+const PATH_EDGE_FADE_RATIO = 0.05
+
 // 컬러 팔레트
 const STOCK_TINT: Record<string, string> = {
   P: "#6b7280", // steel-gray
@@ -87,6 +105,12 @@ export interface LiveCuttingSceneProps {
   bueRisk?: BueRisk
   chipMorph?: ChipMorph
   viewMode?: "side" | "top"
+  stockLengthMm?: number
+  stockWidthMm?: number
+  stockHeightMm?: number
+  roughPasses?: number
+  finishPasses?: number
+  toolPathStrategy?: "zigzag" | "spiral" | "trochoidal" | "adaptive" | "slot"
   darkMode?: boolean
   width?: number
   height?: number
@@ -228,6 +252,12 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     bueRisk = "none",
     chipMorph = "continuous",
     viewMode = "side",
+    stockLengthMm = 80,
+    stockWidthMm = 50,
+    stockHeightMm = 20,
+    roughPasses = 1,
+    finishPasses = 2,
+    toolPathStrategy = "zigzag",
     darkMode = false,
     width = DEFAULT_W,
     height = DEFAULT_H,
@@ -245,6 +275,18 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
   const thetaRef = useRef<number>(0)
   const prevTsRef = useRef<number>(0)
   const propsRef = useRef(props)
+
+  // 댐핑 refs — smoothedVf/Rpm 를 tick() 에서 lerp 하여 렌더 (raw prop 대신).
+  // 슬라이더 큰 변화에도 공구 속도가 tau 시간에 걸쳐 부드럽게 수렴.
+  const smoothedVfRef = useRef<number>(props.Vf)
+  const smoothedRpmRef = useRef<number>(props.rpm)
+
+  // 부러짐 진행도 0..1. 극한 조건에서 누적 → 공구 렌더에 crack + shake +
+  // 파편 버스트. Badge 는 5Hz throttled state 로 노출 (React 리렌더 최소화).
+  const breakProgressRef = useRef<number>(0)
+  const lastBreakBurstRef = useRef<number>(0)
+  const lastBadgeUpdateRef = useRef<number>(0)
+  const [breakBadgeLevel, setBreakBadgeLevel] = useState<"safe" | "warn" | "danger">("safe")
 
   const [paused, setPaused] = useState<boolean>(false)
   const pausedRef = useRef<boolean>(false)
@@ -320,6 +362,43 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
 
     const p = propsRef.current
 
+    // ─── 댐핑: Vf/rpm 을 tau 시간상수로 lerp 하여 smoothed 값 유지 ──
+    // 슬라이더 급변에도 공구가 jerky 하지 않게. 렌더·스폰·피드 계산에
+    // 아래 smVf/smRpm 사용 (raw p.Vf/p.rpm 대신).
+    const vfAlpha = 1 - Math.exp(-dt / FEED_SMOOTH_TAU_SEC)
+    const rpmAlpha = 1 - Math.exp(-dt / RPM_SMOOTH_TAU_SEC)
+    smoothedVfRef.current += (p.Vf - smoothedVfRef.current) * vfAlpha
+    smoothedRpmRef.current += (p.rpm - smoothedRpmRef.current) * rpmAlpha
+    const smVf = smoothedVfRef.current
+    const smRpm = smoothedRpmRef.current
+
+    // ─── 부러짐 진행도 업데이트 ────────────────────────────────────
+    // 트리거 조건:
+    //   (A) chatterRisk high AND Vc > 380 m/min
+    //   (B) feedRatio = Vf / (D·60) > 7  (초고속 feed 대비 소경)
+    // 지속되면 BREAK_RAMP_SEC 에 걸쳐 0→1, 해제되면 DECAY_SEC 에 1→0.
+    const feedRatio = p.diameter > 0 ? p.Vf / (p.diameter * 60) : 0
+    const breakTrigger =
+      (p.chatterRisk === "high" && p.Vc > BREAK_VC_THRESHOLD) ||
+      feedRatio > BREAK_FEED_RATIO_THRESHOLD
+    breakProgressRef.current = clamp(
+      breakTrigger
+        ? breakProgressRef.current + dt / BREAK_RAMP_SEC
+        : breakProgressRef.current - dt / BREAK_DECAY_SEC,
+      0,
+      1,
+    )
+    const breakProg = breakProgressRef.current
+
+    // Badge state 는 5Hz 로 throttle — RAF 마다 setState 하면 React
+    // 리렌더가 폭증하므로 200ms 간격으로만 전이 반영.
+    if (ts - lastBadgeUpdateRef.current > 200) {
+      lastBadgeUpdateRef.current = ts
+      const nextLevel: "safe" | "warn" | "danger" =
+        breakProg >= 0.7 ? "danger" : breakProg >= 0.35 ? "warn" : "safe"
+      setBreakBadgeLevel(prev => (prev === nextLevel ? prev : nextLevel))
+    }
+
     // Background
     ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, W, H)
@@ -349,8 +428,15 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     // Stock geometry
     const stockX = STOCK.xPad
     const stockY = H * STOCK.topRatio
-    const stockW = W - STOCK.xPad * 2
-    const stockH = H - stockY - STOCK.bottomPad
+    const stockLengthSafe = Math.max(10, p.stockLengthMm ?? stockLengthMm)
+    const stockWidthSafe = Math.max(6, p.stockWidthMm ?? stockWidthMm)
+    const stockHeightSafe = Math.max(3, p.stockHeightMm ?? stockHeightMm)
+    const stockEnvelopeW = W - STOCK.xPad * 2
+    const stockEnvelopeH = H - stockY - STOCK.bottomPad
+    const stockLengthRatio = clamp(stockLengthSafe / Math.max(stockLengthSafe, stockWidthSafe), 0.45, 1)
+    const stockHeightRatio = clamp(stockHeightSafe / Math.max(stockLengthSafe * 0.35, 1), 0.12, 0.5)
+    const stockW = clamp(stockEnvelopeW * stockLengthRatio, stockEnvelopeW * 0.58, stockEnvelopeW)
+    const stockH = clamp(stockEnvelopeH * (0.45 + stockHeightRatio), stockEnvelopeH * 0.28, stockEnvelopeH * 0.88)
     const tint = stockTintForGroup(p.materialGroup)
 
     // Tool path — x move by Vf
@@ -381,11 +467,16 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
 
     if (viewMode === "top") {
       const topStockY = H * 0.22
-      const topStockH = H * 0.52
+      const topStockH = clamp(H * (0.22 + Math.min(0.38, stockWidthSafe / Math.max(stockLengthSafe, 1) * 0.42)), H * 0.28, H * 0.58)
       const topToolHalfW = aePx * 0.5
       const topToolHalfH = toolRadius * 0.68
       const topRowPitch = Math.max(aePx * 0.95, 12)
-      const topRowCount = Math.max(2, Math.floor((topStockH - aePx) / topRowPitch) + 1)
+      const widthDrivenRows = Math.ceil(stockWidthSafe / Math.max(p.ae, 0.2))
+      const topRowCount = clamp(
+        Math.max(2, Math.floor((topStockH - aePx) / topRowPitch) + 1, widthDrivenRows, (p.roughPasses ?? roughPasses) * 2),
+        2,
+        18,
+      )
       const laneProgress = linearProgress * topRowCount
       const currentLane = Math.min(topRowCount - 1, Math.floor(laneProgress))
       const laneLocalProgress = clamp(laneProgress - currentLane, 0, 1)
@@ -789,13 +880,13 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
   const overlayBottomRight = useMemo(
     () =>
       compact
-        ? `Z${Math.round(flutes)} · helix ${Math.round(helixAngle)}°`
-        : `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°${viewMode === "top" ? " · zigzag scan" : ""}`,
-    [chipMorph, chatterRisk, helixAngle, viewMode, compact, flutes],
+        ? `R${roughPasses}/F${finishPasses} · ${toolPathStrategy}`
+        : `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°${viewMode === "top" ? ` · ${toolPathStrategy === "slot" ? "slot scan" : toolPathStrategy}` : ""}`,
+    [chipMorph, chatterRisk, helixAngle, viewMode, compact, flutes, roughPasses, finishPasses, toolPathStrategy],
   )
   const overlayBottomLeft = useMemo(
-    () => `Z${Math.round(flutes)} · ${Math.round(helixAngle)}° · ${Math.round(stickoutMm)}mm`,
-    [flutes, helixAngle, stickoutMm],
+    () => `Z${Math.round(flutes)} · ${Math.round(helixAngle)}° · ${Math.round(stickoutMm)}mm · ${Math.round(stockLengthMm)}×${Math.round(stockWidthMm)}×${Math.round(stockHeightMm)}`,
+    [flutes, helixAngle, stickoutMm, stockLengthMm, stockWidthMm, stockHeightMm],
   )
   const flutePatternText = useMemo(
     () => {
@@ -813,6 +904,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     <div
       ref={rootRef}
       data-live-state={animationState}
+      data-removal-signature={`${Math.round(stockLengthMm)}x${Math.round(stockWidthMm)}x${Math.round(stockHeightMm)}-r${roughPasses}-f${finishPasses}-${toolPathStrategy}`}
       style={{
         position: "relative",
         width,

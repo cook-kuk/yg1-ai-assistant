@@ -72,6 +72,9 @@ import FeatureExplainer from "./feature-explainer"
 import { AiQueryBar } from "./ai-query-bar"
 import { AiOptimizeButton } from "./ai-optimize-button"
 import { AiWarningExplain } from "./ai-warning-explain"
+import { deriveWarningAdjustment } from "./ai-warning-adjust"
+import { resolveWorkpieceMaterialImpact } from "./workpiece-material-model"
+import { WorkpieceImpactPanel } from "./workpiece-impact-panel"
 import VoiceInputButton from "./voice-input-button"
 import SessionExport from "./session-export"
 import { AiAutoAgentPanel } from "./ai-auto-agent-panel"
@@ -90,6 +93,7 @@ import { ToolSequencePanel, DEFAULT_TOOL_SEQUENCE, type ToolSequenceStep } from 
 import { PresetScenarios, type Scenario as PresetScenario } from "./preset-scenarios"
 import { WorkholdingSlider } from "./workholding-slider"
 import { AiCoachPanel } from "./ai-coach-panel"
+import { AutoAdviceEngine, type AdviceSeverity } from "./auto-advice-engine"
 import { ToolLifeScenario } from "./tool-life-scenario"
 import { HARVEY_REPLACEMENT_PRESETS, MultiToolCompare, getToolOptionById, type ToolOption } from "./multi-tool-compare"
 import { LearningMode } from "./learning-mode"
@@ -98,6 +102,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import SoundEngine from "./sound-engine"
 // Phase-D — 공구 궤적 녹화/재생 (replay timeline)
 import { ReplayTimeline, REPLAY_SPEEDS, type ReplayTimelineHandle } from "./replay-timeline"
+// Split-screen A/B 비교 모드 — 좌/우 두 개의 씬을 동시에 렌더
+import { CompareView } from "./compare-view"
 
 // ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
@@ -120,6 +126,10 @@ type VoxelStockTrackedProps = {
   fz?: number
   cornerRadius?: number
   showRaOverlay?: boolean
+  // When true, VoxelStock applies a mergeVertices + computeVertexNormals pass
+  // to its exposed-face mesh so the blocky voxel surface shades as a smoother,
+  // continuous hull. Non-breaking / optional — VoxelStock owns the default.
+  smoothSurface?: boolean
   // Live carved-mesh geometry handoff (for 3D export). Fires each rebuild.
   onGeometryUpdate?: (geom: BufferGeometry) => void
 }
@@ -165,6 +175,7 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
         fz,
         cornerRadius,
         showRaOverlay,
+        smoothSurface,
         onGeometryUpdate,
       }: VoxelStockTrackedProps) => {
         const stableTool = useRef<[number, number, number]>([
@@ -193,6 +204,7 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
               fz={fz}
               cornerRadius={cornerRadius}
               showRaOverlay={showRaOverlay}
+              smoothSurface={smoothSurface}
               onGeometryUpdate={onGeometryUpdate}
             />
           </group>
@@ -235,6 +247,7 @@ const CheatSheetPanel = dynamic(() => import("./cheat-sheet-panel"), { ssr: fals
 const AdvancedMetricsPanel = dynamic(() => import("./advanced-metrics-panel"), { ssr: false })
 const BreakEvenChart = dynamic(() => import("./break-even-chart"), { ssr: false })
 const StabilityLobeDiagram = dynamic(() => import("./stability-lobe-diagram"), { ssr: false })
+const CostSurface3D = dynamic(() => import("./cost-surface-3d"), { ssr: false, loading: () => <div className="h-[440px] flex items-center justify-center text-sm text-violet-400">💠 Cost Surface 3D 로딩중...</div> })
 const CostWaterfallChart = dynamic(() => import("./cost-waterfall-chart"), { ssr: false })
 const WearProgressionAnimation = dynamic(() => import("./wear-progression-animation"), { ssr: false })
 const ChipMorphology3D = dynamic(() => import("./chip-morphology-3d"), { ssr: false })
@@ -323,6 +336,13 @@ function useViewportLatch<T extends HTMLElement>() {
   }, [seen])
 
   return { ref, seen }
+}
+function coerceFluteCount(value: number): 2 | 3 | 4 | 5 | 6 {
+  if (value <= 2) return 2
+  if (value <= 3) return 3
+  if (value <= 4) return 4
+  if (value <= 5) return 5
+  return 6
 }
 const ENDMILL_SHAPES: Array<{ key: EndmillShape; label: string }> = [
   { key: "all", label: "전체" }, { key: "square", label: "Square" },
@@ -445,6 +465,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [urlHydrated, setUrlHydrated] = useState(false)
   const [showBreakEven, setShowBreakEven] = useState(false)
   const [showStabilityLobe, setShowStabilityLobe] = useState(false)
+  const [showWorkpieceImpact, setShowWorkpieceImpact] = useState(false)
+  const [showCostSurface, setShowCostSurface] = useState(false)
   const [showCostWaterfall, setShowCostWaterfall] = useState(false)
   const [showWearProg, setShowWearProg] = useState(false)
   const [showChipMorph, setShowChipMorph] = useState(false)
@@ -535,7 +557,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
       setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
       setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
-      setShowStabilityLobe(false); setShowCostWaterfall(false); setShowWearProg(false)
+      setShowStabilityLobe(false); setShowWorkpieceImpact(false); setShowCostSurface(false); setShowCostWaterfall(false); setShowWearProg(false)
       setShowChipMorph(false); setShowAcousticEmission(false); setShowEnergySankey(false)
       setShowVoiceWarning(false); setShowSurfaceTopo(false); setShowTimeLapse(false)
       setShowCamPath(false); setShowCadPreview(false)
@@ -568,6 +590,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         else if (panelKey === "auto-agent") setShowAutoAgent(true)
         else if (panelKey === "favorites") setShowFavorites(true)
         else if (panelKey === "stability-lobe") setShowStabilityLobe(true)
+        else if (panelKey === "workpiece-impact") setShowWorkpieceImpact(true)
+        else if (panelKey === "cost-surface") setShowCostSurface(true)
         else if (panelKey === "cost-waterfall") setShowCostWaterfall(true)
         else if (panelKey === "wear-prog") setShowWearProg(true)
         else if (panelKey === "chip-morph") setShowChipMorph(true)
@@ -615,33 +639,52 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [targetMRR, setTargetMRR] = useState(30)
   const [savedPresets, setSavedPresets] = useState<Array<{ name: string; state: SerializableState }>>([])
   const [presetName, setPresetName] = useState("")
-  const [formulaOpen, setFormulaOpen] = useState(false)
-  const [diagnosticOpen, setDiagnosticOpen] = useState(false)
+  const [formulaOpen, setFormulaOpen] = useState(true)
+  const [diagnosticOpen, setDiagnosticOpen] = useState(true)
   const [strategy, setStrategy] = useState<string>("")
 
   // 🎬 시나리오 프리셋 — 상단 collapsible 섹션. 초기 open 으로 두어 첫 방문자에게 노출.
   const [presetPanelOpen, setPresetPanelOpen] = useState(true)
 
   // Phase-A 신규 통합 상태 — 도면 업로드 / 실시간 voxel 절삭 애니메이션
-  const [drawingPanelOpen, setDrawingPanelOpen] = useState(false)
+  const [drawingPanelOpen, setDrawingPanelOpen] = useState(true)
   const [importedGeometry, setImportedGeometry] = useState<{
     // `geometry`는 dynamic하게 로드되는 three.js BufferGeometry — 타입 접근을 피하기 위해 unknown 사용
     geometry: unknown
     metadata: { source: "step" | "dxf"; name: string; bbox: [number, number, number] }
   } | null>(null)
-  const [voxelAnimationEnabled, setVoxelAnimationEnabled] = useState(false)
+  const [voxelAnimationEnabled, setVoxelAnimationEnabled] = useState(true)
   const [voxelRemovedMm3, setVoxelRemovedMm3] = useState(0)
   // Ra heatmap overlay toggle. When ON, VoxelStockTracked receives
   // `showRaOverlay={true}` and the stock is recolored by the per-voxel Ra
   // (µm) map instead of the material / thermal gradient. Coexists with
   // thermal — showRaOverlay overrides vertex colors but thermal emissive
   // glow still applies.
-  const [showRaOverlay, setShowRaOverlay] = useState(false)
+  const [showRaOverlay, setShowRaOverlay] = useState(true)
+  // Smoother voxel surface — when ON, VoxelStockTracked applies mergeVertices
+  // + computeVertexNormals so the exposed-face mesh shades as a continuous
+  // hull instead of 90° blocky quads. Default OFF to preserve prior visuals
+  // and because merge has a ~10–20% per-rebuild CPU overhead.
+  const [smoothVoxelSurface, setSmoothVoxelSurface] = useState(true)
   // Cross-section slice view (3D scene clipping plane).
   // 단면 활성화 시 선택된 축에 수직인 THREE.Plane 이 stock / tool / voxel stock material 에 적용된다.
   const [sliceEnabled, setSliceEnabled] = useState(false)
   const [sliceAxis, setSliceAxis] = useState<"x" | "y" | "z">("z")
   const [sliceOffset, setSliceOffset] = useState(0)
+  // A/B 비교 모드 — 좌/우 split-screen. compareMode=true 면 두 Cutting3DScene 이
+  // 나란히 렌더된다. 우측 파라미터 (diameter_R / fluteCount_R / fz_R) 는 독립
+  // 편집 가능하며, paramSyncAB=true 면 좌측 값으로 강제 동기화.
+  const [compareMode, setCompareMode] = useState(false)
+  const [paramSyncAB, setParamSyncAB] = useState(false)
+  const [diameterR, setDiameterR] = useState(15) // 기본: 좌측 기본(10) 대비 +50%
+  const [fluteCountR, setFluteCountR] = useState<2 | 3 | 4 | 5 | 6>(3)
+  const [fzR, setFzR] = useState(0.05)
+  useEffect(() => {
+    if (!paramSyncAB) return
+    setDiameterR(diameter)
+    setFluteCountR(coerceFluteCount(fluteCount))
+    setFzR(fz)
+  }, [paramSyncAB, diameter, fluteCount, fz])
   // Cutting3DScene onToolTipChange 콜백으로 들어오는 월드-공구-팁 좌표 (mm).
   // 프레임당 상태 업데이트는 렌더 폭탄이라 ref 로 보관하고, UI 표시는 10Hz rAF 루프로만 본 값을 읽어 state 로 흘린다.
   const toolTipRef = useRef<[number, number, number]>([0, 0, 0])
@@ -669,11 +712,32 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [toolPathPositions, setToolPathPositions] = useState<Array<[number, number, number]>>([])
   const [showToolPathTrail, setShowToolPathTrail] = useState(true)
   // Phase-C — 절삭력 벡터 overlay. Kienzle 단순화 모델 기반 3D 화살표.
-  const [showForceVectors, setShowForceVectors] = useState(false)
-  const [autoSweepEnabled, setAutoSweepEnabled] = useState(false)
+  const [showForceVectors, setShowForceVectors] = useState(true)
+  const [autoSweepEnabled, setAutoSweepEnabled] = useState(true)
   const [autoSweepPattern, setAutoSweepPattern] = useState<"zigzag" | "spiral">("zigzag")
   // Chatter/vibration overlay — intensity 를 받아 chip + outline + shake 연동.
   const [chatterLevel, setChatterLevel] = useState(0)
+
+  // AutoAdviceEngine → floating toast strip (bottom-right). Cap at 5 most-recent.
+  const [adviceMessages, setAdviceMessages] = useState<
+    Array<{ id: number; message: string; severity: AdviceSeverity }>
+  >([])
+  const adviceIdRef = useRef(0)
+  const pushAdvice = useCallback(
+    (message: string, severity: AdviceSeverity) => {
+      adviceIdRef.current += 1
+      const id = adviceIdRef.current
+      setAdviceMessages((prev) => {
+        const next = [...prev, { id, message, severity }]
+        return next.length > 5 ? next.slice(next.length - 5) : next
+      })
+      // Auto-dismiss each toast after 8s.
+      setTimeout(() => {
+        setAdviceMessages((prev) => prev.filter((m) => m.id !== id))
+      }, 8_000)
+    },
+    [],
+  )
 
   // Phase-D — 공구 궤적 녹화/재생. replayPlayback=true 일 때 ReplayTimeline 의
   // onFrame 이 toolTipRef 를 override 해 저장된 경로를 그대로 replay 한다.
@@ -707,7 +771,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   // STEP 4·5·6 통합 상태
   const [toolPathModalOpen, setToolPathModalOpen] = useState(false)
-  const [nextFeaturesOpen, setNextFeaturesOpen] = useState(false)
+  const [nextFeaturesOpen, setNextFeaturesOpen] = useState(true)
   const [speedsFeedsBaseline, setSpeedsFeedsBaseline] = useState<{
     sfm: number; iptInch: number
     source: "default" | "pdf_verified" | "pdf_partial" | "estimated" | "none"
@@ -1010,10 +1074,15 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const fzEff = useMemo(() =>
     fz * (1 + feedPct / 100) * stickoutD.fz
   , [fz, feedPct, stickoutD.fz])
+  const workpieceImpact = useMemo(() => resolveWorkpieceMaterialImpact({
+    isoGroup,
+    workpiece,
+    hardnessValue,
+  }), [isoGroup, workpiece, hardnessValue])
 
   const result = useMemo(() => calculateCutting({
-    Vc: VcEff, fz: fzEff, ap, ae, D: diameter, Z: fluteCount, isoGroup,
-  }), [VcEff, fzEff, ap, ae, diameter, fluteCount, isoGroup])
+    Vc: VcEff, fz: fzEff, ap, ae, D: diameter, Z: fluteCount, isoGroup, kcOverride: workpieceImpact.effectiveKc,
+  }), [VcEff, fzEff, ap, ae, diameter, fluteCount, isoGroup, workpieceImpact.effectiveKc])
 
   const derived = useMemo(() => deriveFactors({
     Vc: VcEff, fz: fzEff, ap, ae, D: diameter, shape: activeShape,
@@ -1063,8 +1132,16 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   // ═══ 고급 엔지니어링 지표 (연구소장 모드) ═══
   const advHeat = useMemo(() => estimateHeat({
-    Pc: result.Pc, Vc: VcEff, fz: fzEff, ap, ae, D: diameter, materialGroup: isoGroup,
-  }), [result.Pc, VcEff, fzEff, ap, ae, diameter, isoGroup])
+    Pc: result.Pc,
+    Vc: VcEff,
+    fz: fzEff,
+    ap,
+    ae,
+    D: diameter,
+    materialGroup: isoGroup,
+    thermalConductivityWmk: workpieceImpact.thermalConductivityWmk,
+    thermalMultiplier: workpieceImpact.thermalFactor,
+  }), [result.Pc, VcEff, fzEff, ap, ae, diameter, isoGroup, workpieceImpact.thermalConductivityWmk, workpieceImpact.thermalFactor])
   const advRunout = useMemo(() => estimateRunoutEffect({
     tirUm, fz: fzEff, Z: fluteCount, D: diameter,
   }), [tirUm, fzEff, fluteCount, diameter])
@@ -1333,6 +1410,16 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   const harveyReplacementCards = useMemo(() => {
     if (!harveyReplacementPair) return []
+    const replacementToolPathStrategy =
+      toolPath === "slot"
+        ? "slot"
+        : toolPath === "adaptive"
+          ? "adaptive"
+          : toolPath === "trochoidal"
+            ? "trochoidal"
+            : toolPath === "helical"
+              ? "spiral"
+              : "zigzag"
     const buildCard = (tool: ToolOption) => {
       const pairFlutes = deferredReplacementControls.fluteOverride ?? tool.Z
       const pairAp = Math.min(tool.LOC, parseFloat(((deferredReplacementControls.apRatio / 100) * tool.D).toFixed(1)))
@@ -1370,6 +1457,17 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         cornerR: tool.cornerR,
         ae: pairAe,
       })
+      const replacementPassPlan = computePassPlan({
+        stockLmm: stockL,
+        stockWmm: stockW,
+        stockHmm: stockH,
+        apFinish: finishAp,
+        aeFinish: Math.max(0.05, pairAe * 0.2),
+        VfRough: cutting.Vf,
+        VfFinish: cutting.Vf * 0.6,
+        D: tool.D,
+        apMaxRough: Math.max(0.1, pairAp),
+      })
       return {
         tool,
         flutes: pairFlutes,
@@ -1387,6 +1485,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         deflection: adv.deflection,
         toolLifeMin: toolLife,
         raUm: ra,
+        stockLengthMm: stockL,
+        stockWidthMm: stockW,
+        stockHeightMm: stockH,
+        roughPasses: replacementPassPlan.roughPasses,
+        finishPasses: replacementPassPlan.finishPasses,
+        toolPathStrategy: replacementToolPathStrategy,
       }
     }
     return [
@@ -1394,7 +1498,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       buildCard(harveyReplacementPair.sandvik),
       buildCard(harveyReplacementPair.yg1),
     ]
-  }, [deferredReplacementControls, harveyReplacementPair])
+  }, [deferredReplacementControls, finishAp, harveyReplacementPair, stockH, stockL, stockW, toolPath])
 
   const stageVisualState = useMemo(() => ({
     activeShape,
@@ -1602,7 +1706,37 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     ap: findWarningsForParam(warnings, "ap"),
     ae: findWarningsForParam(warnings, "ae"),
   }), [warnings])
+  const applyWarningAutoAdjust = useCallback((warning: { level: "error" | "warn" | "info"; message: string }, context: {
+    Vc: number
+    fz: number
+    ap: number
+    ae: number
+    materialGroup: string
+    diameter: number
+    fluteCount: number
+    stickoutMm: number
+    rpm: number
+  }) => {
+    const next = deriveWarningAdjustment(warning.message, {
+      Vc: context.Vc,
+      fz: context.fz,
+      ap: context.ap,
+      ae: context.ae,
+      diameter: context.diameter,
+    })
+    setBeforeAfterData({
+      before: { Vc: context.Vc, fz: context.fz, ap: context.ap, ae: context.ae, n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm, costPerPart: cost.total },
+      after: { Vc: next.Vc, fz: next.fz, ap: next.ap, ae: next.ae, n: result.n, Vf: result.n * fluteCount * next.fz, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm, costPerPart: cost.total },
+      reasoning: `${next.reason} · ${warning.message}`,
+    })
+    setVc(next.Vc)
+    setFz(next.fz)
+    setAp(next.ap)
+    setAe(next.ae)
+    toast.success(`🤖 자동조절 적용 · Vc ${next.Vc} / fz ${next.fz} / ap ${next.ap} / ae ${next.ae}`)
+  }, [cost.total, fluteCount, raUm, result.MRR, result.Pc, result.Vf, result.n, toolLifeMin])
   const { ref: nextFeaturesRef, seen: nextFeaturesVisible } = useViewportLatch<HTMLDivElement>()
+  const nextFeaturesReady = nextFeaturesOpen || nextFeaturesVisible
   const sessionExportState = useMemo(() => ({
     productCode,
     isoGroup,
@@ -2030,6 +2164,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       />
       {/* 🔊 Web Audio 사운드 엔진 — headless, rpm/flute/fz 파생 */}
       <SoundEngine enabled={soundEnabled} rpm={result.n} fluteCount={fluteCount} fz={fz} />
+      {/* 🧠 Auto-advice — headless. 채터/마모/절삭력/온도 신호를 2Hz로 평가해 toast 로 밀어준다. */}
+      <AutoAdviceEngine
+        chatterLevel={chatterLevel}
+        wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
+        forceMagnitude={Math.sqrt(
+          advHelix.tangentialForceN * advHelix.tangentialForceN
+          + advHelix.radialForceN * advHelix.radialForceN
+          + advHelix.axialForceN * advHelix.axialForceN,
+        )}
+        temperature={Math.max(0, Math.min(1, advHeat.chipTempC / 1000))}
+        onAdvice={pushAdvice}
+      />
       {/* ───── Top bar ───── */}
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div className="flex items-center gap-2">
@@ -2251,6 +2397,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         advancedMetricsOpen={advancedMetricsOpen}
         showBreakEven={showBreakEven}
         showStabilityLobe={showStabilityLobe}
+        showWorkpieceImpact={showWorkpieceImpact}
+        showCostSurface={showCostSurface}
         showCostWaterfall={showCostWaterfall}
         showWearProg={showWearProg}
         showChipMorph={showChipMorph}
@@ -2426,6 +2574,20 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               </span>
             </label>
           )}
+          {voxelAnimationEnabled && (
+            <label className="flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-violet-700 cursor-pointer select-none hover:bg-violet-50">
+              <span>🧊 Voxel 표면 스무딩</span>
+              <input
+                type="checkbox"
+                checked={smoothVoxelSurface}
+                onChange={e => setSmoothVoxelSurface(e.target.checked)}
+                className="h-3.5 w-3.5 accent-violet-600"
+              />
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${smoothVoxelSurface ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-500"}`}>
+                {smoothVoxelSurface ? "ON" : "OFF"}
+              </span>
+            </label>
+          )}
           {voxelAnimationEnabled && showRaOverlay && (() => {
             // Theoretical Ra preview strip — mirrors voxel-stock.tsx's
             // sampleRaGradient ramp: green / yellow / orange / red keyed to
@@ -2518,6 +2680,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             />
             <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${sliceEnabled ? "bg-sky-100 text-sky-700" : "bg-gray-100 text-gray-500"}`}>
               {sliceEnabled ? "ON" : "OFF"}
+            </span>
+          </label>
+          <label className="flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-amber-700 cursor-pointer select-none hover:bg-amber-50">
+            <span>🔀 A/B 비교 모드</span>
+            <input
+              type="checkbox"
+              checked={compareMode}
+              onChange={e => setCompareMode(e.target.checked)}
+              className="h-3.5 w-3.5 accent-amber-600"
+            />
+            <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${compareMode ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+              {compareMode ? "ON" : "OFF"}
             </span>
           </label>
           {voxelAnimationEnabled && (
@@ -2814,7 +2988,19 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50/70 p-2">
                   <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Cutting Action</div>
-                  <CuttingAction shape={activeShape} D={diameter} LOC={LOC} ap={ap} ae={ae} toolPath={toolPath} className="w-full" />
+                  <CuttingAction
+                    shape={activeShape}
+                    D={diameter}
+                    LOC={LOC}
+                    ap={ap}
+                    ae={ae}
+                    toolPath={toolPath}
+                    stockWidthMm={stockW}
+                    stockHeightMm={stockH}
+                    roughPasses={passPlan.roughPasses}
+                    finishPasses={passPlan.finishPasses}
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>
@@ -2822,7 +3008,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
       </div>
 
-      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || showChipMorph || showAcousticEmission || showEnergySankey || showVoiceWarning || showSurfaceTopo || showTimeLapse || showCamPath || showCadPreview || beforeAfterData) && (
+      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showWorkpieceImpact || showCostSurface || showCostWaterfall || showWearProg || showChipMorph || showAcousticEmission || showEnergySankey || showVoiceWarning || showSurfaceTopo || showTimeLapse || showCamPath || showCadPreview || beforeAfterData) && (
         <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-cyan-50/60 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -2841,76 +3027,225 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           {show3DScene && (
             <div key={`3d-${panelInstance}`} data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
               <OperationPicker value={operationType} onChange={setOperationType} darkMode={darkMode} />
+              {compareMode && (
+                <div className="grid gap-3 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/80 via-white to-violet-50/70 p-3 lg:grid-cols-[1.25fr_0.75fr]">
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800">A/B Director Mode</div>
+                    <div className="text-[11px] text-amber-700">좌측은 실시간 Voxel 씬, 우측은 조건 B를 과장된 프레젠테이션용으로 즉시 비교합니다.</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                    <label className="col-span-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-[11px] font-semibold text-amber-700">
+                      <input
+                        type="checkbox"
+                        checked={paramSyncAB}
+                        onChange={e => setParamSyncAB(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-amber-600"
+                      />
+                      B 파라미터를 A에 동기화
+                    </label>
+                    <NumInputSmall label="B D (mm)" value={diameterR} onChange={setDiameterR} />
+                    <NumInputSmall label="B fz" value={fzR} onChange={setFzR} />
+                    <NumInputSmall label="B 날수" value={fluteCountR} onChange={v => setFluteCountR(coerceFluteCount(v))} />
+                    <div className="rounded-lg border border-violet-200 bg-violet-50/70 px-3 py-2 text-[11px] text-violet-700">
+                      <div className="font-semibold">B 추정 Vc</div>
+                      <div className="font-mono text-xs">{((Math.PI * result.n * diameterR) / 1000).toFixed(0)} m/min</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <HolographicFrame accent="violet" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
                 <div className="p-2">
-                  <Cutting3DScene
-                    operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
-                    shape={activeShape}
-                    diameter={diameter}
-                    flutes={fluteCount}
-                    LOC={LOC}
-                    OAL={OAL}
-                    rpm={result.n}
-                    Vf={result.Vf}
-                    ap={ap}
-                    ae={ae}
-                    stockL={stockL}
-                    stockW={stockW}
-                    stockH={stockH}
-                    coating={coating}
-                    darkMode={darkMode}
-                    height={480}
-                    stockMaterial={stockMaterialKind}
-                    fluteCount={resolvedFluteCountProp}
-                    coolant={coolantEnabled}
-                    sliceEnabled={sliceEnabled}
-                    sliceAxis={sliceAxis}
-                    sliceOffset={sliceOffset}
-                    wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
-                    canvasRef={videoCanvasRef}
-                    onToolTipChange={(p) => { toolTipRef.current = p }}
-                    voxelStockSlot={voxelAnimationEnabled ? (
-                      <>
-                        <VoxelStockTracked
-                          dimensions={[stockL, stockW, stockH]}
-                          toolRef={toolTipRef}
-                          toolRadius={Math.max(0.1, diameter / 2)}
-                          material={stockMaterialKind}
-                          initialGeometry={(importedGeometry?.geometry as BufferGeometry | undefined) ?? null}
-                          onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
-                          fz={fz}
-                          cornerRadius={cornerR}
-                          showRaOverlay={showRaOverlay}
-                          onGeometryUpdate={geom => { currentVoxelGeometryRef.current = geom }}
-                        />
-                        {showToolPathTrail && (
-                          <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
-                        )}
-                        {showForceVectors && (
-                          <ForceVectors
-                            toolPosition={toolTipDisplay}
-                            ap={ap}
-                            fz={fz}
-                            diameter={diameter}
-                          />
-                        )}
-                        <ChatterEffect
-                          vc={Vc}
-                          ap={ap}
+                  {compareMode ? (
+                    <CompareView
+                      className="pb-1"
+                      leftLabel={`A · Live ${diameter.toFixed(1)}mm · Z${fluteCount}`}
+                      rightLabel={`B · Pitch ${diameterR.toFixed(1)}mm · Z${fluteCountR}`}
+                      leftMetrics={
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] text-sky-700">Vc {VcEff.toFixed(0)}</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-mono text-[10px] text-emerald-700">fz {fz.toFixed(4)}</span>
+                          <span className="rounded-full bg-violet-50 px-2 py-0.5 font-mono text-[10px] text-violet-700">voxel {smoothVoxelSurface ? "smooth" : "raw"}</span>
+                        </div>
+                      }
+                      rightMetrics={
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-700">Vc {((Math.PI * result.n * diameterR) / 1000).toFixed(0)}</span>
+                          <span className="rounded-full bg-rose-50 px-2 py-0.5 font-mono text-[10px] text-rose-700">fz {fzR.toFixed(4)}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-700">sync {paramSyncAB ? "on" : "off"}</span>
+                        </div>
+                      }
+                      leftCanvas={
+                        <Cutting3DScene
+                          operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
+                          shape={activeShape}
                           diameter={diameter}
-                          onChatterLevel={setChatterLevel}
+                          flutes={fluteCount}
+                          LOC={LOC}
+                          OAL={OAL}
+                          rpm={result.n}
+                          Vf={result.Vf}
+                          ap={ap}
+                          ae={ae}
+                          stockL={stockL}
+                          stockW={stockW}
+                          stockH={stockH}
+                          coating={coating}
+                          darkMode={darkMode}
+                          height={480}
+                          stockMaterial={stockMaterialKind}
+                          fluteCount={resolvedFluteCountProp}
+                          coolant={coolantEnabled}
+                          sliceEnabled={sliceEnabled}
+                          sliceAxis={sliceAxis}
+                          sliceOffset={sliceOffset}
+                          wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
+                          canvasRef={videoCanvasRef}
+                          onToolTipChange={(p) => { toolTipRef.current = p }}
+                          voxelStockSlot={voxelAnimationEnabled ? (
+                            <>
+                              <VoxelStockTracked
+                                dimensions={[stockL, stockW, stockH]}
+                                toolRef={toolTipRef}
+                                toolRadius={Math.max(0.1, diameter / 2)}
+                                material={stockMaterialKind}
+                                initialGeometry={(importedGeometry?.geometry as BufferGeometry | undefined) ?? null}
+                                onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
+                                fz={fz}
+                                cornerRadius={cornerR}
+                                showRaOverlay={showRaOverlay}
+                                smoothSurface={smoothVoxelSurface}
+                                onGeometryUpdate={geom => { currentVoxelGeometryRef.current = geom }}
+                              />
+                              {showToolPathTrail && (
+                                <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
+                              )}
+                              {showForceVectors && (
+                                <ForceVectors
+                                  toolPosition={toolTipDisplay}
+                                  ap={ap}
+                                  fz={fz}
+                                  diameter={diameter}
+                                  ks={result.kcUsed}
+                                />
+                              )}
+                              <ChatterEffect
+                                vc={Vc}
+                                ap={ap}
+                                diameter={diameter}
+                                onChatterLevel={setChatterLevel}
+                              />
+                              {autoSweepEnabled && (
+                                <AutoSweepDriver
+                                  enabled={autoSweepEnabled}
+                                  stockDimensions={[stockL, stockW, stockH]}
+                                  pattern={autoSweepPattern}
+                                  onPosition={(p) => { toolTipRef.current = p }}
+                                />
+                              )}
+                            </>
+                          ) : undefined}
                         />
-                        {autoSweepEnabled && (
-                          <AutoSweepDriver
-                            enabled={autoSweepEnabled}
-                            stockDimensions={[stockL, stockW, stockH]}
-                            pattern={autoSweepPattern}
-                            onPosition={(p) => { toolTipRef.current = p }}
+                      }
+                      rightCanvas={
+                        <Cutting3DScene
+                          operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
+                          shape={activeShape}
+                          diameter={diameterR}
+                          flutes={fluteCountR}
+                          LOC={LOC}
+                          OAL={OAL}
+                          rpm={result.n}
+                          Vf={result.n * fluteCountR * fzR}
+                          ap={ap}
+                          ae={ae}
+                          stockL={stockL}
+                          stockW={stockW}
+                          stockH={stockH}
+                          coating={coating}
+                          darkMode={darkMode}
+                          height={480}
+                          stockMaterial={stockMaterialKind}
+                          fluteCount={fluteCountR}
+                          coolant={coolantEnabled}
+                          sliceEnabled={sliceEnabled}
+                          sliceAxis={sliceAxis}
+                          sliceOffset={sliceOffset}
+                          wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
+                        />
+                      }
+                    />
+                  ) : (
+                    <Cutting3DScene
+                      operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
+                      shape={activeShape}
+                      diameter={diameter}
+                      flutes={fluteCount}
+                      LOC={LOC}
+                      OAL={OAL}
+                      rpm={result.n}
+                      Vf={result.Vf}
+                      ap={ap}
+                      ae={ae}
+                      stockL={stockL}
+                      stockW={stockW}
+                      stockH={stockH}
+                      coating={coating}
+                      darkMode={darkMode}
+                      height={480}
+                      stockMaterial={stockMaterialKind}
+                      fluteCount={resolvedFluteCountProp}
+                      coolant={coolantEnabled}
+                      sliceEnabled={sliceEnabled}
+                      sliceAxis={sliceAxis}
+                      sliceOffset={sliceOffset}
+                      wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
+                      canvasRef={videoCanvasRef}
+                      onToolTipChange={(p) => { toolTipRef.current = p }}
+                      voxelStockSlot={voxelAnimationEnabled ? (
+                        <>
+                          <VoxelStockTracked
+                            dimensions={[stockL, stockW, stockH]}
+                            toolRef={toolTipRef}
+                            toolRadius={Math.max(0.1, diameter / 2)}
+                            material={stockMaterialKind}
+                            initialGeometry={(importedGeometry?.geometry as BufferGeometry | undefined) ?? null}
+                            onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
+                            fz={fz}
+                            cornerRadius={cornerR}
+                            showRaOverlay={showRaOverlay}
+                            smoothSurface={smoothVoxelSurface}
+                            onGeometryUpdate={geom => { currentVoxelGeometryRef.current = geom }}
                           />
-                        )}
-                      </>
-                    ) : undefined}
-                  />
+                          {showToolPathTrail && (
+                            <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
+                          )}
+                          {showForceVectors && (
+                            <ForceVectors
+                              toolPosition={toolTipDisplay}
+                              ap={ap}
+                              fz={fz}
+                              diameter={diameter}
+                              ks={result.kcUsed}
+                            />
+                          )}
+                          <ChatterEffect
+                            vc={Vc}
+                            ap={ap}
+                            diameter={diameter}
+                            onChatterLevel={setChatterLevel}
+                          />
+                          {autoSweepEnabled && (
+                            <AutoSweepDriver
+                              enabled={autoSweepEnabled}
+                              stockDimensions={[stockL, stockW, stockH]}
+                              pattern={autoSweepPattern}
+                              onPosition={(p) => { toolTipRef.current = p }}
+                            />
+                          )}
+                        </>
+                      ) : undefined}
+                    />
+                  )}
                 </div>
               </HolographicFrame>
             </div>
@@ -3058,6 +3393,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 chatterRisk={deferredStageVisualState.chatterLevel}
                 bueRisk={deferredStageVisualState.advBueRisk}
                 chipMorph={deferredStageVisualState.advChipMorphType}
+                stockLengthMm={deferredStageVisualState.stockL}
+                stockWidthMm={deferredStageVisualState.stockW}
+                stockHeightMm={deferredStageVisualState.stockH}
+                roughPasses={passPlan.roughPasses}
+                finishPasses={passPlan.finishPasses}
+                toolPathStrategy={(deferredStageVisualState.toolPath === "slot" ? "slot" : deferredStageVisualState.toolPath === "adaptive" ? "adaptive" : deferredStageVisualState.toolPath === "trochoidal" ? "trochoidal" : deferredStageVisualState.toolPath === "helical" ? "spiral" : "zigzag")}
                 darkMode={deferredStageVisualState.darkMode}
               />
             </div>
@@ -3255,6 +3596,37 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 material={subgroupKey || isoGroup}
                 toolDiameterMm={diameter}
                 teethCount={fluteCount}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showWorkpieceImpact && (
+            <div data-visual-panel="workpiece-impact" className="scroll-mt-20" key={`workpiece-impact-${panelInstance}`}>
+              <WorkpieceImpactPanel
+                impact={workpieceImpact}
+                chipTempC={advHeat.chipTempC}
+                workpieceTempC={advHeat.workpieceTempC}
+                tangentialForceN={advHelix.tangentialForceN}
+                toolLifeMin={toolLifeMin}
+                mrr={result.MRR}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showCostSurface && (
+            <div data-visual-panel="cost-surface" className="scroll-mt-20" key={`cost-surface-${panelInstance}`}>
+              <CostSurface3D
+                VcCurrent={VcEff}
+                fzCurrent={fzEff}
+                VcReference={VcReferenceVal}
+                toolCostKrw={toolCostKrw}
+                machineCostPerHourKrw={machineCostPerHourKrw}
+                cycleTimeMinCurrent={cycleTimeMin}
+                taylorN={toolMatE < 300 ? 0.125 : 0.25}
+                toolLifeRefMin={Math.max(10, toolLifeMin)}
+                economicVc={econVc}
                 darkMode={darkMode}
               />
             </div>
@@ -3773,7 +4145,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <MiniSelect label={`세부소재 (${catalogData.facets.workpieces.length})`} value={workpiece} onChange={setWorkpiece}
               options={[{ value: "", label: "전체" }, ...catalogData.facets.workpieces.map(w => ({ value: w, label: w }))]} />
           )}
-          <div className="text-[9px] text-gray-400">kc = {KC_TABLE[isoGroup] ?? 2000} N/mm²</div>
+          <div className="text-[9px] text-gray-400">kc = {result.kcUsed} N/mm² {workpiece ? `(${workpieceImpact.displayName})` : ""}</div>
         </CardShell>
 
         {/* ─ OPERATION ─ */}
@@ -3941,8 +4313,19 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               </div>
               <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50/50 p-2">
                 <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Cutting Action</div>
-                <CuttingAction shape={activeShape} D={diameter} LOC={LOC} ap={ap} ae={ae}
-                  toolPath={toolPath} className="w-full" />
+                <CuttingAction
+                  shape={activeShape}
+                  D={diameter}
+                  LOC={LOC}
+                  ap={ap}
+                  ae={ae}
+                  toolPath={toolPath}
+                  stockWidthMm={stockW}
+                  stockHeightMm={stockH}
+                  roughPasses={passPlan.roughPasses}
+                  finishPasses={passPlan.finishPasses}
+                  className="w-full"
+                />
               </div>
             </div>
           </div>
@@ -4062,7 +4445,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         fz={fzEff}
         n={result.n}
         Vf={result.Vf}
-        kc={KC_TABLE[isoGroup] ?? 2000}
+        kc={result.kcUsed}
         D={diameter}
         Z={fluteCount}
         baseline={speedsFeedsBaseline}
@@ -4088,7 +4471,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </button>
         {nextFeaturesOpen && (
           <div className="border-t border-indigo-200 dark:border-indigo-800 p-4 space-y-6">
-            {nextFeaturesVisible ? (
+            {nextFeaturesReady ? (
               <>
                 {/* AI 코치 */}
                 <AiCoachPanel
@@ -4171,7 +4554,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <div className="border-t border-slate-200 p-4 bg-slate-50/30">
             <FormulaPanel
               Vc={VcEff} fz={fzEff} ap={ap} ae={ae} D={diameter} Z={fluteCount}
-              stickout={stickoutMm} kc={KC_TABLE[isoGroup] ?? 2000} eta={0.8}
+              stickout={stickoutMm} kc={result.kcUsed} eta={0.8}
               coatingMult={coatingMult} isHSS={toolMatE < 300}
               shape={activeShape} cornerR={cornerR} climb={climb}
               n={result.n} Vf={result.Vf} MRR={result.MRR} Pc={result.Pc}
@@ -4663,6 +5046,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     materialGroup: isoGroup, diameter, fluteCount,
                     stickoutMm, rpm: result.n,
                   }}
+                  onAutoAdjust={applyWarningAutoAdjust}
                   darkMode={darkMode}
                 />
               </div>
@@ -4710,6 +5094,35 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
         </div>
       )}
+
+      {/* 🧠 Auto-advice toasts — floating strip, bottom-right. 5 most recent. */}
+      {adviceMessages.length > 0 && (
+        <div
+          aria-live="polite"
+          className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 print:hidden pointer-events-none"
+        >
+          {adviceMessages.map((m) => {
+            const danger = m.severity === "danger"
+            const warn = m.severity === "warn"
+            const Icon = danger ? AlertCircle : warn ? AlertTriangle : Info
+            const palette = danger
+              ? "border-rose-300 bg-rose-50 text-rose-900 dark:bg-rose-950/80 dark:border-rose-700 dark:text-rose-100"
+              : warn
+              ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/80 dark:border-amber-700 dark:text-amber-100"
+              : "border-sky-300 bg-sky-50 text-sky-900 dark:bg-sky-950/80 dark:border-sky-700 dark:text-sky-100"
+            return (
+              <div
+                key={m.id}
+                role={danger ? "alert" : "status"}
+                className={`pointer-events-auto flex max-w-sm items-start gap-2 rounded-lg border px-3 py-2 text-xs shadow-lg backdrop-blur ${palette}`}
+              >
+                <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                <span className="leading-snug">{m.message}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -4740,6 +5153,12 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
     deflection: number
     toolLifeMin: number
     raUm: number
+    stockLengthMm: number
+    stockWidthMm: number
+    stockHeightMm: number
+    roughPasses: number
+    finishPasses: number
+    toolPathStrategy: "zigzag" | "spiral" | "trochoidal" | "adaptive" | "slot"
   }
   visualMode: "split" | "flutes" | "live"
   onApply?: () => void
@@ -4825,6 +5244,12 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                     materialGroup={card.tool.iso}
                     chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
                     chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                    stockLengthMm={card.stockLengthMm}
+                    stockWidthMm={card.stockWidthMm}
+                    stockHeightMm={card.stockHeightMm}
+                    roughPasses={card.roughPasses}
+                    finishPasses={card.finishPasses}
+                    toolPathStrategy={card.toolPathStrategy}
                     darkMode={false}
                     width={320}
                     height={220}
@@ -4854,6 +5279,12 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                     materialGroup={card.tool.iso}
                     chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
                     chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                    stockLengthMm={card.stockLengthMm}
+                    stockWidthMm={card.stockWidthMm}
+                    stockHeightMm={card.stockHeightMm}
+                    roughPasses={card.roughPasses}
+                    finishPasses={card.finishPasses}
+                    toolPathStrategy={card.toolPathStrategy}
                     darkMode={false}
                     width={320}
                     height={220}
@@ -4912,6 +5343,12 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                 materialGroup={card.tool.iso}
                 chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
                 chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                stockLengthMm={card.stockLengthMm}
+                stockWidthMm={card.stockWidthMm}
+                stockHeightMm={card.stockHeightMm}
+                roughPasses={card.roughPasses}
+                finishPasses={card.finishPasses}
+                toolPathStrategy={card.toolPathStrategy}
                 darkMode={false}
                 width={360}
                 height={240}
@@ -4940,7 +5377,19 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
               <EngagementCircle ae={card.ae} D={card.tool.D} className="h-16 w-full" />
             </div>
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-2">
-              <CuttingAction shape={card.tool.shape} D={card.tool.D} LOC={card.tool.LOC} ap={card.ap} ae={card.ae} toolPath="conventional" className="w-full" />
+              <CuttingAction
+                shape={card.tool.shape}
+                D={card.tool.D}
+                LOC={card.tool.LOC}
+                ap={card.ap}
+                ae={card.ae}
+                toolPath="conventional"
+                stockWidthMm={card.stockWidthMm}
+                stockHeightMm={card.stockHeightMm}
+                roughPasses={card.roughPasses}
+                finishPasses={card.finishPasses}
+                className="w-full"
+              />
             </div>
           </div>
         </div>
@@ -4990,6 +5439,8 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
   advancedMetricsOpen,
   showBreakEven,
   showStabilityLobe,
+  showWorkpieceImpact,
+  showCostSurface,
   showCostWaterfall,
   showWearProg,
   showChipMorph,
@@ -5033,6 +5484,8 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
   advancedMetricsOpen: boolean
   showBreakEven: boolean
   showStabilityLobe: boolean
+  showWorkpieceImpact: boolean
+  showCostSurface: boolean
   showCostWaterfall: boolean
   showWearProg: boolean
   showChipMorph: boolean
@@ -5080,6 +5533,8 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
       <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🔬 고급 지표</button>
       <button onClick={() => activatePanel(showBreakEven ? null : "break-even")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : baseButtonClass}`}>💰 Break-Even</button>
       <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")} title="Stability Lobe · 채터 안정 영역" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>📈 채터 안정</button>
+      <button onClick={() => activatePanel(showWorkpieceImpact ? null : "workpiece-impact")} title="피삭재 영향 시뮬레이션" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showWorkpieceImpact ? "bg-gradient-to-r from-orange-500 via-rose-500 to-violet-500 text-white shadow-lg" : baseButtonClass}`}>🧱 피삭재 영향</button>
+      <button onClick={() => activatePanel(showCostSurface ? null : "cost-surface")} title="Cost Surface 3D · 화려한 원가 지형" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCostSurface ? "bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 text-white shadow-lg" : baseButtonClass}`}>💠 Cost Surface</button>
       <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")} title="Cost Waterfall · 원가 분해" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🧾 원가 분해</button>
       <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")} title="Wear Progression · 공구 마모 진행" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showWearProg ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🛠 마모 진행</button>
       <button onClick={() => activatePanel(showChipMorph ? null : "chip-morph")} title="Chip Morphology 3D · 칩 형상" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showChipMorph ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🌀 칩 형상</button>

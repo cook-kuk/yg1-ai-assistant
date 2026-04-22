@@ -25,6 +25,7 @@ interface AiWarningExplainContext {
 interface AiWarningExplainProps {
   warning: SimWarning
   context: AiWarningExplainContext
+  onAutoAdjust?: (warning: SimWarning, context: AiWarningExplainContext) => void
   darkMode?: boolean
 }
 
@@ -40,6 +41,7 @@ interface AiWarningExplainProps {
 export function AiWarningExplain({
   warning,
   context,
+  onAutoAdjust,
   darkMode = false,
 }: AiWarningExplainProps) {
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -162,6 +164,17 @@ export function AiWarningExplain({
                     )}
                     <span>다시 분석</span>
                   </button>
+                  {explanation && !loading && !error && onAutoAdjust && (
+                    <button
+                      type="button"
+                      onClick={() => onAutoAdjust(warning, context)}
+                      className={`${buttonBase} ${buttonIdle}`}
+                      aria-label="AI 해설 기반 자동조절 적용"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>자동조절 적용</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setExpanded(false)}

@@ -1,0 +1,18 @@
+{
+  "language": "en",
+  "messages": [
+    {
+      "role": "user",
+      "text": "Recommend a 10 mm 4-flute end mill for stainless steel finishing."
+    }
+  ],
+  "displayedProducts": null,
+  "displayedOptions": null,
+  "displayedSeriesGroups": null,
+  "session": null,
+  "pagination": {
+    "page": 0,
+    "pageSize": 20
+  },
+  "note": "Illustrative placeholder for documentation only."
+}

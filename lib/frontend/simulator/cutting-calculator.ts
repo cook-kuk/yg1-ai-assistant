@@ -29,6 +29,7 @@ export interface CuttingParams {
   D: number     // 공구 직경 mm
   Z: number     // 날수
   isoGroup: string
+  kcOverride?: number
 }
 
 export interface CuttingResult {
@@ -36,21 +37,22 @@ export interface CuttingResult {
   Vf: number    // 테이블이송 mm/min
   MRR: number   // 금속제거율 cm³/min
   Pc: number    // 소요동력 kW
+  kcUsed: number
 }
 
 const ETA = 0.8 // 기계효율
 
 export function calculateCutting(params: CuttingParams): CuttingResult {
-  const { Vc, fz, ap, ae, D, Z, isoGroup } = params
+  const { Vc, fz, ap, ae, D, Z, isoGroup, kcOverride } = params
 
   const n = Math.round((1000 * Vc) / (Math.PI * D))
   const Vf = Math.round(fz * Z * n)
   const MRR = parseFloat(((ap * ae * Vf) / 1000).toFixed(2))
-  const kc = KC_TABLE[isoGroup] ?? 2000
+  const kc = kcOverride ?? KC_TABLE[isoGroup] ?? 2000
   // Pc(kW) = MRR(cm³/min) × kc(N/mm²) / (60·10³·η)  — Sandvik 공식
   const Pc = parseFloat(((MRR * kc) / (60 * 1000 * ETA)).toFixed(3))
 
-  return { n, Vf, MRR, Pc }
+  return { n, Vf, MRR, Pc, kcUsed: kc }
 }
 
 export interface CatalogRange {
