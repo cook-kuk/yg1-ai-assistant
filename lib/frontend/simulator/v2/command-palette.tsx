@@ -177,9 +177,9 @@ function CommandPalette({
     ? "text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 pt-3 pb-1"
     : "text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 pt-3 pb-1"
   const itemBase = darkMode
-    ? "group flex items-center gap-3 rounded-lg px-3 py-2.5 mx-2 cursor-pointer text-sm text-slate-200 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white aria-selected:bg-slate-800 aria-selected:text-white"
-    : "group flex items-center gap-3 rounded-lg px-3 py-2.5 mx-2 cursor-pointer text-sm text-slate-700 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900 aria-selected:bg-slate-100 aria-selected:text-slate-900"
-  const subText = darkMode ? "text-xs text-slate-400" : "text-xs text-slate-500"
+    ? "group flex items-center gap-3 rounded-xl px-3 py-2.5 mx-2 cursor-pointer text-sm text-slate-200 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white aria-selected:bg-slate-800 aria-selected:text-white transition-colors"
+    : "group flex items-center gap-3 rounded-xl px-3 py-2.5 mx-2 cursor-pointer text-sm text-slate-700 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900 aria-selected:bg-slate-100 aria-selected:text-slate-900 transition-colors"
+  const subText = darkMode ? "text-xs text-slate-400" : "text-xs text-slate-600"
   const dividerCls = darkMode ? "border-slate-800" : "border-slate-200"
   const footerCls = darkMode
     ? "px-3 py-2 text-[11px] text-slate-400 border-t border-slate-800 flex items-center justify-between"

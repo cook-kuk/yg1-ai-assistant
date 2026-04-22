@@ -229,8 +229,8 @@ interface GalleryCardProps {
 
 function GalleryCard({ tool, onOpen, onApply, darkMode }: GalleryCardProps) {
   const cardBg = darkMode
-    ? "bg-slate-900/60 border-slate-700 hover:border-cyan-400"
-    : "bg-white border-slate-200 hover:border-cyan-500"
+    ? "bg-slate-900/60 border-slate-800/60 hover:border-cyan-400"
+    : "bg-white border-slate-200/70 hover:border-cyan-500"
   const textColor = darkMode ? "text-slate-100" : "text-slate-900"
   const subText = darkMode ? "text-slate-400" : "text-slate-600"
   const badgeBg = darkMode
@@ -250,8 +250,8 @@ function GalleryCard({ tool, onOpen, onApply, darkMode }: GalleryCardProps) {
       type="button"
       onClick={onOpen}
       className={[
-        "group relative flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200",
-        "hover:-translate-y-0.5 hover:shadow-lg hover:ring-2 hover:ring-cyan-400/40",
+        "group relative flex flex-col overflow-hidden rounded-2xl border text-left transition-all duration-200",
+        "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-slate-950/60 hover:ring-2 hover:ring-cyan-400/40",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500",
         cardBg,
       ].join(" ")}
@@ -441,7 +441,7 @@ function DetailModal({ tool, onClose, onApply, darkMode }: DetailModalProps) {
           {/* 좌: 큰 도면 */}
           <div
             className={[
-              "flex items-center justify-center rounded-xl p-3",
+              "flex items-center justify-center rounded-2xl p-3",
               rowBg,
               autoReplay ? "ring-1 ring-cyan-400/30" : "",
             ].join(" ")}
@@ -506,7 +506,7 @@ function DetailModal({ tool, onClose, onApply, darkMode }: DetailModalProps) {
                   <div
                     key={row.k}
                     className={[
-                      "rounded-lg border p-2.5",
+                      "rounded-xl border p-2.5 transition-all duration-200",
                       darkMode
                         ? "border-cyan-400/20 bg-cyan-500/5"
                         : "border-cyan-200 bg-cyan-50",
@@ -537,7 +537,7 @@ function DetailModal({ tool, onClose, onApply, darkMode }: DetailModalProps) {
               type="button"
               onClick={onApply}
               className={[
-                "mt-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition",
+                "mt-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200",
                 "hover:shadow-lg active:scale-[0.99]",
                 darkMode
                   ? "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
@@ -553,7 +553,7 @@ function DetailModal({ tool, onClose, onApply, darkMode }: DetailModalProps) {
         {/* 하단: 추천 이유 + 미니 시뮬 */}
         <div
           className={[
-            "mx-6 mb-6 rounded-xl border p-4 text-xs leading-relaxed",
+            "mx-6 mb-6 rounded-2xl border p-4 text-xs leading-relaxed",
             darkMode
               ? "border-slate-700 bg-slate-950/40 text-slate-300"
               : "border-slate-200 bg-slate-50 text-slate-700",

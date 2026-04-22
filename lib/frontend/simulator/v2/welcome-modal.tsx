@@ -297,7 +297,7 @@ export function WelcomeModal({
                   type="button"
                   onClick={() => handlePick(preset)}
                   title={preset.hoverTip ?? `${preset.title} — ${preset.subtitle}`}
-                  className={`group relative flex h-full min-w-0 flex-col text-left rounded-xl border p-4 transition-all duration-200 ring-0 hover:ring-2 hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${borderCls} ${bgCls} ${ringCls} ${
+                  className={`group relative flex h-full min-w-0 flex-col text-left rounded-2xl border p-4 transition-all duration-200 ring-0 hover:ring-2 hover:shadow-lg hover:shadow-slate-200/40 dark:hover:shadow-slate-950/60 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${borderCls} ${bgCls} ${ringCls} ${
                     darkMode ? "hover:bg-slate-800/80" : "hover:bg-white"
                   }`}
                 >

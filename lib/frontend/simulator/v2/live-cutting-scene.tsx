@@ -233,6 +233,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
   } = props
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const chipsRef = useRef<Chip[]>([])
   const sparksRef = useRef<Spark[]>([])
@@ -241,14 +242,44 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
   const toolXRef = useRef<number>(0)
   const thetaRef = useRef<number>(0)
   const prevTsRef = useRef<number>(0)
-
-  // props 를 ref 로 mirror — animation loop 이 prop 변경을 즉시 반영
   const propsRef = useRef(props)
-  propsRef.current = props
 
   const [paused, setPaused] = useState<boolean>(false)
   const pausedRef = useRef<boolean>(false)
-  pausedRef.current = paused
+  const [isInViewport, setIsInViewport] = useState(true)
+  const [isDocumentVisible, setIsDocumentVisible] = useState(true)
+  const shouldAnimateRef = useRef(true)
+
+  useEffect(() => {
+    propsRef.current = props
+  }, [props])
+
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const onVisibilityChange = () => {
+      setIsDocumentVisible(document.visibilityState !== "hidden")
+    }
+    onVisibilityChange()
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange)
+  }, [])
+
+  useEffect(() => {
+    const node = rootRef.current
+    if (!node || typeof IntersectionObserver === "undefined") return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInViewport(entry?.isIntersecting ?? true)
+      },
+      { threshold: 0.08 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   // 배경색
   const bgColor = darkMode ? "#0f172a" : "#f1f5f9"
@@ -280,8 +311,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     prevTsRef.current = ts
     const dt = Math.min(dtMs, 64) / 1000 // cap 64ms (to avoid huge steps after tab-hidden)
 
-    if (pausedRef.current) {
-      // paused: still clear not needed — just request next frame; keep scene
+    if (!shouldAnimateRef.current || pausedRef.current) {
       rafRef.current = requestAnimationFrame(tick)
       return
     }
@@ -667,10 +697,29 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     }
     sparksRef.current = nextSparks
 
-    rafRef.current = requestAnimationFrame(tick)
+    if (shouldAnimateRef.current) {
+      rafRef.current = requestAnimationFrame(tick)
+    } else {
+      rafRef.current = null
+    }
   }, [bgColor, gridColor, stockStrokeColor, toolFill, toolStroke, darkMode, shape])
 
+  const animationState = paused
+    ? "paused"
+    : isDocumentVisible && isInViewport
+      ? "active"
+      : "sleeping"
+
   useEffect(() => {
+    shouldAnimateRef.current = isDocumentVisible && isInViewport
+    if (!shouldAnimateRef.current) {
+      prevTsRef.current = 0
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+      return
+    }
     prevTsRef.current = 0
     rafRef.current = requestAnimationFrame(tick)
     return () => {
@@ -679,7 +728,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         rafRef.current = null
       }
     }
-  }, [tick])
+  }, [isDocumentVisible, isInViewport, tick])
 
   const overlayTopLeft = useMemo(
     () =>
@@ -708,6 +757,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
 
   return (
     <div
+      ref={rootRef}
+      data-live-state={animationState}
       style={{
         position: "relative",
         width,

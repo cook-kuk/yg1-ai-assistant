@@ -15,7 +15,6 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
-import * as Sentry from "@sentry/nextjs"
 import { logApiRequest, logApiError, logApiLatency } from "@/lib/logger/sim-logger"
 
 export const runtime = "nodejs"
@@ -131,7 +130,7 @@ export async function POST(req: NextRequest) {
       .join("")
       .trim()
   } catch (err) {
-    try { Sentry.captureException(err) } catch {}
+    
     const msg =
       err instanceof Anthropic.APIError
         ? `Anthropic ${err.status ?? ""}: ${err.message}`

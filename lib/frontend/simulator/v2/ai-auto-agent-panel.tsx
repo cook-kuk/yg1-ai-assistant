@@ -525,7 +525,7 @@ export function AiAutoAgentPanel({
                 </div>
                 <div
                   ref={thinkingBoxRef}
-                  className={`rounded-lg p-3 text-[11.5px] leading-relaxed font-mono whitespace-pre-wrap max-h-[240px] overflow-y-auto ${
+                  className={`rounded-xl p-3 text-[11px] leading-relaxed font-mono whitespace-pre-wrap max-h-[240px] overflow-y-auto ${
                     darkMode
                       ? "bg-slate-950/60 border border-slate-800 text-slate-300"
                       : "bg-slate-50 border border-slate-200 text-slate-700"
@@ -631,7 +631,7 @@ function GoalSetup({
     <div className="space-y-4">
       {/* Big hero hint */}
       <div
-        className={`rounded-xl px-4 py-4 ${
+        className={`rounded-2xl px-4 py-4 ${
           darkMode
             ? "bg-gradient-to-br from-indigo-950/50 via-violet-950/50 to-fuchsia-950/50 border border-violet-900"
             : "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 border border-violet-200"
@@ -678,7 +678,7 @@ function GoalSetup({
                 type="button"
                 onClick={() => onGoal(g.id)}
                 aria-pressed={active}
-                className={`group text-left rounded-lg border px-3 py-2.5 transition-all ${
+                className={`group text-left rounded-xl border px-3 py-2.5 transition-all duration-200 ${
                   active
                     ? darkMode
                       ? "bg-violet-900/40 border-violet-500 ring-2 ring-violet-500 -translate-y-0.5"
@@ -776,7 +776,7 @@ function IterationCard({
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className={`rounded-lg border px-3 py-2 ${
+      className={`rounded-xl border px-3 py-2 transition-all duration-200 ${
         isBest
           ? darkMode
             ? "bg-gradient-to-r from-amber-950/60 to-amber-900/40 border-amber-500 ring-1 ring-amber-500"
@@ -976,7 +976,7 @@ function FinalView({
           {rows.map((p) => (
             <div
               key={p}
-              className={`rounded-lg border px-3 py-2 text-center ${
+              className={`rounded-xl border px-3 py-2 text-center ${
                 darkMode
                   ? "bg-slate-800/70 border-slate-700"
                   : "bg-white border-slate-200"
@@ -1003,7 +1003,7 @@ function FinalView({
         {/* Reasoning */}
         {final.reasoning && (
           <div
-            className={`rounded-lg px-3 py-2.5 text-xs leading-relaxed ${
+            className={`rounded-xl px-3 py-2.5 text-xs leading-relaxed ${
               darkMode
                 ? "bg-violet-950/40 border border-violet-900 text-violet-100"
                 : "bg-violet-50 border border-violet-200 text-violet-900"
@@ -1097,7 +1097,7 @@ function ScoreChart({
 
   return (
     <div
-      className={`rounded-lg border px-2 py-2 ${
+      className={`rounded-xl border px-2 py-2 ${
         darkMode
           ? "bg-slate-900/60 border-slate-800"
           : "bg-slate-50 border-slate-200"

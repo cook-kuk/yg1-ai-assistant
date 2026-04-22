@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { AnimatePresence, motion } from "framer-motion"
 import { toast } from "sonner"
-import { X, Sparkles, Loader2, ArrowRight, ExternalLink, RotateCcw, CheckCircle2 } from "lucide-react"
+import { X, Sparkles, Loader2, ArrowRight, ExternalLink, RotateCcw, CheckCircle2, Film, Map as MapIcon, LayoutGrid } from "lucide-react"
 
 // ─────────────────────────────────────────────────────────────
 // 로컬 SSOT (매직넘버 집약)
@@ -39,6 +39,21 @@ const SIM_PREVIEW = {
   // live scene 축소판 크기
   SCENE_W: 440,
   SCENE_H: 240,
+
+  // tool-path scene 기본 stock 치수 (시연용)
+  TOOLPATH_STOCK_W: 60,
+  TOOLPATH_STOCK_L: 80,
+  TOOLPATH_DEFAULT_AE: 2,
+  TOOLPATH_DEFAULT_DIAM: 10,
+  TOOLPATH_W: 440,
+  TOOLPATH_H: 240,
+
+  // "둘 다" 모드에서 씬 축소 비율
+  BOTH_SCENE_W: 320,
+  BOTH_SCENE_H: 180,
+
+  // KPI pulse 주기 (ms)
+  KPI_PULSE_MS: 1400,
 
   // stickout 기본값 (데이터에 없을 때)
   DEFAULT_STICKOUT_MM: 25,
@@ -69,6 +84,29 @@ const LiveCuttingScene = dynamic<LiveCuttingSceneProps>(
     ),
   },
 )
+
+import type { ToolPathSceneProps } from "@/lib/frontend/simulator/v2/tool-path-scene"
+const ToolPathScene = dynamic<ToolPathSceneProps>(
+  () => import("@/lib/frontend/simulator/v2/tool-path-scene"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[220px] w-full items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400 dark:bg-slate-800 dark:text-slate-400">
+        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> 🗺 경로 로딩...
+      </div>
+    ),
+  },
+)
+
+type PathStrategy = "zigzag" | "spiral" | "trochoidal" | "adaptive"
+type VisualMode = "chips" | "path" | "both"
+
+const STRATEGY_OPTIONS: { key: PathStrategy; label: string }[] = [
+  { key: "zigzag", label: "Zigzag" },
+  { key: "spiral", label: "Spiral" },
+  { key: "trochoidal", label: "Trochoidal" },
+  { key: "adaptive", label: "Adaptive" },
+]
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -400,6 +438,8 @@ export default function SimulationPreviewModal(props: SimulationPreviewModalProp
   const [altLoading, setAltLoading] = useState(false)
   const [selectedAltId, setSelectedAltId] = useState<string | null>(null)
   const [applied, setApplied] = useState(false)
+  const [visualMode, setVisualMode] = useState<VisualMode>("path")
+  const [pathStrategy, setPathStrategy] = useState<PathStrategy>("zigzag")
   const abortRef = useRef<AbortController | null>(null)
 
   // ESC + focus management
@@ -580,84 +620,186 @@ export default function SimulationPreviewModal(props: SimulationPreviewModalProp
             <div className="grid gap-4 px-5 py-4 md:grid-cols-[1fr_1fr]">
               {/* ── LEFT : current product simulation ── */}
               <section
-                className={
-                  dark
-                    ? "rounded-xl border border-slate-700 bg-slate-800/30 p-3"
-                    : "rounded-xl border border-slate-200 bg-slate-50/50 p-3"
-                }
+                className="relative overflow-hidden rounded-xl border border-violet-500/30 bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 p-3 text-slate-100"
+                style={{
+                  boxShadow:
+                    "0 0 0 1px rgba(167,139,250,0.15), 0 10px 35px -10px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.04)",
+                }}
                 aria-label="현재 제품 시뮬레이션"
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">🎯 현재 제품</h3>
-                  <span className={dark ? "text-[10px] text-slate-400" : "text-[10px] text-slate-500"}>
-                    카탈로그 절삭조건
-                  </span>
-                </div>
-
-                {baseMetrics.ok ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <KpiCard label="RPM" value={fmt(baseMetrics.rpm, 0)} unit="rpm" dark={dark} />
-                    <KpiCard label="Vf" value={fmt(baseMetrics.vf, 0)} unit="mm/min" dark={dark} />
-                    <KpiCard label="MRR" value={fmt(baseMetrics.mrr, 1)} unit="cm³/min" dark={dark} />
-                    <KpiCard label="Pc" value={fmt(baseMetrics.pc, 2)} unit="kW" dark={dark} />
+                {/* 스캔라인 오버레이 */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-[0.08]"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(0deg, rgba(255,255,255,0.6) 0px, rgba(255,255,255,0.6) 1px, transparent 1px, transparent 3px)",
+                  }}
+                />
+                <div className="relative">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold tracking-tight text-slate-100">
+                      🎯 현재 제품
+                    </h3>
+                    <span className="text-[10px] text-slate-400">카탈로그 절삭조건</span>
                   </div>
-                ) : (
-                  <div
-                    className={
-                      dark
-                        ? "rounded-md border border-dashed border-slate-600 bg-slate-900/40 px-3 py-4 text-center text-xs text-slate-400"
-                        : "rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-xs text-slate-500"
-                    }
-                  >
-                    ⚠ 데이터 부족 (Vc·fz·직경 필수) — 우측에서 대체품만 확인할 수 있습니다.
-                  </div>
-                )}
 
-                {/* live scene */}
-                <div className="mt-3 overflow-hidden rounded-lg">
-                  {baseMetrics.ok ? (
-                    <LiveCuttingScene
-                      shape={sceneShape}
-                      diameter={sceneDiameter}
-                      flutes={sceneFlutes}
-                      Vc={conditions?.Vc ?? 120}
-                      Vf={baseMetrics.vf}
-                      rpm={baseMetrics.rpm}
-                      ap={conditions?.ap ?? sceneDiameter * 0.3}
-                      ae={conditions?.ae ?? sceneDiameter * 0.25}
-                      stickoutMm={SIM_PREVIEW.DEFAULT_STICKOUT_MM}
-                      materialGroup={product.material ?? "P"}
-                      chatterRisk={chatter}
-                      darkMode={dark}
-                      width={SIM_PREVIEW.SCENE_W}
-                      height={SIM_PREVIEW.SCENE_H}
-                    />
-                  ) : (
-                    <div
-                      className={
-                        dark
-                          ? "flex h-[200px] items-center justify-center rounded-md border border-dashed border-slate-600 bg-slate-900/40 text-xs text-slate-500"
-                          : "flex h-[200px] items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-xs text-slate-400"
-                      }
-                    >
-                      씬 렌더 불가 (조건 부족)
+                  {/* 비주얼 모드 토글 */}
+                  <div className="mb-2 flex items-center gap-1.5 rounded-md bg-slate-900/60 p-0.5 ring-1 ring-white/5">
+                    {([
+                      { key: "chips", label: "칩", icon: Film },
+                      { key: "path", label: "툴패스", icon: MapIcon },
+                      { key: "both", label: "둘 다", icon: LayoutGrid },
+                    ] as { key: VisualMode; label: string; icon: typeof Film }[]).map(
+                      (opt) => {
+                        const active = visualMode === opt.key
+                        const Icon = opt.icon
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setVisualMode(opt.key)}
+                            className={[
+                              "inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition",
+                              active
+                                ? "bg-gradient-to-r from-violet-500/80 to-amber-500/80 text-slate-950 shadow"
+                                : "text-slate-300 hover:bg-white/5 hover:text-slate-100",
+                            ].join(" ")}
+                            aria-pressed={active}
+                          >
+                            <Icon className="h-3 w-3" />
+                            {opt.label}
+                          </button>
+                        )
+                      },
+                    )}
+                  </div>
+
+                  {/* 전략 드롭다운 (path/both 일 때만) */}
+                  {(visualMode === "path" || visualMode === "both") && (
+                    <div className="mb-2 flex items-center gap-2">
+                      <label className="text-[10px] uppercase tracking-wider text-slate-400">
+                        전략
+                      </label>
+                      <select
+                        value={pathStrategy}
+                        onChange={(e) => setPathStrategy(e.target.value as PathStrategy)}
+                        className="flex-1 rounded-md border border-slate-700 bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-slate-100 outline-none focus:border-amber-400"
+                      >
+                        {STRATEGY_OPTIONS.map((s) => (
+                          <option key={s.key} value={s.key}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
-                </div>
 
-                <a
-                  href={simulatorUrl(product, conditions)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={
-                    dark
-                      ? "mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-300 hover:text-amber-200"
-                      : "mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 hover:text-amber-700"
-                  }
-                >
-                  전체 시뮬레이터로 열기
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                  {baseMetrics.ok ? (
+                    <motion.div
+                      className="grid grid-cols-2 gap-2"
+                      animate={{ opacity: [0.85, 1, 0.85] }}
+                      transition={{
+                        duration: SIM_PREVIEW.KPI_PULSE_MS / 1000,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                    >
+                      <KpiCard label="RPM" value={fmt(baseMetrics.rpm, 0)} unit="rpm" dark />
+                      <KpiCard label="Vf" value={fmt(baseMetrics.vf, 0)} unit="mm/min" dark />
+                      <KpiCard label="MRR" value={fmt(baseMetrics.mrr, 1)} unit="cm³/min" dark />
+                      <KpiCard label="Pc" value={fmt(baseMetrics.pc, 2)} unit="kW" dark />
+                    </motion.div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-slate-600 bg-slate-900/40 px-3 py-4 text-center text-xs text-slate-400">
+                      ⚠ 데이터 부족 (Vc·fz·직경 필수) — 우측에서 대체품만 확인할 수 있습니다.
+                    </div>
+                  )}
+
+                  {/* 비주얼 영역 */}
+                  <div className="mt-3 overflow-hidden rounded-lg ring-1 ring-violet-500/20">
+                    {baseMetrics.ok ? (
+                      visualMode === "both" ? (
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <LiveCuttingScene
+                            shape={sceneShape}
+                            diameter={sceneDiameter}
+                            flutes={sceneFlutes}
+                            Vc={conditions?.Vc ?? 120}
+                            Vf={baseMetrics.vf}
+                            rpm={baseMetrics.rpm}
+                            ap={conditions?.ap ?? sceneDiameter * 0.3}
+                            ae={conditions?.ae ?? sceneDiameter * 0.25}
+                            stickoutMm={SIM_PREVIEW.DEFAULT_STICKOUT_MM}
+                            materialGroup={product.material ?? "P"}
+                            chatterRisk={chatter}
+                            darkMode
+                            width={SIM_PREVIEW.BOTH_SCENE_W}
+                            height={SIM_PREVIEW.BOTH_SCENE_H}
+                          />
+                          <ToolPathScene
+                            strategy={pathStrategy}
+                            stockWidth={SIM_PREVIEW.TOOLPATH_STOCK_W}
+                            stockLength={SIM_PREVIEW.TOOLPATH_STOCK_L}
+                            diameter={product.diameter ?? SIM_PREVIEW.TOOLPATH_DEFAULT_DIAM}
+                            ae={conditions?.ae ?? SIM_PREVIEW.TOOLPATH_DEFAULT_AE}
+                            Vf={baseMetrics.vf}
+                            shape={sceneShape}
+                            darkMode
+                            autoReplay
+                            width={SIM_PREVIEW.BOTH_SCENE_W}
+                            height={SIM_PREVIEW.BOTH_SCENE_H}
+                          />
+                        </div>
+                      ) : visualMode === "path" ? (
+                        <ToolPathScene
+                          strategy={pathStrategy}
+                          stockWidth={SIM_PREVIEW.TOOLPATH_STOCK_W}
+                          stockLength={SIM_PREVIEW.TOOLPATH_STOCK_L}
+                          diameter={product.diameter ?? SIM_PREVIEW.TOOLPATH_DEFAULT_DIAM}
+                          ae={conditions?.ae ?? SIM_PREVIEW.TOOLPATH_DEFAULT_AE}
+                          Vf={baseMetrics.vf}
+                          shape={sceneShape}
+                          darkMode
+                          autoReplay
+                          width={SIM_PREVIEW.TOOLPATH_W}
+                          height={SIM_PREVIEW.TOOLPATH_H}
+                        />
+                      ) : (
+                        <LiveCuttingScene
+                          shape={sceneShape}
+                          diameter={sceneDiameter}
+                          flutes={sceneFlutes}
+                          Vc={conditions?.Vc ?? 120}
+                          Vf={baseMetrics.vf}
+                          rpm={baseMetrics.rpm}
+                          ap={conditions?.ap ?? sceneDiameter * 0.3}
+                          ae={conditions?.ae ?? sceneDiameter * 0.25}
+                          stickoutMm={SIM_PREVIEW.DEFAULT_STICKOUT_MM}
+                          materialGroup={product.material ?? "P"}
+                          chatterRisk={chatter}
+                          darkMode
+                          width={SIM_PREVIEW.SCENE_W}
+                          height={SIM_PREVIEW.SCENE_H}
+                        />
+                      )
+                    ) : (
+                      <div className="flex h-[200px] items-center justify-center rounded-md border border-dashed border-slate-600 bg-slate-900/40 text-xs text-slate-500">
+                        씬 렌더 불가 (조건 부족)
+                      </div>
+                    )}
+                  </div>
+
+                  <a
+                    href={simulatorUrl(product, conditions)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-amber-300 hover:text-amber-200"
+                  >
+                    전체 시뮬레이터로 열기
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
               </section>
 
               {/* ── RIGHT : alternatives A/B ── */}

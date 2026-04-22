@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   Search, Gauge, Zap, Shield, BarChart3, RefreshCw, Lock, Unlock,
@@ -904,16 +904,46 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     return { preset, harvey, sandvik, yg1 }
   }, [selectedHarveyReplacementId])
 
+  const replacementControls = useMemo(() => ({
+    visualMode: replacementVisualMode,
+    fluteOverride: replacementFluteOverride,
+    helixAngle: replacementHelixAngle,
+    vcScale: replacementVcScale,
+    fzScale: replacementFzScale,
+    apRatio: replacementApRatio,
+    aeRatio: replacementAeRatio,
+    stickoutRatio: replacementStickoutRatio,
+  }), [
+    replacementAeRatio,
+    replacementApRatio,
+    replacementFluteOverride,
+    replacementFzScale,
+    replacementHelixAngle,
+    replacementStickoutRatio,
+    replacementVcScale,
+    replacementVisualMode,
+  ])
+  const deferredReplacementControls = useDeferredValue(replacementControls)
+  const replacementVisualPending =
+    deferredReplacementControls.visualMode !== replacementControls.visualMode ||
+    deferredReplacementControls.fluteOverride !== replacementControls.fluteOverride ||
+    deferredReplacementControls.helixAngle !== replacementControls.helixAngle ||
+    deferredReplacementControls.vcScale !== replacementControls.vcScale ||
+    deferredReplacementControls.fzScale !== replacementControls.fzScale ||
+    deferredReplacementControls.apRatio !== replacementControls.apRatio ||
+    deferredReplacementControls.aeRatio !== replacementControls.aeRatio ||
+    deferredReplacementControls.stickoutRatio !== replacementControls.stickoutRatio
+
   const harveyReplacementCards = useMemo(() => {
     if (!harveyReplacementPair) return []
     const buildCard = (tool: ToolOption) => {
-      const pairFlutes = replacementFluteOverride ?? tool.Z
-      const pairAp = Math.min(tool.LOC, parseFloat(((replacementApRatio / 100) * tool.D).toFixed(1)))
-      const pairAe = Math.min(tool.D, parseFloat(((replacementAeRatio / 100) * tool.D).toFixed(1)))
-      const pairVc = parseFloat((tool.Vc * (replacementVcScale / 100)).toFixed(0))
-      const pairFz = parseFloat((tool.fz * (replacementFzScale / 100)).toFixed(4))
-      const pairStickout = parseFloat((tool.D * (replacementStickoutRatio / 100)).toFixed(1))
-      const helixAngle = replacementHelixAngle ?? Math.max(28, Math.min(52, 24 + pairFlutes * 4))
+      const pairFlutes = deferredReplacementControls.fluteOverride ?? tool.Z
+      const pairAp = Math.min(tool.LOC, parseFloat(((deferredReplacementControls.apRatio / 100) * tool.D).toFixed(1)))
+      const pairAe = Math.min(tool.D, parseFloat(((deferredReplacementControls.aeRatio / 100) * tool.D).toFixed(1)))
+      const pairVc = parseFloat((tool.Vc * (deferredReplacementControls.vcScale / 100)).toFixed(0))
+      const pairFz = parseFloat((tool.fz * (deferredReplacementControls.fzScale / 100)).toFixed(4))
+      const pairStickout = parseFloat((tool.D * (deferredReplacementControls.stickoutRatio / 100)).toFixed(1))
+      const helixAngle = deferredReplacementControls.helixAngle ?? Math.max(28, Math.min(52, 24 + pairFlutes * 4))
       const cutting = calculateCutting({
         Vc: pairVc,
         fz: pairFz,
@@ -967,7 +997,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       buildCard(harveyReplacementPair.sandvik),
       buildCard(harveyReplacementPair.yg1),
     ]
-  }, [harveyReplacementPair, replacementAeRatio, replacementApRatio, replacementFluteOverride, replacementFzScale, replacementHelixAngle, replacementStickoutRatio, replacementVcScale])
+  }, [deferredReplacementControls, harveyReplacementPair])
 
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
@@ -2235,8 +2265,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <CompareControlSlider label="Stick" value={replacementStickoutRatio} min={200} max={700} step={25} suffix="%D" onChange={setReplacementStickoutRatio} />
           </div>
 
-          <div className="mb-3 rounded-xl border border-dashed border-amber-200 bg-white/70 px-3 py-2 text-[12px] text-amber-900">
-            3자 시각화 분할 화면입니다. 위 공통 슬라이더를 움직이면 Harvey, Sandvik, YG-1 세 카드가 같은 축으로 동시에 갱신됩니다.
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-amber-200 bg-white/70 px-3 py-2 text-[12px] text-amber-900">
+            <span>3자 시각화 분할 화면입니다. 위 공통 슬라이더를 움직이면 Harvey, Sandvik, YG-1 세 카드가 같은 축으로 동시에 갱신됩니다.</span>
+            <span
+              data-testid="replacement-render-status"
+              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                replacementVisualPending
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-emerald-100 text-emerald-900"
+              }`}
+            >
+              {replacementVisualPending ? "시각화 업데이트 중" : "시각화 동기화 완료"}
+            </span>
           </div>
           <div data-testid="ab-visual-split" className="mt-4 grid gap-3 lg:grid-cols-3">
             {harveyReplacementCards.map((card, index) => (
@@ -2244,7 +2284,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 key={card.tool.id}
                 title={index === 0 ? "A · Harvey 기준" : index === 1 ? "B · Sandvik 비교" : "C · YG-1 대체품"}
                 card={card}
-                visualMode={replacementVisualMode}
+                visualMode={deferredReplacementControls.visualMode}
                 onApply={index === 1 ? () => {
                   setProductCode(card.tool.series)
                   setDiameter(card.tool.D)
@@ -3392,6 +3432,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
   title: string
   card: {
     tool: ToolOption
+    flutes: number
     ap: number
     ae: number
     Vc: number
@@ -3424,7 +3465,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {Array.from({ length: card.tool.Z }, (_, i) => (
+        {Array.from({ length: card.flutes }, (_, i) => (
           <span key={i} className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
             flute {i + 1}
           </span>
@@ -3435,7 +3476,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Spec</div>
           <div className="mt-1 space-y-1 text-[12px] text-slate-700">
-            <div>D {card.tool.D}mm · Z {card.tool.Z} · LOC {card.tool.LOC}mm</div>
+            <div>D {card.tool.D}mm · Z {card.flutes} · LOC {card.tool.LOC}mm</div>
             <div>{card.tool.shape}{card.tool.cornerR ? ` · R ${card.tool.cornerR}` : ""} · helix {card.helixAngle}°</div>
             <div>단가 ₩{card.tool.priceKrw.toLocaleString()}</div>
           </div>
@@ -3458,7 +3499,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
               <Endmill3DPreview
               shape={card.tool.shape}
               diameter={card.tool.D}
-              flutes={card.tool.Z}
+              flutes={card.flutes}
               rpm={card.n}
               helixAngle={card.helixAngle}
               cornerR={card.tool.cornerR}
@@ -3473,7 +3514,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                 <LiveCuttingScene
                   shape={card.tool.shape}
                   diameter={card.tool.D}
-                  flutes={card.tool.Z}
+                  flutes={card.flutes}
                   helixAngle={card.helixAngle}
                   Vc={card.Vc}
                   Vf={card.Vf}
@@ -3497,7 +3538,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                 <LiveCuttingScene
                   shape={card.tool.shape}
                   diameter={card.tool.D}
-                  flutes={card.tool.Z}
+                  flutes={card.flutes}
                   helixAngle={card.helixAngle}
                   Vc={card.Vc}
                   Vf={card.Vf}
@@ -3526,7 +3567,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
             <Endmill3DPreview
               shape={card.tool.shape}
               diameter={card.tool.D}
-              flutes={card.tool.Z}
+              flutes={card.flutes}
               rpm={card.n}
               helixAngle={card.helixAngle + 4}
               cornerR={card.tool.cornerR}
@@ -3534,7 +3575,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
             />
           </div>
           <div className="mt-2 text-center text-[12px] text-slate-700">
-            Z {card.tool.Z}날이 보이도록 공구 형상만 강조해서 보여줍니다.
+            Z {card.flutes}날이 보이도록 공구 형상만 강조해서 보여줍니다.
           </div>
         </div>
       )}
@@ -3546,7 +3587,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
             <LiveCuttingScene
               shape={card.tool.shape}
               diameter={card.tool.D}
-              flutes={card.tool.Z}
+              flutes={card.flutes}
               helixAngle={card.helixAngle}
               Vc={card.Vc}
               Vf={card.Vf}

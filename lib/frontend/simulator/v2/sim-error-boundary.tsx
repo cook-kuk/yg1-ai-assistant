@@ -1,6 +1,5 @@
 "use client"
 import React from "react"
-import * as Sentry from "@sentry/nextjs"
 
 interface Props { children: React.ReactNode; fallback?: React.ReactNode }
 interface State { error: Error | null }
@@ -10,7 +9,7 @@ export class SimErrorBoundary extends React.Component<Props, State> {
   static getDerivedStateFromError(error: Error): State { return { error } }
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("[SimErrorBoundary]", error, info)
-    try { Sentry.captureException(error, { extra: { componentStack: info.componentStack } }) } catch {}
+    // Sentry 는 DSN 설정 시 sentry.client.config.ts 에서 global 캡처 (@sentry/nextjs 미설치 시 자동 skip)
   }
   render() {
     if (this.state.error) {

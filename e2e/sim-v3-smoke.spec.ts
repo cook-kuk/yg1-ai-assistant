@@ -81,6 +81,20 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(page.getByTestId("ab-visual-split")).toBeVisible()
   })
 
+  test("3자 비교 날수 선택은 카드 스펙과 시각화 상태에 즉시 반영됨", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    const dual = page.getByTestId("dual-replacement-sim")
+    await expect(dual).toBeVisible()
+
+    await dual.getByRole("button", { name: "5날" }).click()
+    await expect(dual.getByTestId("replacement-render-status")).toContainText(/업데이트 중|동기화 완료/)
+    await expect(dual.getByText(/D 10mm · Z 5 · LOC 22mm/).first()).toBeVisible()
+
+    await dual.getByRole("button", { name: "원래 날수" }).click()
+    await expect(dual.getByText(/D 10mm · Z 3 · LOC 22mm/).first()).toBeVisible()
+  })
+
   test("모드 토글 (초보→전문가→교육)", async ({ page }) => {
     await page.goto("/simulator_v2")
     await page.getByRole("button", { name: /전문가/ }).click()

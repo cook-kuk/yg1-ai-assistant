@@ -287,7 +287,7 @@ export function AiOptimizeButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`group inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-md transition-all bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
+        className={`group inline-flex items-center gap-2 rounded-xl px-4 py-2.5 min-h-[40px] text-sm font-bold text-white shadow-md shadow-violet-500/20 transition-all duration-200 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 hover:shadow-lg hover:shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 ${
           darkMode ? "focus-visible:ring-offset-slate-900" : "focus-visible:ring-offset-white"
         } ${className}`}
         aria-label="AI 1-click 최적화 열기"
@@ -519,7 +519,7 @@ function GoalPicker({
               key={g.id}
               type="button"
               onClick={() => onSelect(g.id)}
-              className={`group relative text-left rounded-xl border p-4 transition-all duration-150 focus:outline-none ${borderCls} ${bgCls} ${
+              className={`group relative text-left rounded-2xl border p-4 transition-all duration-200 focus:outline-none ${borderCls} ${bgCls} ${
                 active
                   ? `ring-2 ${ringCls} -translate-y-0.5 shadow-md`
                   : "ring-0 hover:ring-2 hover:shadow-sm hover:-translate-y-0.5"
@@ -819,7 +819,7 @@ function ImprovementCard({
         : "text-slate-500"
   return (
     <div
-      className={`rounded-lg border px-3 py-2.5 ${
+      className={`rounded-xl border px-3 py-2.5 ${
         darkMode
           ? "bg-slate-800/60 border-slate-700"
           : "bg-white border-slate-200"

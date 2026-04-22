@@ -559,7 +559,7 @@ export function BeginnerWizard({
               type="button"
               onClick={handlePrev}
               disabled={step === 1}
-              className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 px-3 py-2 min-h-[36px] rounded-lg text-sm font-medium transition-colors ${
                 step === 1
                   ? darkMode
                     ? "bg-slate-800 text-slate-600 cursor-not-allowed"
@@ -575,10 +575,10 @@ export function BeginnerWizard({
             <button
               type="button"
               onClick={handleReset}
-              className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 px-3 py-2 min-h-[36px] rounded-lg text-sm font-medium transition-colors ${
                 darkMode
                   ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                  : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -590,10 +590,10 @@ export function BeginnerWizard({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 min-h-[36px] rounded-lg text-sm font-medium transition-colors ${
                 darkMode
                   ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                  : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
               }`}
             >
               건너뛰기
@@ -687,7 +687,7 @@ function StepMaterial({
               aria-pressed={isSelected}
               aria-label={`ISO ${m.key} ${m.title} 선택 — ${m.description}`}
               title={m.hoverTip}
-              className={`group relative h-full text-left rounded-xl p-3 transition-all duration-200 focus:outline-none ${
+              className={`group relative h-full text-left rounded-2xl p-3 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${m.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
                   : darkMode
@@ -791,7 +791,7 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
               aria-pressed={isSelected}
               aria-label={`${o.title} 선택 — ${o.hint}`}
               title={o.hoverTip}
-              className={`h-full text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
+              className={`h-full text-left rounded-2xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${o.gradient} text-white shadow-lg ring-2 ring-white scale-[1.01]`
                   : darkMode
@@ -946,7 +946,7 @@ function StepDiameter({ darkMode, value, onChange }: StepDiameterProps) {
 
         {/* 라이브 SVG 프리뷰 */}
         <div
-          className={`rounded-xl p-2 flex items-center justify-center ${
+          className={`rounded-2xl p-2 flex items-center justify-center ${
             darkMode
               ? "bg-slate-800/60 ring-1 ring-slate-700"
               : "bg-slate-50 ring-1 ring-slate-200"
@@ -1028,7 +1028,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
               aria-pressed={isSelected}
               aria-label={`${p.title} 우선 — ${p.description}`}
               title={p.hoverTip}
-              className={`flex h-full flex-col text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
+              className={`flex h-full flex-col text-left rounded-2xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${p.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
                   : darkMode
@@ -1121,7 +1121,7 @@ function StepConfirm({
       </p>
 
       {/* 선택 요약 */}
-      <div className={`rounded-xl p-3 ${rowBg} ${rowRing} mb-3`}>
+      <div className={`rounded-2xl p-3 ${rowBg} ${rowRing} mb-3`}>
         <div className={`text-xs font-semibold mb-2 ${labelCls}`}>
           ✅ 선택 요약
         </div>
@@ -1150,7 +1150,7 @@ function StepConfirm({
       </div>
 
       {/* 권장 조건 미리보기 */}
-      <div className={`rounded-xl p-3 ${rowBg} ${rowRing} mb-3`}>
+      <div className={`rounded-2xl p-3 ${rowBg} ${rowRing} mb-3`}>
         <div className={`text-xs font-semibold mb-2 ${labelCls}`}>
           🔧 권장 가공 조건
         </div>
@@ -1194,7 +1194,7 @@ function StepConfirm({
 
       {/* 이유 설명 */}
       <div
-        className={`rounded-xl p-3 text-xs ${
+        className={`rounded-2xl p-3 text-xs ${
           darkMode
             ? "bg-sky-950/40 ring-1 ring-sky-800 text-sky-200"
             : "bg-sky-50 ring-1 ring-sky-200 text-sky-900"
@@ -1255,7 +1255,7 @@ function ParamChip({
 }) {
   return (
     <div
-      className={`rounded-lg px-3 py-2 ${
+      className={`rounded-xl px-3 py-2 ${
         darkMode
           ? "bg-slate-900/60 ring-1 ring-slate-700"
           : "bg-white ring-1 ring-slate-200"
@@ -1278,7 +1278,7 @@ function ParamChip({
         </span>
         <span
           className={`text-[10px] ${
-            darkMode ? "text-slate-500" : "text-slate-500"
+            darkMode ? "text-slate-500" : "text-slate-600"
           }`}
         >
           {unit}

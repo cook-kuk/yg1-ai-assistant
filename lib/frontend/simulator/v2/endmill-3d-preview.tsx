@@ -48,6 +48,8 @@ export function Endmill3DPreview({
   const rotateX = useMotionValue(-10)
   const [isHover, setIsHover] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isInViewport, setIsInViewport] = useState(true)
+  const [isDocumentVisible, setIsDocumentVisible] = useState(true)
   const dragStart = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null)
 
   const tint = useMemo(() => resolveTint(coating), [coating])
@@ -63,14 +65,37 @@ export function Endmill3DPreview({
 
   // 오토 회전 animate 제어 (hover/drag 시 일시 정지)
   useEffect(() => {
-    if (!autoRotate || isHover || isDragging) return
+    if (!autoRotate || isHover || isDragging || !isInViewport || !isDocumentVisible) return
     const controls = animate(rotateY, rotateY.get() + 360, {
       duration,
       ease: "linear",
       repeat: Infinity,
     })
     return () => controls.stop()
-  }, [autoRotate, duration, isHover, isDragging, rotateY])
+  }, [autoRotate, duration, isDocumentVisible, isHover, isDragging, isInViewport, rotateY])
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const onVisibilityChange = () => {
+      setIsDocumentVisible(document.visibilityState !== "hidden")
+    }
+    onVisibilityChange()
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange)
+  }, [])
+
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node || typeof IntersectionObserver === "undefined") return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInViewport(entry?.isIntersecting ?? true)
+      },
+      { threshold: 0.08 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   // 드래그 핸들러
   function onPointerDown(e: React.PointerEvent) {
@@ -171,6 +196,7 @@ export function Endmill3DPreview({
   return (
     <div
       ref={containerRef}
+      data-rotation-state={autoRotate && isDocumentVisible && isInViewport && !isHover && !isDragging ? "active" : "sleeping"}
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
       onDoubleClick={onDoubleClick}

@@ -338,8 +338,8 @@ function RunoutSection({ runout, darkMode }: { runout: RunoutEffect; darkMode: b
           trackClass={darkMode ? "bg-slate-700" : "bg-slate-100"}
           ariaLabel="마모 가속"
         />
-        <div className={`mt-0.5 flex justify-between text-[9px] ${
-          darkMode ? "text-slate-500" : "text-slate-400"
+        <div className={`mt-0.5 flex justify-between text-[10px] ${
+          darkMode ? "text-slate-500" : "text-slate-500"
         }`}>
           <span>1.0×</span>
           <span>2.5×</span>
@@ -468,7 +468,7 @@ function MonteCarloSection({
             style={{ left: `${p50Pct}%` }}
           />
         </div>
-        <div className={`mt-0.5 flex justify-between font-mono tabular-nums text-[9px] ${
+        <div className={`mt-0.5 flex justify-between font-mono tabular-nums text-[10px] ${
           darkMode ? "text-slate-400" : "text-slate-500"
         }`}>
           <span>P10 {fmt(p10, 1)}</span>
@@ -571,7 +571,7 @@ function BueSection({ bue, darkMode }: { bue: BueRisk; darkMode: boolean }) {
           style={{ left: `calc(${markerPct}% - 1px)` }}
         />
       </div>
-      <div className={`mt-1 flex justify-between font-mono tabular-nums text-[9px] ${
+      <div className={`mt-1 flex justify-between font-mono tabular-nums text-[10px] ${
         darkMode ? "text-slate-400" : "text-slate-500"
       }`}>
         <span>{fmt(lo, 0)}°C</span>
