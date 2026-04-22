@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Pause, Play, Volume2, VolumeX } from "lucide-react"
+import { LiveIndicator } from "./live-indicator"
 
 // ─────────────────────────────────────────────
 // Local SSOT — 모든 상수는 이 블록에서만 관리
@@ -471,7 +472,11 @@ function VibrationOscilloscope(props: VibrationOscilloscopeProps) {
         height={height}
         style={{ width, height, display: "block", borderRadius: 6 }}
       />
-      {/* 좌상단 컨트롤 오버레이 */}
+      {/* LIVE 인디케이터 (좌상단) */}
+      <div className="absolute top-1 left-1" style={{ pointerEvents: "none" }}>
+        <LiveIndicator watch={[rpm, chatterRisk, flutes]} color="rose" darkMode={darkMode} />
+      </div>
+      {/* 우상단 컨트롤 오버레이 */}
       <div className="absolute top-1 right-1 flex gap-1" style={{ pointerEvents: "auto" }}>
         <button
           type="button"

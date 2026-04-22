@@ -9,6 +9,7 @@ import type {
   MonteCarloResult, BueRisk, ChipMorphology,
 } from "../advanced-metrics"
 import FeatureExplainer from "./feature-explainer"
+import { AnimatedNumber } from "./animated-number"
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -210,11 +211,13 @@ function HeatSection({ heat, darkMode }: { heat: HeatEstimation; darkMode: boole
   return (
     <SectionShell title="열·온도 (Heat Partition)" icon="🌡" darkMode={darkMode}>
       <div className="flex items-baseline gap-2">
-        <span className={`font-mono tabular-nums text-2xl font-bold ${
-          darkMode ? "text-slate-100" : "text-slate-900"
-        }`}>
-          {fmt(heat.chipTempC, 0)}
-        </span>
+        <AnimatedNumber
+          value={heat.chipTempC}
+          decimals={0}
+          className={`font-mono tabular-nums text-2xl font-bold ${
+            darkMode ? "text-slate-100" : "text-slate-900"
+          }`}
+        />
         <span className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>°C 칩</span>
         <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-semibold ${pillCls}`}>
           {band === "green" ? "정상" : band === "amber" ? "주의" : "과열"}
@@ -724,13 +727,14 @@ export function AdvancedMetricsPanel({
               칩 온도
             </span>
             <span className="flex items-baseline gap-1 min-w-0">
-              <span
+              <AnimatedNumber
+                value={heat.chipTempC}
+                decimals={0}
+                suffix="°C"
                 className={`truncate font-mono tabular-nums text-sm font-semibold ${
                   darkMode ? "text-slate-100" : "text-slate-800"
                 }`}
-              >
-                {fmt(heat.chipTempC, 0)}°C
-              </span>
+              />
               <span
                 className={`flex-shrink-0 whitespace-nowrap rounded-full border px-1.5 text-[9px] font-semibold ${chipRiskCls}`}
               >

@@ -13,6 +13,8 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import FeatureExplainer from "./feature-explainer"
+import { AnimatedNumber } from "./animated-number"
+import { LiveIndicator } from "./live-indicator"
 
 /**
  * Break-Even Vc × Cost/부품 chart
@@ -236,6 +238,7 @@ export default function BreakEvenChart({
       >
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
           💰 Break-Even 분석 · Vc × Cost/부품
+          <LiveIndicator watch={[currentVc, toolCostKrw, machineCostPerHourKrw]} color="amber" darkMode={darkMode} />
           <FeatureExplainer featureId="break-even" inline darkMode={darkMode} />
         </h3>
         <div style={{ fontSize: 11, color: subFg }}>
@@ -295,7 +298,11 @@ export default function BreakEvenChart({
             }}
             title={formatKrw(currentPoint.totalPerPart)}
           >
-            {formatKrw(currentPoint.totalPerPart)}
+            <AnimatedNumber
+              value={currentPoint.totalPerPart}
+              decimals={0}
+              format={(n) => formatKrw(n)}
+            />
           </div>
           <div
             style={{
@@ -352,7 +359,11 @@ export default function BreakEvenChart({
             }}
             title={formatKrw(economic.totalPerPart)}
           >
-            {formatKrw(economic.totalPerPart)}
+            <AnimatedNumber
+              value={economic.totalPerPart}
+              decimals={0}
+              format={(n) => formatKrw(n)}
+            />
           </div>
           <div
             style={{
@@ -408,7 +419,11 @@ export default function BreakEvenChart({
             }}
             title={`₩${monthlySavings.toLocaleString("ko-KR")}`}
           >
-            ₩{monthlySavings.toLocaleString("ko-KR")}
+            <AnimatedNumber
+              value={monthlySavings}
+              decimals={0}
+              prefix="₩"
+            />
           </div>
           <div
             style={{

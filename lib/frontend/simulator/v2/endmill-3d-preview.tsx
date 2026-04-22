@@ -2,6 +2,7 @@
 
 import { motion, useMotionValue, useMotionTemplate, animate } from "framer-motion"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { LiveIndicator } from "./live-indicator"
 
 export interface Endmill3DPreviewProps {
   shape: "square" | "ball" | "radius" | "chamfer"
@@ -184,6 +185,19 @@ export function Endmill3DPreview({
           : "inset 0 0 20px rgba(0,0,0,0.08)",
       }}
     >
+      {/* LIVE 인디케이터 (좌상단) */}
+      <div
+        style={{
+          position: "absolute",
+          top: 8,
+          left: 8,
+          zIndex: 3,
+          pointerEvents: "none",
+        }}
+      >
+        <LiveIndicator watch={[rpm, diameter, flutes]} color="cyan" darkMode={darkMode} />
+      </div>
+
       {/* RPM 배지 */}
       <motion.div
         animate={{ opacity: autoRotate && !isHover ? [1, 0.55, 1] : 1 }}
@@ -327,7 +341,7 @@ export function Endmill3DPreview({
         <div
           style={{
             position: "absolute",
-            top: 8,
+            top: 30,
             left: 8,
             fontSize: 10,
             color: darkMode ? "#94a3b8" : "#6b7280",

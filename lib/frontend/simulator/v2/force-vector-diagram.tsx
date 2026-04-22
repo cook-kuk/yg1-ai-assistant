@@ -25,6 +25,7 @@
 
 import { motion } from "framer-motion"
 import { useMemo } from "react"
+import { LiveIndicator } from "./live-indicator"
 
 export interface ForceVectorDiagramProps {
   /** Tangential force (접선방향, 공구 회전 저항) [N] */
@@ -237,6 +238,10 @@ export function ForceVectorDiagram({
         aspectRatio: `${width} / ${height}`,
       }}
     >
+      {/* LIVE 인디케이터 (우상단) */}
+      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 3, pointerEvents: "none" }}>
+        <LiveIndicator watch={[tangentialForceN, radialForceN, axialForceN]} color="violet" darkMode={darkMode} />
+      </div>
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"

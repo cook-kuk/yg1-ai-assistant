@@ -30,6 +30,7 @@
 import { AnimatePresence, motion } from "framer-motion"
 import { Clock3, Flame, Gauge, Zap } from "lucide-react"
 import { AnimatedNumber } from "./animated-number"
+import { LiveIndicator } from "./live-indicator"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -402,6 +403,11 @@ export default function DashboardHeroDisplay({
       data-critical={critical ? "true" : "false"}
       aria-label="Simulator KPI hero display"
     >
+      {/* ===== LIVE 인디케이터 (우상단) ===== */}
+      <div className="absolute right-2 top-2 z-20 pointer-events-none">
+        <LiveIndicator watch={[rpm, mrr, pc, toolLifeMin]} color="cyan" darkMode={darkMode} />
+      </div>
+
       {/* ===== Scanline overlay (critical only) ===== */}
       <AnimatePresence>
         {critical && (

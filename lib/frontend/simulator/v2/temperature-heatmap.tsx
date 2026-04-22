@@ -6,6 +6,7 @@
 
 import { useId, useMemo } from "react"
 import { motion } from "framer-motion"
+import { LiveIndicator } from "./live-indicator"
 
 // ─────────────────────────────────────────────
 // 로컬 SSOT (상수)
@@ -235,7 +236,7 @@ export default function TemperatureHeatmap({
 
   return (
     <div
-      className="rounded-xl border overflow-hidden"
+      className="rounded-xl border overflow-hidden relative"
       style={{
         background: bgColor,
         borderColor,
@@ -247,6 +248,10 @@ export default function TemperatureHeatmap({
         toolTempC
       )}°C, 공작물 ${Math.round(workpieceTempC)}°C`}
     >
+      {/* LIVE 인디케이터 (우상단) */}
+      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 3, pointerEvents: "none" }}>
+        <LiveIndicator watch={[chipTempC, toolTempC, Vc]} color="amber" darkMode={darkMode} />
+      </div>
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"

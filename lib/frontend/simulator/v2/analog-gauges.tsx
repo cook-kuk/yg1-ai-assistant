@@ -7,6 +7,7 @@
 
 import { useMemo, useId } from "react"
 import { motion, useReducedMotion } from "framer-motion"
+import { LiveIndicator } from "./live-indicator"
 
 // ─────────────────────────────────────────────────────────────────────
 // 상수 (로컬 SSOT — 눈금/각도/임계치)
@@ -601,6 +602,7 @@ export default function AnalogGauges({
           >
             Machine Dashboard
           </span>
+          <LiveIndicator watch={[rpm, Vf, Pc, chatterRisk]} color="emerald" darkMode={darkMode} />
         </div>
         <span className={["text-[10px] font-mono", darkMode ? "text-slate-500" : "text-slate-400"].join(" ")}>
           LIVE

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Pause, Play } from "lucide-react"
+import { LiveIndicator } from "./live-indicator"
 
 // ─────────────────────────────────────────────
 // 로컬 SSOT (하드코딩 대신 이 파일 상수로 집약)
@@ -618,9 +619,13 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
           color: textColor,
           border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
           pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
         }}
       >
-        {overlayTopLeft}
+        <LiveIndicator watch={[rpm, Vf, Vc, ap, ae]} color="emerald" darkMode={darkMode} />
+        <span>{overlayTopLeft}</span>
       </div>
 
       {/* Bottom-right overlay */}

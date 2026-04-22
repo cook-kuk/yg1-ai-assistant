@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react"
 import { Wrench, RotateCcw, Plus, AlertTriangle, CheckCircle2, Siren, BookOpen } from "lucide-react"
 import FeatureExplainer from "./feature-explainer"
+import { AnimatedNumber } from "./animated-number"
 
 // ─────────────────────────────────────────────────────────────────────
 // 상수 (로컬 SSOT — 임계치/색상/빠른버튼 값)
@@ -231,9 +232,13 @@ export function WearGaugePanel({
             </svg>
             {/* 중앙 텍스트 */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-              <div className={`text-4xl font-extrabold leading-none sm:text-5xl ${theme.centerText}`}>
-                {remainingPct.toFixed(0)}%
-              </div>
+              <AnimatedNumber
+                value={remainingPct}
+                decimals={0}
+                suffix="%"
+                className={`text-4xl font-extrabold leading-none sm:text-5xl ${theme.centerText}`}
+              />
+
               <div className={`mt-1 text-[11px] font-medium ${subTextCls}`}>
                 {fmt(remainingMin, 1)} / {fmt(safeLife, 1)} min 남음
               </div>
