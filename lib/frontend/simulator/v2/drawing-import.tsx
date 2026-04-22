@@ -350,25 +350,26 @@ export function DrawingImport({
     setDragOver(false)
   }, [])
 
+  // Mobile-first: compact h-24, expand to h-40 on sm+. Use Tailwind so we can
+  // tweak via responsive utilities; keep the dynamic drag-over color inline.
   const rootStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    padding: 16,
     border: `2px dashed ${dragOver ? "#4f8ef7" : "#9aa3ad"}`,
-    borderRadius: 8,
     background: dragOver ? "rgba(79,142,247,0.08)" : "transparent",
     color: "inherit",
     fontFamily: "inherit",
-    fontSize: 13,
-    textAlign: "center",
     cursor: busy ? "progress" : "pointer",
     transition: "background 120ms ease, border-color 120ms ease",
   }
 
+  const rootClass = [
+    "flex flex-col items-center justify-center gap-2 rounded-lg text-center",
+    "h-24 p-3 text-xs sm:h-40 sm:p-4 sm:text-sm",
+    className ?? "",
+  ].filter(Boolean).join(" ")
+
   return (
     <div
-      className={className}
+      className={rootClass}
       style={rootStyle}
       onDrop={onDrop}
       onDragOver={onDragOver}
@@ -389,15 +390,18 @@ export function DrawingImport({
         style={{ display: "none" }}
         disabled={busy}
       />
-      <div style={{ fontWeight: 600 }}>
+      <div className="font-semibold">
         {busy ? "Parsing drawing..." : label}
       </div>
-      <div style={{ fontSize: 11, opacity: 0.75 }}>
+      <div className="text-[11px] opacity-75 hidden sm:block">
         Drop a .step, .stp, .iges, .igs, or .dxf file here, or click to browse.
         DXF files are extruded by {defaultThickness}&nbsp;mm.
       </div>
+      <div className="text-[10px] opacity-75 sm:hidden">
+        .step / .stp / .iges / .igs / .dxf
+      </div>
       {lastFileName && !error && !busy && (
-        <div style={{ fontSize: 11, opacity: 0.75 }}>Loaded: {lastFileName}</div>
+        <div className="text-[11px] opacity-75 truncate max-w-full">Loaded: {lastFileName}</div>
       )}
       {error && (
         <div
