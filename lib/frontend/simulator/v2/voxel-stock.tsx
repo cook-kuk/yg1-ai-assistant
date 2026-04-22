@@ -936,6 +936,7 @@ export function VoxelStock({
       mesh.geometry = initialGeometry
       if (old && old !== initialGeometry) old.dispose()
     }
+    onGeometryUpdateRef.current?.(initialGeometry)
     return () => {
       // Cleanup on unmount / before next effect run.
       initialGeometry.dispose()
@@ -1054,6 +1055,7 @@ export function VoxelStock({
       flippedSinceBuildRef.current = 0
       framesSinceBuildRef.current = 0
       lastBuildAtRef.current = now
+      onGeometryUpdateRef.current?.(next)
     }
   })
 
@@ -1078,6 +1080,7 @@ export function VoxelStock({
     if (old && old !== next) old.dispose()
     flippedSinceBuildRef.current = 0
     framesSinceBuildRef.current = 0
+    onGeometryUpdateRef.current?.(next)
   }, [showRaOverlay])
 
   // Also dispose any live geometry on full unmount. Additionally drop the
