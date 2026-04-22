@@ -37,6 +37,7 @@ import {
 import { TaylorCurve } from "./taylor-curve"
 import { FormulaPanel } from "./formula-panel"
 import { ToolRecommender } from "./tool-recommender"
+import { EduLabel } from "./education-widgets"
 import { ChipColorDiagnostic, SymptomMatrix, CommonMistakes } from "./diagnostic-panels"
 import { SfmIptTable } from "./sfm-ipt-table"
 import { CornerFeedPanel } from "./corner-panel"
@@ -928,7 +929,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* ─ TOOL ─ */}
-        <CardShell title="TOOL" icon={<Wrench className="h-3.5 w-3.5" />} onReset={resetTool}>
+        <CardShell title="TOOL" icon={<Wrench className="h-3.5 w-3.5" />} onReset={resetTool} eduId="cutter-diameter" eduSection="tool">
           <div className="flex gap-1.5">
             <input id="tool-search-input" className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs placeholder:text-gray-400 focus:border-blue-400 focus:outline-none font-mono"
               placeholder="시리즈 / EDP" value={productCode}
@@ -997,7 +998,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </CardShell>
 
         {/* ─ MATERIAL ─ */}
-        <CardShell title="MATERIAL" icon={<span className="text-[12px]">🧱</span>} onReset={resetMaterial}>
+        <CardShell title="MATERIAL" icon={<span className="text-[12px]">🧱</span>} onReset={resetMaterial} eduId="iso-p" eduSection="material">
           <div className="grid grid-cols-3 gap-1">
             {Object.entries(ISO_LABELS).map(([key, label]) => (
               <button key={key} onClick={() => { setIsoGroup(key); setSubgroupKey("") }}
@@ -1039,7 +1040,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </CardShell>
 
         {/* ─ OPERATION ─ */}
-        <CardShell title="OPERATION" icon={<span className="text-[12px]">📐</span>} onReset={() => { setOperation("Side_Milling"); setToolPath("conventional") }}>
+        <CardShell title="OPERATION" icon={<span className="text-[12px]">📐</span>} onReset={() => { setOperation("Side_Milling"); setToolPath("conventional") }} eduId="hem" eduSection="operation">
           <MiniSelect label="Type" value={operation} onChange={setOperation} options={[
             { value: "Side_Milling", label: "Side Milling 측면" },
             { value: "Slotting", label: "Slotting 슬롯" },
@@ -1091,7 +1092,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </CardShell>
 
         {/* ─ MACHINE ─ */}
-        <CardShell title="MACHINE" icon={<Cog className="h-3.5 w-3.5" />} onReset={resetMachine}>
+        <CardShell title="MACHINE" icon={<Cog className="h-3.5 w-3.5" />} onReset={resetMachine} eduId="workholding-security" eduSection="machine">
           <MiniSelect label="Spindle" value={spindleKey} onChange={setSpindleKey}
             options={SPINDLE_PRESETS.map(s => ({ value: s.key, label: s.label }))} />
           <MiniSelect label="Holder" value={holderKey} onChange={setHolderKey}
@@ -1140,21 +1141,22 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <PctSlider label="Stick Out L" unit="mm" value={stickoutMm} pct={(stickoutMm / diameter) * 100} pctLabel="·D"
               min={3} max={diameter * 10} step={0.5}
               onChange={v => { setStickoutMm(v); setStickoutManual(true) }}
-              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(stickoutMm), unit: "in", decimals: 3 } : undefined} />
-            <PctSlider label="Vc (절삭속도)" unit="m/min" value={Vc} pct={speedPct}
+              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(stickoutMm), unit: "in", decimals: 3 } : undefined}
+              eduId="stick-out" />
+            <PctSlider eduId="vc" label="Vc (절삭속도)" unit="m/min" value={Vc} pct={speedPct}
               min={Math.round(range.VcMin)} max={Math.round(range.VcMax)} step={1}
               onChange={v => setVc(Math.round(v))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mPerMinToSFM(Vc), unit: "SFM", decimals: 0 } : undefined} />
-            <PctSlider label="fz (날당이송)" unit="mm/t" value={fz} pct={feedPct}
+            <PctSlider eduId="fz" label="fz (날당이송)" unit="mm/t" value={fz} pct={feedPct}
               min={range.fzMin} max={range.fzMax} step={0.001} decimals={4}
               onChange={v => setFz(parseFloat(v.toFixed(4)))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(fz), unit: "in/t", decimals: 5 } : undefined} />
-            <PctSlider label="ap (축방향 절입)" unit="mm" value={ap} pct={(ap / diameter) * 100} pctLabel="·D"
+            <PctSlider eduId="adoc" label="ap (축방향 절입)" unit="mm" value={ap} pct={(ap / diameter) * 100} pctLabel="·D"
               locked={apLocked} onLockToggle={() => setApLocked(!apLocked)}
               min={0.1} max={range.apMax} step={0.1} decimals={1}
               onChange={v => !apLocked && setAp(parseFloat(v.toFixed(1)))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ap), unit: "in", decimals: 3 } : undefined} />
-            <PctSlider label="ae (경방향 절입)" unit="mm" value={ae} pct={(ae / diameter) * 100} pctLabel="·D"
+            <PctSlider eduId="rdoc" label="ae (경방향 절입)" unit="mm" value={ae} pct={(ae / diameter) * 100} pctLabel="·D"
               locked={aeLocked} onLockToggle={() => setAeLocked(!aeLocked)}
               min={0.1} max={range.aeMax} step={0.1} decimals={1}
               onChange={v => !aeLocked && setAe(parseFloat(v.toFixed(1)))}
@@ -1244,12 +1246,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       {/* ══════ 종속인자 ══════ */}
       <SectionHeader icon={<ChevronRight className="h-4 w-4" />} title="종속인자" subtitle="입력으로부터 계산된 중간 변수" tone="violet" />
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-        <MetricCard label="RPM (n)" value={result.n.toLocaleString()} unit="rpm" sub={derived.Deff !== diameter ? `D_eff ${derived.Deff}mm` : undefined} accent={derived.Deff !== diameter ? "volatile" : "neutral"} />
-        <MetricCard label="Vf / IPM" value={result.Vf.toLocaleString()} unit="mm/min" sub={`${vfIpm.toFixed(1)} IPM`} accent="neutral" />
-        <MetricCard label="Surface Speed" value={VcEff.toFixed(0)} unit="m/min" sub={`${UNITS.mPerMinToSFM(VcEff).toFixed(0)} SFM`} accent="neutral" />
-        <MetricCard label="Chip Thickness" value={derived.hex.toFixed(4)} unit="mm (hex)" sub={`RCTF ${derived.RCTF}`} accent={derived.RCTF < 1 ? "warning" : "neutral"} />
-        <MetricCard label="Engagement" value={derived.engagementDeg.toFixed(0)} unit="°" sub={`ae/D ${((ae/diameter)*100).toFixed(0)}%`} accent="neutral" />
-        <MetricCard label="Vc (effective)" value={derived.VcActual.toFixed(0)} unit="m/min" sub={activeShape === "ball" && derived.Deff !== diameter ? `ball D_eff` : undefined} accent={activeShape === "ball" && derived.Deff !== diameter ? "volatile" : "neutral"} />
+        <MetricCard eduId="n" label="RPM (n)" value={result.n.toLocaleString()} unit="rpm" sub={derived.Deff !== diameter ? `D_eff ${derived.Deff}mm` : undefined} accent={derived.Deff !== diameter ? "volatile" : "neutral"} />
+        <MetricCard eduId="vf" label="Vf / IPM" value={result.Vf.toLocaleString()} unit="mm/min" sub={`${vfIpm.toFixed(1)} IPM`} accent="neutral" />
+        <MetricCard eduId="sfm" label="Surface Speed" value={VcEff.toFixed(0)} unit="m/min" sub={`${UNITS.mPerMinToSFM(VcEff).toFixed(0)} SFM`} accent="neutral" />
+        <MetricCard eduId="hex-chip-thickness" label="Chip Thickness" value={derived.hex.toFixed(4)} unit="mm (hex)" sub={`RCTF ${derived.RCTF}`} accent={derived.RCTF < 1 ? "warning" : "neutral"} />
+        <MetricCard eduId="engagement-angle" label="Engagement" value={derived.engagementDeg.toFixed(0)} unit="°" sub={`ae/D ${((ae/diameter)*100).toFixed(0)}%`} accent="neutral" />
+        <MetricCard eduId="d-eff" label="Vc (effective)" value={derived.VcActual.toFixed(0)} unit="m/min" sub={activeShape === "ball" && derived.Deff !== diameter ? `ball D_eff` : undefined} accent={activeShape === "ball" && derived.Deff !== diameter ? "volatile" : "neutral"} />
       </div>
 
       {(derived.RCTF < 1 || (derived.Deff !== diameter && activeShape === "ball")) && (
@@ -1273,22 +1275,22 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       <div ref={resultsAnchorRef} />
       <SectionHeader icon={<BarChart3 className="h-4 w-4" />} title="결과인자" subtitle="최종 가공 성능 지표" tone="emerald" />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <ResultCard label="MRR" value={result.MRR.toLocaleString()} unit="cm³/min" sub={displayUnit !== "metric" ? `${(result.MRR * 0.06102).toFixed(1)} in³/min` : undefined} color="amber" />
-        <ResultCard label="Pc (파워)" value={result.Pc.toString()} unit="kW" sub={displayUnit !== "metric" ? `${UNITS.kwToHp(result.Pc).toFixed(2)} HP` : undefined} color="red" />
-        <ResultCard label="Torque T" value={advanced.torque.toString()} unit="N·m" sub={displayUnit !== "metric" ? `${UNITS.nmToInLb(advanced.torque).toFixed(1)} in·lb` : undefined} color="blue" />
-        <ResultCard label="Cutting Force Fc" value={advanced.Fc.toLocaleString()} unit="N" color="green" />
-        <ResultCard label="Tool Deflection δ" value={advanced.deflection.toString()} unit="μm"
+        <ResultCard eduId="mrr" label="MRR" value={result.MRR.toLocaleString()} unit="cm³/min" sub={displayUnit !== "metric" ? `${(result.MRR * 0.06102).toFixed(1)} in³/min` : undefined} color="amber" />
+        <ResultCard eduId="pc-power" label="Pc (파워)" value={result.Pc.toString()} unit="kW" sub={displayUnit !== "metric" ? `${UNITS.kwToHp(result.Pc).toFixed(2)} HP` : undefined} color="red" />
+        <ResultCard eduId="torque" label="Torque T" value={advanced.torque.toString()} unit="N·m" sub={displayUnit !== "metric" ? `${UNITS.nmToInLb(advanced.torque).toFixed(1)} in·lb` : undefined} color="blue" />
+        <ResultCard eduId="fc-cutting-force" label="Cutting Force Fc" value={advanced.Fc.toLocaleString()} unit="N" color="green" />
+        <ResultCard eduId="deflection" label="Tool Deflection δ" value={advanced.deflection.toString()} unit="μm"
           color={advanced.deflection > 50 ? "red" : advanced.deflection > 20 ? "amber" : "blue"} />
       </div>
 
       {/* 예상 결과 2열 — Life / Ra / Chatter / Cost */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="Tool Life" value={toolLifeMin.toFixed(0)} unit="min" sub={`≈ ${(toolLifeMin / 60).toFixed(1)}h`}
+        <MetricCard eduId="tool-life" label="Tool Life" value={toolLifeMin.toFixed(0)} unit="min" sub={`≈ ${(toolLifeMin / 60).toFixed(1)}h`}
           accent={toolLifeMin < 10 ? "warning" : "neutral"} />
-        <MetricCard label="Ra 표면거칠기" value={raUm.toFixed(2)} unit="μm 이론값"
+        <MetricCard eduId="ra-roughness" label="Ra 표면거칠기" value={raUm.toFixed(2)} unit="μm 이론값"
           sub={raUm < 1.6 ? "미러급" : raUm < 3.2 ? "마감" : raUm < 6.3 ? "중간" : "거친가공"}
           accent={raUm > 6.3 ? "warning" : "neutral"} />
-        <MetricCard label="Chatter Risk" value={chatter.risk.toFixed(0)} unit={chatter.level.toUpperCase()}
+        <MetricCard eduId="chatter-risk" label="Chatter Risk" value={chatter.risk.toFixed(0)} unit={chatter.level.toUpperCase()}
           sub={chatter.reasons[0] ?? "안정"}
           accent={chatter.level === "high" ? "warning" : chatter.level === "med" ? "volatile" : "neutral"} />
         <MetricCard label="Cost / Part" value={cost.total.toLocaleString()} unit="원"
@@ -1634,11 +1636,14 @@ function SectionHeader({ icon, title, subtitle, tone }: { icon: React.ReactNode;
   )
 }
 
-function CardShell({ title, icon, onReset, children }: { title: string; icon: React.ReactNode; onReset: () => void; children: React.ReactNode }) {
+function CardShell({ title, icon, onReset, children, eduId, eduSection }: { title: string; icon: React.ReactNode; onReset: () => void; children: React.ReactNode; eduId?: string; eduSection?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2 flex flex-col">
+    <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2 flex flex-col" data-edu-section={eduSection}>
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-bold text-red-600 tracking-wider flex items-center gap-1.5">{icon}{title}</h3>
+        <h3 className="text-xs font-bold text-red-600 tracking-wider flex items-center gap-1.5">
+          {icon}{title}
+          {eduId && <EduLabel id={eduId} size="xs" />}
+        </h3>
         <button onClick={onReset} className="text-[9px] text-gray-400 hover:text-red-600 flex items-center gap-0.5">
           <RotateCcw className="h-2.5 w-2.5" /> RESET
         </button>
@@ -1698,14 +1703,16 @@ interface PctSliderProps {
   onChange: (v: number) => void
   locked?: boolean; onLockToggle?: () => void
   secondary?: { value: number; unit: string; decimals: number }
+  eduId?: string
 }
 
-function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary }: PctSliderProps) {
+function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId }: PctSliderProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-0.5">
         <div className="flex items-center gap-1.5">
           <label className="text-xs font-medium text-gray-700">{label}</label>
+          {eduId && <EduLabel id={eduId} size="xs" />}
           {onLockToggle && (
             <button onClick={onLockToggle} className="text-gray-400 hover:text-blue-600">
               {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
@@ -1770,11 +1777,14 @@ function StarterCard({ icon, title, desc, onClick }: { icon: React.ReactNode; ti
   )
 }
 
-function MetricCard({ label, value, unit, accent, sub }: { label: string; value: string; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string }) {
+function MetricCard({ label, value, unit, accent, sub, eduId }: { label: string; value: string; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string; eduId?: string }) {
   const accentClass = accent === "warning" ? "border-amber-300 bg-amber-50/50" : accent === "volatile" ? "border-violet-300 bg-violet-50/50" : "border-gray-200 bg-white"
   return (
     <div className={`rounded-xl border ${accentClass} p-3`}>
-      <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">{label}</div>
+      <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1">
+        {label}
+        {eduId && <EduLabel id={eduId} size="xs" />}
+      </div>
       <div className="text-lg font-bold mt-0.5 text-gray-900 font-mono">{value}</div>
       <div className="text-[9px] text-gray-500">{unit}</div>
       {sub && <div className="text-[9px] text-violet-700 mt-0.5 font-mono">{sub}</div>}
@@ -1782,14 +1792,17 @@ function MetricCard({ label, value, unit, accent, sub }: { label: string; value:
   )
 }
 
-function ResultCard({ label, value, unit, color, sub }: { label: string; value: string; unit: string; color: string; sub?: string }) {
+function ResultCard({ label, value, unit, color, sub, eduId }: { label: string; value: string; unit: string; color: string; sub?: string; eduId?: string }) {
   const colorMap: Record<string, string> = {
     blue: "from-blue-500 to-blue-600", green: "from-emerald-500 to-emerald-600",
     amber: "from-amber-500 to-amber-600", red: "from-red-500 to-red-600",
   }
   return (
     <div className={`rounded-xl bg-gradient-to-br ${colorMap[color]} p-4 text-white shadow-lg`}>
-      <div className="text-[10px] uppercase tracking-wider opacity-80">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider opacity-80 flex items-center gap-1">
+        {label}
+        {eduId && <span className="text-white"><EduLabel id={eduId} size="xs" /></span>}
+      </div>
       <div className="text-2xl font-bold mt-1">{value}</div>
       <div className="text-xs opacity-70">{unit}</div>
       {sub && <div className="text-[10px] opacity-60 mt-0.5 font-mono">{sub}</div>}
