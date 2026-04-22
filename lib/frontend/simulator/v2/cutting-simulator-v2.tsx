@@ -81,6 +81,8 @@ import FeatureExplainer from "./feature-explainer"
 import { AiQueryBar } from "./ai-query-bar"
 import { AiOptimizeButton } from "./ai-optimize-button"
 import { AiWarningExplain } from "./ai-warning-explain"
+import VoiceInputButton from "./voice-input-button"
+import SessionExport from "./session-export"
 import BlueprintGallery from "./blueprint-gallery"
 import AnalogGauges from "./analog-gauges"
 import DashboardHeroDisplay from "./dashboard-hero-display"
@@ -1168,13 +1170,39 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         <BeginnerLessonCards darkMode={darkMode} onClose={() => setShowLessonCards(false)} />
       )}
 
-      {/* 🔮 AI 자연어 검색바 + 🤖 1-click 최적화 — 상시 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-start">
+      {/* 🔮 AI 자연어 검색바 + 🎤 음성 + 🤖 1-click 최적화 + 📦 내보내기 — 상시 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto_auto] gap-3 items-start">
         <AiQueryBar
           darkMode={darkMode}
           onApplyPreset={(p) => {
             applyWelcomePreset({ id: "ai-nl", title: "AI 자연어 추천", subtitle: "Claude Haiku 생성", icon: "🔮", color: "violet", params: p as WelcomePreset["params"] } as WelcomePreset)
           }}
+        />
+        <VoiceInputButton
+          darkMode={darkMode}
+          onTranscript={async (text) => {
+            try {
+              const res = await fetch("/api/simulator/nl-query", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: text }),
+              })
+              const p = await res.json()
+              if (p && !p.error) {
+                applyWelcomePreset({ id: "ai-voice", title: "음성 추천", subtitle: text, icon: "🎤", color: "rose", params: p as WelcomePreset["params"] } as WelcomePreset)
+              } else {
+                toast.error("음성 분석 실패")
+              }
+            } catch {
+              toast.error("음성 → AI 요청 실패")
+            }
+          }}
+        />
+        <SessionExport
+          darkMode={darkMode}
+          state={{ productCode, isoGroup, operation, diameter, fluteCount, activeShape, Vc: VcEff, fz: fzEff, ap, ae }}
+          results={{ n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, torque: advanced.torque, deflection: advanced.deflection, toolLifeMin, Ra: raUm, chatterRisk: chatter.risk }}
+          snapshots={[snapshotA, snapshotB, snapshotC, snapshotD]}
+          warnings={warnings}
         />
         <AiOptimizeButton
           currentState={{
