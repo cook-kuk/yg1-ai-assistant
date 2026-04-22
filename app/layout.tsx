@@ -2,6 +2,7 @@ import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from 'sonner'
 import './globals.css'
 import { AppShell } from '@/components/app-shell'
 import { LocationProvider } from '@/context/LocationContext'
@@ -40,6 +41,7 @@ export default function RootLayout({
             {children}
           </AppShell>
         </LocationProvider>
+        <Toaster richColors position="top-right" closeButton />
         <Analytics />
       </body>
     </html>

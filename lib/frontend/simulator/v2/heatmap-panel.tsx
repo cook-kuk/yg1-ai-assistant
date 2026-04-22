@@ -314,16 +314,16 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
 
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+      className={`rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm ${className}`}
       data-testid="heatmap-panel"
     >
       {/* Header */}
-      <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-lg" aria-hidden>
             📊
           </span>
-          <h3 className="text-sm font-semibold text-slate-800">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             가공조건 히트맵 (ADOC × RDOC)
           </h3>
           {educationMode && (
@@ -333,7 +333,7 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
           )}
         </div>
 
-        <div className="text-[11px] text-slate-500">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400">
           D={D}mm · Z={Z} · Vc={Vc} · fz={fz} · ISO {isoGroup}
         </div>
       </header>
@@ -551,12 +551,12 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
         {/* Sidebar */}
         <div className="flex w-full flex-col gap-2 text-xs md:w-60">
           {/* Hover info */}
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-            <div className="font-semibold text-slate-700">
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2">
+            <div className="font-semibold text-slate-700 dark:text-slate-200">
               {hover ? "호버된 조건" : "커서를 셀 위로 올리세요"}
             </div>
             {hover && (
-              <dl className="mt-1 space-y-0.5 text-[11px] text-slate-700">
+              <dl className="mt-1 space-y-0.5 text-[11px] text-slate-700 dark:text-slate-200">
                 <div className="flex justify-between">
                   <dt>ap</dt>
                   <dd className="font-mono">{hover.ap.toFixed(2)}mm</dd>
@@ -606,11 +606,11 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
           </div>
 
           {/* 범례 */}
-          <div className="rounded-md border border-slate-200 px-3 py-2">
-            <div className="mb-1 text-[11px] font-semibold text-slate-700">
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2">
+            <div className="mb-1 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
               범례
             </div>
-            <div className="space-y-1 text-[10.5px] text-slate-600">
+            <div className="space-y-1 text-[10.5px] text-slate-600 dark:text-slate-300">
               <LegendRow
                 swatch={
                   <div
@@ -675,8 +675,8 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
           </div>
 
           {/* Chatter 상태 */}
-          <div className="rounded-md border border-slate-200 px-3 py-2 text-[11px]">
-            <div className="mb-1 font-semibold text-slate-700">
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-[11px]">
+            <div className="mb-1 font-semibold text-slate-700 dark:text-slate-200">
               Chatter 추정
             </div>
             <div
@@ -691,7 +691,7 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
               {chatterInfo.level.toUpperCase()} · risk {chatterInfo.risk}
             </div>
             {chatterInfo.reasons.length > 0 && (
-              <ul className="mt-0.5 list-disc pl-4 text-[10.5px] text-slate-500">
+              <ul className="mt-0.5 list-disc pl-4 text-[10.5px] text-slate-500 dark:text-slate-400">
                 {chatterInfo.reasons.map((r, i) => (
                   <li key={i}>{r}</li>
                 ))}
@@ -700,14 +700,14 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
           </div>
 
           {onSpotClick && (
-            <div className="rounded-md border border-slate-200 bg-sky-50 px-3 py-2 text-[10.5px] leading-snug text-sky-800">
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-sky-50 px-3 py-2 text-[10.5px] leading-snug text-sky-800">
               💡 안전한 셀을 클릭하면 ap·ae 값이 시뮬레이터에 반영됩니다.
             </div>
           )}
         </div>
       </div>
 
-      <footer className="border-t border-slate-100 px-4 py-2 text-[10px] text-slate-400">
+      <footer className="border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500">
         20×20 grid sampling · 계산식: <code>calculateCutting</code>{" "}
         (Sandvik Pc 공식) + <code>estimateChatterRisk</code>
       </footer>

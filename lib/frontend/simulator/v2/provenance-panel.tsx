@@ -78,9 +78,9 @@ function sourceBadge(src: string): { label: string; bg: string; fg: string } {
     case "pdf_partial":
       return { label: "PDF 부분", bg: "bg-amber-100", fg: "text-amber-800" }
     case "estimated":
-      return { label: "추정", bg: "bg-slate-100", fg: "text-slate-700" }
+      return { label: "추정", bg: "bg-slate-100 dark:bg-slate-800", fg: "text-slate-700 dark:text-slate-200" }
     case "default":
-      return { label: "기본값", bg: "bg-slate-100", fg: "text-slate-600" }
+      return { label: "기본값", bg: "bg-slate-100 dark:bg-slate-800", fg: "text-slate-600 dark:text-slate-300" }
     default:
       return { label: "출처없음", bg: "bg-rose-100", fg: "text-rose-800" }
   }
@@ -103,20 +103,20 @@ function Step({ icon, label, formula, value, unit, note, dim = false, warn = fal
     <div
       className={[
         "flex items-start gap-2 py-1.5 px-2 rounded border-l-2",
-        warn ? "border-amber-400 bg-amber-50/40" : dim ? "border-slate-200" : "border-sky-400 bg-sky-50/40",
+        warn ? "border-amber-400 bg-amber-50/40" : dim ? "border-slate-200 dark:border-slate-700" : "border-sky-400 bg-sky-50/40",
       ].join(" ")}
     >
-      <div className="pt-0.5 text-slate-500">{icon ?? <ChevronRight className="w-3.5 h-3.5" />}</div>
+      <div className="pt-0.5 text-slate-500 dark:text-slate-400">{icon ?? <ChevronRight className="w-3.5 h-3.5" />}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[12px] font-medium text-slate-800">{label}</span>
-          {formula && <span className="text-[11px] font-mono text-slate-500">{formula}</span>}
+          <span className="text-[12px] font-medium text-slate-800 dark:text-slate-100">{label}</span>
+          {formula && <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">{formula}</span>}
         </div>
-        {note && <div className="text-[11px] text-slate-500 mt-0.5">{note}</div>}
+        {note && <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{note}</div>}
       </div>
-      <div className="text-[12px] font-mono font-semibold text-slate-900 whitespace-nowrap">
+      <div className="text-[12px] font-mono font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
         {value}
-        {unit && <span className="text-[10px] text-slate-500 ml-0.5">{unit}</span>}
+        {unit && <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-0.5">{unit}</span>}
       </div>
     </div>
   )
@@ -134,26 +134,26 @@ interface ChainProps {
 function Chain({ title, final, unit, confidence, steps, educationOpen }: ChainProps) {
   const [open, setOpen] = useState<boolean>(educationOpen)
   return (
-    <div className="border border-slate-200 rounded-lg bg-white">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50"
+        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
       >
         <div className="flex items-center gap-2">
-          {open ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
-          <span className="text-[13px] font-semibold text-slate-800">{title}</span>
+          {open ? <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
+          <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{title}</span>
           {confidence > 0 && (
             <span className="text-[10px] font-mono text-amber-600">{starLabel(confidence)}</span>
           )}
         </div>
-        <div className="text-[13px] font-mono font-bold text-sky-700">
+        <div className="text-[13px] font-mono font-bold text-sky-700 dark:text-sky-400">
           {final}
-          <span className="text-[10px] text-slate-500 ml-0.5">{unit}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-0.5">{unit}</span>
         </div>
       </button>
       {open && (
-        <div className="border-t border-slate-100 p-2 space-y-1.5">
+        <div className="border-t border-slate-100 dark:border-slate-800 p-2 space-y-1.5">
           {steps.map((s, i) => (
             <Step key={i} {...s} />
           ))}
@@ -400,8 +400,8 @@ export function ProvenancePanel(p: ProvenancePanelProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-sky-600" />
-          <h3 className="text-[14px] font-bold text-slate-800">값의 출처 (Provenance)</h3>
+          <BookOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">값의 출처 (Provenance)</h3>
         </div>
         <div className="flex items-center gap-2">
           <span className={["text-[11px] px-1.5 py-0.5 rounded", srcStyle.bg, srcStyle.fg].join(" ")}>
@@ -415,8 +415,8 @@ export function ProvenancePanel(p: ProvenancePanelProps) {
 
       {/* baseline source 링크/경고 */}
       {hasBaseline && bRef && (
-        <div className="text-[11px] text-slate-600 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded flex items-start gap-1.5">
-          <Info className="w-3.5 h-3.5 mt-0.5 text-slate-400 flex-shrink-0" />
+        <div className="text-[11px] text-slate-600 dark:text-slate-300 px-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 mt-0.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
           <div className="min-w-0 break-all">
             {bRef.startsWith("http") ? (
               <a
@@ -476,13 +476,13 @@ export function ProvenancePanel(p: ProvenancePanelProps) {
 
       {/* 교육 모드 안내 */}
       {educationOpen && (
-        <div className="text-[11px] text-slate-600 px-3 py-2 bg-sky-50 border border-sky-200 rounded leading-relaxed">
+        <div className="text-[11px] text-slate-600 dark:text-slate-300 px-3 py-2 bg-sky-50 border border-sky-200 rounded leading-relaxed">
           <strong className="text-sky-800">교육 모드 </strong>
           각 체인의 단계별 수식을 펼쳐 확인하세요. baseline 은 카탈로그 PDF 값, 각 단계 배수는
           쿨런트/코팅/경도/L-D ratio 보정을 누적 적용합니다. <code>★★★★★</code> 는 PDF 검증,
           <code>★★☆☆☆</code> 이하는 추정값입니다.
           {typeof kc === "number" && (
-            <div className="mt-1 font-mono text-slate-500">
+            <div className="mt-1 font-mono text-slate-500 dark:text-slate-400">
               참고: kc = {fmt(kc, 0)} N/mm² (재질별 비절삭저항)
             </div>
           )}

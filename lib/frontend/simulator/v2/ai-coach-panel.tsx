@@ -348,16 +348,16 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
 
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+      className={`rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm ${className}`}
       data-testid="ai-coach-panel"
     >
       {/* Header */}
-      <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-lg" aria-hidden>
             🤖
           </span>
-          <h3 className="text-sm font-semibold text-slate-800">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             AI 가공조건 코치
           </h3>
           {showDemoBadge && (
@@ -377,7 +377,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
             <button
               type="button"
               onClick={cancel}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               중단
             </button>
@@ -399,11 +399,11 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
       <div className="px-4 py-4">
         {/* 상태별 메시지 */}
         {phase === "idle" && !advice && (
-          <div className="text-xs leading-relaxed text-slate-500">
+          <div className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
             버튼을 누르면 현재 시뮬 state와 계산 결과를 기반으로
             Sandvik · Harvey · Helical 표준에 맞춘 조언을 생성합니다.
             <br />
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">
               응답은 한국어 400~600자, 스트리밍 렌더링 됩니다.
             </span>
           </div>
@@ -436,8 +436,8 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
 
         {advice && (
           <div className="space-y-3">
-            <div className="rounded-md bg-slate-50 px-3 py-2">
-              <Markdown className="text-[13px] leading-relaxed text-slate-800">
+            <div className="rounded-md bg-slate-50 dark:bg-slate-800 px-3 py-2">
+              <Markdown className="text-[13px] leading-relaxed text-slate-800 dark:text-slate-100">
                 {advice}
               </Markdown>
               {phase === "streaming" && (
@@ -446,7 +446,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
             </div>
 
             {phase === "done" && meta?.usage && (
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400 dark:text-slate-500">
                 <span>in: {meta.usage.input_tokens}</span>
                 <span>out: {meta.usage.output_tokens}</span>
                 {meta.usage.cache_read_input_tokens > 0 && (
@@ -467,9 +467,9 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
 
         {/* ── Education mode: follow-up ── */}
         {educationMode && phase === "done" && advice && (
-          <div className="mt-4 border-t border-slate-100 pt-3">
+          <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold text-slate-700">
+              <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                 💡 이 조언이 왜 나왔는지
               </h4>
               {!followBusy && followUpPhase !== "done" && (
@@ -487,7 +487,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
                 <button
                   type="button"
                   onClick={() => followUpAbortRef.current?.abort()}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   중단
                 </button>
@@ -510,7 +510,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
 
             {followUpAdvice && (
               <div className="rounded-md bg-emerald-50/50 px-3 py-2 ring-1 ring-emerald-100">
-                <Markdown className="text-[12.5px] leading-relaxed text-slate-800">
+                <Markdown className="text-[12.5px] leading-relaxed text-slate-800 dark:text-slate-100">
                   {followUpAdvice}
                 </Markdown>
                 {followUpPhase === "streaming" && (
@@ -523,7 +523,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
       </div>
 
       {/* Footer: 고지 */}
-      <footer className="border-t border-slate-100 px-4 py-2 text-[10px] text-slate-400">
+      <footer className="border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500">
         조언은 Claude Opus 4.7 기반 추천이며, 실제 적용 시 반드시 공구
         제조사 카탈로그와 기계 제원으로 교차검증하세요.
       </footer>

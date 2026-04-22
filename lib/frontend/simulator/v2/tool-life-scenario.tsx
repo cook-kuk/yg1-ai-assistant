@@ -187,9 +187,9 @@ export function ToolLifeScenario({
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-slate-600" />
-          <h3 className="text-sm font-bold text-slate-800">공구 수명 시나리오 비교</h3>
-          <span className="text-[10px] text-slate-400 font-mono">
+          <TrendingUp className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">공구 수명 시나리오 비교</h3>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
             기준 Vc {vcBase.toFixed(1)} m/min · {LOTS_FOR_COMPARE}개 가공 기준
           </span>
         </div>
@@ -230,7 +230,7 @@ export function ToolLifeScenario({
                     {best && <span className="mr-1">🏆</span>}
                     {r.label}
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{r.hint}</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{r.hint}</div>
                 </div>
                 <div className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${cls.badge}`}>
                   ×{r.vcMult.toFixed(1)}
@@ -240,9 +240,9 @@ export function ToolLifeScenario({
               {/* Vc 강조 */}
               <div className="mb-2 pb-2 border-b border-white/60">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-[10px] text-slate-500">Vc</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">Vc</span>
                   <span className={`text-lg font-bold font-mono ${cls.accent}`}>{r.Vc.toFixed(0)}</span>
-                  <span className="text-[10px] text-slate-500">m/min</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">m/min</span>
                 </div>
               </div>
 
@@ -289,7 +289,7 @@ export function ToolLifeScenario({
                   className={`mt-3 w-full flex items-center justify-center gap-1 text-[11px] font-semibold rounded-md py-1.5 border transition ${
                     best
                       ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
-                      : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
+                      : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700"
                   }`}
                   aria-label={`${r.label} 시나리오의 Vc ${r.Vc.toFixed(0)} m/min 적용`}
                 >
@@ -303,7 +303,7 @@ export function ToolLifeScenario({
       </div>
 
       {/* 참고: MRR 시각 */}
-      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-1">
+      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono px-1">
         <span>참고 MRR (현재): {MRR.toFixed(2)} cm³/min</span>
         <span>
           비용 = 머신시간({machineCostPerHourKrw.toLocaleString()}₩/h) + 공구원가({toolCostKrw.toLocaleString()}₩)
@@ -362,12 +362,12 @@ function Metric({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="flex items-center gap-1 text-slate-600">
+      <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
         {icon}
         {label}
       </span>
       <span
-        className={`${mono ? "font-mono" : ""} ${emphasize ? "font-bold text-slate-900" : "text-slate-800"}`}
+        className={`${mono ? "font-mono" : ""} ${emphasize ? "font-bold text-slate-900 dark:text-slate-100" : "text-slate-800 dark:text-slate-200"}`}
       >
         {value}
       </span>

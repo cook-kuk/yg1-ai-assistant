@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import {
   Search, Gauge, Zap, Shield, BarChart3, RefreshCw, Lock, Unlock,
   Sliders, Cog, ChevronRight, AlertTriangle, AlertCircle, Info,
@@ -47,6 +48,30 @@ import { EngagementCircle } from "./engagement-circle"
 import { ADOCRDOCAdjuster } from "./adoc-rdoc-adjuster"
 import { ToolPathDiagram } from "./tool-path-diagrams"
 import { stateToQuery, queryToState, type SerializableState, type SnapshotSummary } from "./state-serde"
+import BreakEvenChart from "./break-even-chart"
+import { generateShopfloorCardPDF } from "./shopfloor-card"
+import { useSimulatorShortcuts, SHORTCUT_HINTS, SHORTCUT_CATEGORIES } from "./use-simulator-shortcuts"
+import WelcomeModal, { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
+import CommandPalette from "./command-palette"
+import FloatingWarnings from "./floating-warnings"
+import { WarningDot, type ParamKey } from "./warning-indicator-dot"
+import AdvancedMetricsPanel from "./advanced-metrics-panel"
+import {
+  estimateHeat, estimateRunoutEffect, decomposeHelixForce,
+  monteCarloToolLife, estimateBueRisk, classifyChipMorphology,
+} from "../advanced-metrics"
+import { VendorTag } from "./vendor-tags"
+import { useSimulatorMode } from "./mode-context"
+import WearGaugePanel from "./wear-gauge-panel"
+import { AnimatedNumber, CountUp } from "./animated-number"
+import Endmill3DPreview from "./endmill-3d-preview"
+import { ConfettiBurst, SparkleOnUpdate } from "./micro-interactions"
+import LiveCuttingScene from "./live-cutting-scene"
+import ToolBlueprint from "./tool-blueprint"
+import ToolPathScene from "./tool-path-scene"
+import VibrationOscilloscope from "./vibration-oscilloscope"
+import TemperatureHeatmap from "./temperature-heatmap"
+import ForceVectorDiagram from "./force-vector-diagram"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
 import { ProvenancePanel } from "./provenance-panel"
@@ -221,8 +246,28 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [darkMode, setDarkMode] = useState(false)
   const [snapshotA, setSnapshotA] = useState<SnapshotSummary | null>(null)
   const [snapshotB, setSnapshotB] = useState<SnapshotSummary | null>(null)
-  const [shareToast, setShareToast] = useState<string | null>(null)
+  const [snapshotC, setSnapshotC] = useState<SnapshotSummary | null>(null)
+  const [snapshotD, setSnapshotD] = useState<SnapshotSummary | null>(null)
   const [urlHydrated, setUrlHydrated] = useState(false)
+  const [showBreakEven, setShowBreakEven] = useState(false)
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const [recentSavedSlot, setRecentSavedSlot] = useState<"A" | "B" | "C" | "D" | null>(null)
+  const [discoverGlow, setDiscoverGlow] = useState(true)
+  const [advancedMetricsOpen, setAdvancedMetricsOpen] = useState(false)
+  const [tirUm, setTirUm] = useState(8)
+  const [helixAngleDeg, setHelixAngleDeg] = useState(38)
+  const [show3DPreview, setShow3DPreview] = useState(false)
+  const [showLiveScene, setShowLiveScene] = useState(false)
+  const [showWearGauge, setShowWearGauge] = useState(false)
+  const [showBlueprint, setShowBlueprint] = useState(false)
+  const [showToolPath, setShowToolPath] = useState(false)
+  const [showVibration, setShowVibration] = useState(false)
+  const [showTempHeatmap, setShowTempHeatmap] = useState(false)
+  const [showForceVec, setShowForceVec] = useState(false)
+  const [confettiTrigger, setConfettiTrigger] = useState(0)
+  const simMode = useSimulatorMode()
 
   // v2.3: Coolant, Coating, Tool Group, Advanced filters, Cost, Corner, GCode
   const [toolGroup, setToolGroup] = useState<string>("milling")
@@ -382,8 +427,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     setSavedPresets(updated)
     try { localStorage.setItem("yg1-sim-presets", JSON.stringify(updated)) } catch {}
     setPresetName("")
-    setShareToast(`"${newP.name}" 저장됨`)
-    setTimeout(() => setShareToast(null), 1500)
+    toast.success(`"${newP.name}" 저장됨`)
   }
   const loadPreset = (p: { name: string; state: SerializableState }) => {
     const s = p.state
@@ -402,8 +446,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     if (s.fz != null) setFz(s.fz)
     if (s.ap != null) setAp(s.ap)
     if (s.ae != null) setAe(s.ae)
-    setShareToast(`"${p.name}" 로드됨`)
-    setTimeout(() => setShareToast(null), 1500)
+    toast.success(`"${p.name}" 로드됨`)
   }
   const deletePreset = (name: string) => {
     const updated = savedPresets.filter(p => p.name !== name)
@@ -489,6 +532,26 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   // Min chip thickness for this material
   const minHex = MIN_CHIP_THICKNESS[isoGroup] ?? 0.010
+
+  // ═══ 고급 엔지니어링 지표 (연구소장 모드) ═══
+  const advHeat = useMemo(() => estimateHeat({
+    Pc: result.Pc, Vc: VcEff, fz: fzEff, ap, ae, D: diameter, materialGroup: isoGroup,
+  }), [result.Pc, VcEff, fzEff, ap, ae, diameter, isoGroup])
+  const advRunout = useMemo(() => estimateRunoutEffect({
+    tirUm, fz: fzEff, Z: fluteCount, D: diameter,
+  }), [tirUm, fzEff, fluteCount, diameter])
+  const advHelix = useMemo(() => decomposeHelixForce({
+    Fc: advanced.Fc, helixAngle: helixAngleDeg, ap, D: diameter,
+  }), [advanced.Fc, helixAngleDeg, ap, diameter])
+  const advMonteCarlo = useMemo(() => monteCarloToolLife({
+    Vc: VcEff, VcRef: Vc, MRR: result.MRR, samples: 300,
+  }), [VcEff, Vc, result.MRR])
+  const advBue = useMemo(() => estimateBueRisk({
+    materialGroup: isoGroup, interfaceTempC: advHeat.toolTempC, Vc: VcEff,
+  }), [isoGroup, advHeat.toolTempC, VcEff])
+  const advChipMorph = useMemo(() => classifyChipMorphology({
+    materialGroup: isoGroup, Vc: VcEff, fz: fzEff, hardness: hardnessValue, bueRisk: advBue.risk,
+  }), [isoGroup, VcEff, fzEff, hardnessValue, advBue.risk])
 
   // Pass plan
   const passPlan = useMemo(() => computePassPlan({
@@ -784,11 +847,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     if (typeof window === "undefined") return
     try {
       await navigator.clipboard.writeText(window.location.href)
-      setShareToast("링크 복사됨")
-      setTimeout(() => setShareToast(null), 2000)
+      toast.success("링크 복사됨")
     } catch {
-      setShareToast("복사 실패 — 주소창에서 직접 복사")
-      setTimeout(() => setShareToast(null), 3000)
+      toast.error("복사 실패 — 주소창에서 직접 복사")
     }
   }
 
@@ -798,9 +859,107 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc,
     torque: advanced.torque, deflection: advanced.deflection,
   })
-  const saveA = () => setSnapshotA(makeSnapshot(productCode || "조건 A"))
-  const saveB = () => setSnapshotB(makeSnapshot(productCode || "조건 B"))
-  const clearAB = () => { setSnapshotA(null); setSnapshotB(null) }
+  const pulseSlot = (slot: "A" | "B" | "C" | "D") => {
+    setRecentSavedSlot(slot)
+    setConfettiTrigger(Date.now())
+    setTimeout(() => setRecentSavedSlot(prev => prev === slot ? null : prev), 1800)
+  }
+  const toastWithCompareAction = (slot: "A" | "B" | "C" | "D") => {
+    toast.success(`스냅샷 ${slot} 저장됨`, {
+      description: `${productCode || "조건"} · Vc ${VcEff.toFixed(0)} · fz ${fzEff.toFixed(3)}`,
+      action: {
+        label: "비교 보기",
+        onClick: () => {
+          document.querySelector('[data-section="ab-compare"]')?.scrollIntoView({ behavior: "smooth", block: "start" })
+        },
+      },
+    })
+  }
+  const saveA = () => { setSnapshotA(makeSnapshot(productCode || "조건 A")); pulseSlot("A"); toastWithCompareAction("A") }
+  const saveB = () => { setSnapshotB(makeSnapshot(productCode || "조건 B")); pulseSlot("B"); toastWithCompareAction("B") }
+  const saveC = () => { setSnapshotC(makeSnapshot(productCode || "조건 C")); pulseSlot("C"); toastWithCompareAction("C") }
+  const saveD = () => { setSnapshotD(makeSnapshot(productCode || "조건 D")); pulseSlot("D"); toastWithCompareAction("D") }
+  const clearAB = () => { setSnapshotA(null); setSnapshotB(null); setSnapshotC(null); setSnapshotD(null); toast.info("스냅샷 전체 초기화") }
+  const saveSnapshotSlot = (slot: "A" | "B" | "C" | "D") => {
+    if (slot === "A") saveA()
+    else if (slot === "B") saveB()
+    else if (slot === "C") saveC()
+    else saveD()
+  }
+
+  const downloadShopfloorCard = useCallback(async () => {
+    try {
+      await generateShopfloorCardPDF({
+        state: {
+          productCode, endmillShape: activeShape, diameter, flutes: fluteCount,
+          materialGroup: isoGroup, materialSubgroup: subgroupKey, operation,
+          coating, Vc: VcEff, fz: fzEff, ap, ae,
+        },
+        results: {
+          n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc,
+          toolLifeMin, Ra: raUm, chatterRisk: `${chatter.risk}% (${chatter.level})`,
+        },
+        warnings: warnings.slice(0, 3).map(w => w.message),
+        shareUrl: typeof window !== "undefined" ? window.location.href : undefined,
+      })
+      toast.success("작업장 카드 다운로드")
+    } catch (e) {
+      toast.error("카드 생성 실패")
+    }
+  }, [productCode, activeShape, diameter, fluteCount, isoGroup, subgroupKey, operation, coating, VcEff, fzEff, ap, ae, result, toolLifeMin, raUm, chatter, warnings])
+
+  useSimulatorShortcuts({
+    onSaveSnapshot: saveSnapshotSlot,
+    onOpenHelp: () => setShortcutsHelpOpen(true),
+    onOpenCommand: () => setCommandPaletteOpen(true),
+    onPrint: downloadShopfloorCard,
+  })
+
+  // 첫 방문 시 ⌨·🔍 glow 자동 해제 (8초)
+  useEffect(() => {
+    if (!discoverGlow) return
+    const t = setTimeout(() => setDiscoverGlow(false), 8000)
+    return () => clearTimeout(t)
+  }, [discoverGlow])
+
+  // Welcome / Command Palette 프리셋 핸들러
+  const applyWelcomePreset = useCallback((p: WelcomePreset) => {
+    setIsoGroup(p.params.isoGroup)
+    setSubgroupKey(p.params.subgroupKey)
+    setOperation(p.params.operation)
+    setCoating(p.params.coating)
+    setVc(p.params.Vc)
+    setFz(p.params.fz)
+    setAp(p.params.ap)
+    setAe(p.params.ae)
+    setDiameter(p.params.diameter)
+    setFluteCount(p.params.fluteCount)
+    setActiveShape(p.params.activeShape as Exclude<EndmillShape, "all">)
+    setEverInteracted(true)
+    toast.success(`✨ "${p.title}" 예시 적용`, { description: p.subtitle })
+  }, [])
+
+  const applyExampleById = useCallback((id: string) => {
+    const found = WELCOME_EXAMPLES.find(p => p.id === id)
+    if (found) applyWelcomePreset(found)
+  }, [applyWelcomePreset])
+
+  const jumpToSection = useCallback((section: "results" | "ai-coach" | "heatmap" | "animation" | "multi-tool" | "break-even") => {
+    if (section === "break-even") setShowBreakEven(true)
+    const selector = section === "results" ? '[data-section="results"]' : `[data-section="${section}"]`
+    setTimeout(() => {
+      const el = document.querySelector(selector) ?? resultsAnchorRef.current
+      el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 50)
+  }, [])
+
+  // Esc to close help modal
+  useEffect(() => {
+    if (!shortcutsHelpOpen) return
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setShortcutsHelpOpen(false) }
+    window.addEventListener("keydown", onEsc)
+    return () => window.removeEventListener("keydown", onEsc)
+  }, [shortcutsHelpOpen])
 
   const showStarter = !everInteracted && !catalogData && !productCode.trim()
 
@@ -843,47 +1002,153 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Units toggle */}
-          <div className="rounded-lg border border-gray-200 bg-white p-0.5 inline-flex text-xs">
+        {/* ═══ 우측 액션 (그룹화된 툴바) ═══ */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Units + Jump (primary navigation) */}
+          <div className={`rounded-lg border p-0.5 inline-flex text-xs ${darkMode ? "border-slate-700 bg-slate-800" : "border-gray-200 bg-white"}`}>
             {(["metric", "inch", "both"] as const).map(u => (
               <button key={u} onClick={() => setDisplayUnit(u)}
-                className={`px-2.5 py-1 rounded-md transition-all ${displayUnit === u ? "bg-blue-600 text-white font-semibold" : "text-gray-600 hover:bg-gray-50"}`}>
+                className={`px-2.5 py-1 rounded-md transition-all ${displayUnit === u ? "bg-blue-600 text-white font-semibold" : darkMode ? "text-slate-300 hover:bg-slate-700" : "text-gray-600 hover:bg-gray-50"}`}>
                 {u === "metric" ? "Metric" : u === "inch" ? "Inch" : "Both"}
               </button>
             ))}
           </div>
           <button onClick={jumpToResults}
-            className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-blue-700">
-            <ArrowDownCircle className="h-3.5 w-3.5" /> Jump to Results
+            className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-blue-700 shadow-sm">
+            <ArrowDownCircle className="h-3.5 w-3.5" /> 결과로
           </button>
-          <button onClick={shareUrl}
-            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
-            🔗 Share
+
+          <ToolbarDivider darkMode={darkMode} />
+
+          {/* 🔍 검색 (Command Palette) — 첫 방문 glow */}
+          <button onClick={() => setCommandPaletteOpen(true)} title="공구·재질·섹션 검색 · Ctrl+K"
+            className={`relative flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+              darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            } ${discoverGlow ? "ring-2 ring-blue-400/70 animate-pulse" : ""}`}>
+            <Search className="h-3.5 w-3.5" /> 검색
+            <kbd className={`ml-1 font-mono text-[9px] px-1 py-0 rounded border ${darkMode ? "border-slate-600 bg-slate-900 text-slate-400" : "border-gray-300 bg-gray-50 text-gray-500"}`}>⌘K</kbd>
           </button>
-          <button onClick={saveA}
-            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold ${snapshotA ? "border-emerald-400 bg-emerald-50 text-emerald-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
-            💾 A
+
+          <ToolbarDivider darkMode={darkMode} />
+
+          {/* 💾 스냅샷 그룹 A/B/C/D */}
+          <div className={`flex items-center gap-1 rounded-lg border p-0.5 ${darkMode ? "border-slate-700 bg-slate-800/60" : "border-gray-200 bg-white"}`}>
+            {([
+              { slot: "A" as const, onClick: saveA, active: !!snapshotA, color: "emerald", title: "Ctrl+S" },
+              { slot: "B" as const, onClick: saveB, active: !!snapshotB, color: "indigo", title: "Ctrl+Shift+S" },
+              { slot: "C" as const, onClick: saveC, active: !!snapshotC, color: "violet", title: "스냅샷 C" },
+              { slot: "D" as const, onClick: saveD, active: !!snapshotD, color: "amber", title: "스냅샷 D" },
+            ] as const).map(s => {
+              const pulsing = recentSavedSlot === s.slot
+              const activeBg = s.color === "emerald" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                : s.color === "indigo" ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                : s.color === "violet" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+              const ringColor = s.color === "emerald" ? "ring-emerald-400"
+                : s.color === "indigo" ? "ring-indigo-400"
+                : s.color === "violet" ? "ring-violet-400"
+                : "ring-amber-400"
+              return (
+                <button key={s.slot} onClick={s.onClick} title={s.title}
+                  className={`flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-bold transition-all ${
+                    s.active ? activeBg : darkMode ? "text-slate-400 hover:bg-slate-700" : "text-gray-500 hover:bg-gray-100"
+                  } ${pulsing ? `ring-2 ring-offset-1 ${ringColor} animate-pulse` : ""}`}>
+                  <span className="text-sm leading-none">💾</span>{s.slot}
+                </button>
+              )
+            })}
+          </div>
+
+          <ToolbarDivider darkMode={darkMode} />
+
+          {/* 📋 출력 그룹 (카드 + PDF) */}
+          <button onClick={downloadShopfloorCard} title="A6 작업장 카드 · Ctrl+P"
+            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${darkMode ? "border-orange-500/50 bg-orange-900/20 text-orange-300 hover:bg-orange-900/40" : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"}`}>
+            📋 카드
           </button>
-          <button onClick={saveB}
-            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold ${snapshotB ? "border-indigo-400 bg-indigo-50 text-indigo-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
-            💾 B
-          </button>
-          <button onClick={printPdf}
+          <button onClick={printPdf} title="상세 PDF 리포트"
             className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
             <FileText className="h-3.5 w-3.5" /> PDF
           </button>
-          <button onClick={() => setAutoCorrelate(!autoCorrelate)}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${autoCorrelate ? "border-purple-400 bg-purple-50 text-purple-700" : "border-gray-300 bg-white text-gray-500 hover:bg-gray-50"}`}
-            title="변수 상관관계 자동 적용 on/off">
-            🔗 Link {autoCorrelate ? "ON" : "OFF"}
+          <button onClick={shareUrl} title="공유 URL 복사"
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+            🔗
           </button>
-          <button onClick={() => setDarkMode(!darkMode)}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-yellow-400 bg-yellow-50 text-yellow-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+
+          <ToolbarDivider darkMode={darkMode} />
+
+          {/* 💰 분석 도구 (Break-Even) */}
+          <button onClick={() => setShowBreakEven(v => !v)} title="Break-Even Vc × Cost 차트"
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${showBreakEven ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+            💰 BE
+          </button>
+          <button onClick={() => setAutoCorrelate(!autoCorrelate)}
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${autoCorrelate ? "border-purple-400 bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-400 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-500 hover:bg-gray-50"}`}
+            title="변수 상관관계 자동 적용 on/off">
+            🔗 {autoCorrelate ? "ON" : "OFF"}
+          </button>
+
+          <ToolbarDivider darkMode={darkMode} />
+
+          {/* ⌨ 도움말 + 테마 */}
+          <button onClick={() => setShortcutsHelpOpen(true)} title="단축키 도움말 · ?"
+            className={`relative flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"} ${discoverGlow ? "ring-2 ring-indigo-400/70 animate-pulse" : ""}`}>
+            ⌨
+          </button>
+          <button onClick={() => setDarkMode(!darkMode)} title={darkMode ? "라이트 모드" : "다크 모드"}
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-yellow-500/50 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
             {darkMode ? "☀" : "🌙"}
           </button>
         </div>
       </div>
+
+      {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 연구소장 모드용 */}
+      {simMode.showAdvancedMetrics && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
+          <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
+          <button onClick={() => setShowLiveScene(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🎬 실시간 절삭
+          </button>
+          <button onClick={() => setShow3DPreview(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🔄 3D 엔드밀
+          </button>
+          <button onClick={() => setShowBlueprint(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            📐 도면
+          </button>
+          <button onClick={() => setShowWearGauge(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🔧 마모 게이지
+          </button>
+          <button onClick={() => setAdvancedMetricsOpen(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🔬 고급 지표
+          </button>
+          <button onClick={() => setShowBreakEven(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            💰 Break-Even
+          </button>
+          <button onClick={() => setShowToolPath(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🗺 툴패스
+          </button>
+          <button onClick={() => setShowVibration(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            📡 진동
+          </button>
+          <button onClick={() => setShowTempHeatmap(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🌡 온도
+          </button>
+          <button onClick={() => setShowForceVec(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            ➡ 힘 벡터
+          </button>
+          {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
+        </div>
+      )}
 
       {/* 상관관계 라이브 스트립 — 현재 적용되는 multiplier 투명하게 공개 */}
       {autoCorrelate && (
@@ -896,13 +1161,6 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <CorrChip label="Workholding" value={`ap≤${whCap.apMax.toFixed(1)} ae≤${whCap.aeMax.toFixed(1)}`} active={true} />
           <CorrChip label="Climb" value={climb ? `Ra×0.8 F×0.9 Life×1.15` : `baseline`} active={climb} />
           <span className="ml-auto text-purple-700 font-mono">Vc_eff = {Vc.toFixed(0)} × {((1 + speedPct/100) * coolantMult * coatingMult * hardDerate * stickoutD.vc).toFixed(2)} = <b>{VcEff.toFixed(0)}</b> m/min</span>
-        </div>
-      )}
-
-      {/* Toast */}
-      {shareToast && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm shadow-lg">
-          {shareToast}
         </div>
       )}
 
@@ -1207,25 +1465,30 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               min={3} max={diameter * 10} step={0.5}
               onChange={v => { setStickoutMm(v); setStickoutManual(true) }}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(stickoutMm), unit: "in", decimals: 3 } : undefined}
-              eduId="stick-out" />
+              eduId="stick-out"
+              warnings={warnings} paramKey="stickout" darkMode={darkMode} />
             <PctSlider eduId="vc" label="Vc (절삭속도)" unit="m/min" value={Vc} pct={speedPct}
               min={Math.round(range.VcMin)} max={Math.round(range.VcMax)} step={1}
               onChange={v => setVc(Math.round(v))}
-              secondary={displayUnit !== "metric" ? { value: UNITS.mPerMinToSFM(Vc), unit: "SFM", decimals: 0 } : undefined} />
+              secondary={displayUnit !== "metric" ? { value: UNITS.mPerMinToSFM(Vc), unit: "SFM", decimals: 0 } : undefined}
+              warnings={warnings} paramKey="Vc" darkMode={darkMode} />
             <PctSlider eduId="fz" label="fz (날당이송)" unit="mm/t" value={fz} pct={feedPct}
               min={range.fzMin} max={range.fzMax} step={0.001} decimals={4}
               onChange={v => setFz(parseFloat(v.toFixed(4)))}
-              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(fz), unit: "in/t", decimals: 5 } : undefined} />
+              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(fz), unit: "in/t", decimals: 5 } : undefined}
+              warnings={warnings} paramKey="fz" darkMode={darkMode} />
             <PctSlider eduId="adoc" label="ap (축방향 절입)" unit="mm" value={ap} pct={(ap / diameter) * 100} pctLabel="·D"
               locked={apLocked} onLockToggle={() => setApLocked(!apLocked)}
               min={0.1} max={range.apMax} step={0.1} decimals={1}
               onChange={v => !apLocked && setAp(parseFloat(v.toFixed(1)))}
-              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ap), unit: "in", decimals: 3 } : undefined} />
+              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ap), unit: "in", decimals: 3 } : undefined}
+              warnings={warnings} paramKey="ap" darkMode={darkMode} />
             <PctSlider eduId="rdoc" label="ae (경방향 절입)" unit="mm" value={ae} pct={(ae / diameter) * 100} pctLabel="·D"
               locked={aeLocked} onLockToggle={() => setAeLocked(!aeLocked)}
               min={0.1} max={range.aeMax} step={0.1} decimals={1}
               onChange={v => !aeLocked && setAe(parseFloat(v.toFixed(1)))}
-              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ae), unit: "in", decimals: 3 } : undefined} />
+              secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ae), unit: "in", decimals: 3 } : undefined}
+              warnings={warnings} paramKey="ae" darkMode={darkMode} />
           </div>
 
           {/* 2D ADOC/RDOC adjuster + Engagement circle + Cutting Action */}
@@ -1311,8 +1574,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       {/* ══════ 종속인자 ══════ */}
       <SectionHeader icon={<ChevronRight className="h-4 w-4" />} title="종속인자" subtitle="입력으로부터 계산된 중간 변수" tone="violet" />
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-        <MetricCard eduId="n" label="RPM (n)" value={result.n.toLocaleString()} unit="rpm" sub={derived.Deff !== diameter ? `D_eff ${derived.Deff}mm` : undefined} accent={derived.Deff !== diameter ? "volatile" : "neutral"} />
-        <MetricCard eduId="vf" label="Vf / IPM" value={result.Vf.toLocaleString()} unit="mm/min" sub={`${vfIpm.toFixed(1)} IPM`} accent="neutral" />
+        <MetricCard eduId="n" label="RPM (n)" value={result.n} unit="rpm" sub={derived.Deff !== diameter ? `D_eff ${derived.Deff}mm` : undefined} accent={derived.Deff !== diameter ? "volatile" : "neutral"} animated decimals={0} />
+        <MetricCard eduId="vf" label="Vf / IPM" value={result.Vf} unit="mm/min" sub={`${vfIpm.toFixed(1)} IPM`} accent="neutral" animated decimals={0} />
         <MetricCard eduId="sfm" label="Surface Speed" value={VcEff.toFixed(0)} unit="m/min" sub={`${UNITS.mPerMinToSFM(VcEff).toFixed(0)} SFM`} accent="neutral" />
         <MetricCard eduId="hex-chip-thickness" label="Chip Thickness" value={derived.hex.toFixed(4)} unit="mm (hex)" sub={`RCTF ${derived.RCTF}`} accent={derived.RCTF < 1 ? "warning" : "neutral"} />
         <MetricCard eduId="engagement-angle" label="Engagement" value={derived.engagementDeg.toFixed(0)} unit="°" sub={`ae/D ${((ae/diameter)*100).toFixed(0)}%`} accent="neutral" />
@@ -1605,8 +1868,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 </div>
                 <button onClick={() => {
                   setVc(reverseSol.Vc); setFz(reverseSol.fz); setAp(reverseSol.ap); setAe(reverseSol.ae)
-                  setShareToast("Reverse solver 적용")
-                  setTimeout(() => setShareToast(null), 1500)
+                  toast.success("Reverse solver 적용")
                 }} disabled={!reverseSol.achievable}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${reverseSol.achievable ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
                   적용
@@ -1669,8 +1931,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     void navigator.clipboard.writeText(generateGCode({
                       n: result.n, Vf: result.Vf, ap, ae, D: diameter, toolNo: 1, dialect: gcodeDialect, coolant: coolant as any,
                     }))
-                    setShareToast("GCode 복사됨")
-                    setTimeout(() => setShareToast(null), 1500)
+                    toast.success("GCode 복사됨")
                   }} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white">Copy</button>
                 </div>
               </div>
@@ -1682,12 +1943,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
       </div>
 
-      {/* A/B Compare */}
-      {(snapshotA || snapshotB) && (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+      {/* A/B/C/D Compare */}
+      {(snapshotA || snapshotB || snapshotC || snapshotD) && (
+        <div data-section="ab-compare" className="rounded-xl border border-indigo-200 bg-indigo-50/40 dark:border-indigo-800 dark:bg-indigo-900/20 p-4">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-              ⚖ 조건 비교 (A/B)
+              ⚖ 조건 비교 (A/B/C/D)
             </h4>
             <button onClick={clearAB} className="text-[10px] text-gray-500 hover:text-red-600 flex items-center gap-1">
               <X className="h-3 w-3" /> 초기화
@@ -1698,9 +1959,11 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               <thead>
                 <tr className="border-b text-left text-gray-500">
                   <th className="pb-1.5 pr-2">지표</th>
-                  <th className="pb-1.5 pr-2 text-emerald-700">A {snapshotA ? `· ${snapshotA.label}` : "(미저장)"}</th>
-                  <th className="pb-1.5 pr-2 text-indigo-700">B {snapshotB ? `· ${snapshotB.label}` : "(미저장)"}</th>
-                  <th className="pb-1.5">Δ (B vs A)</th>
+                  <th className="pb-1.5 pr-2 text-emerald-700">A {snapshotA ? `· ${snapshotA.label}` : "—"}</th>
+                  <th className="pb-1.5 pr-2 text-indigo-700">B {snapshotB ? `· ${snapshotB.label}` : "—"}</th>
+                  <th className="pb-1.5 pr-2 text-violet-700">C {snapshotC ? `· ${snapshotC.label}` : "—"}</th>
+                  <th className="pb-1.5 pr-2 text-amber-700">D {snapshotD ? `· ${snapshotD.label}` : "—"}</th>
+                  <th className="pb-1.5">ΔMax</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
@@ -1718,16 +1981,23 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 ] as const).map(({ key, unit, decimals }) => {
                   const a = snapshotA?.[key]
                   const b = snapshotB?.[key]
-                  const delta = (a != null && b != null) ? b - a : null
-                  const pct = (a != null && b != null && a !== 0) ? ((b - a) / a) * 100 : null
+                  const c = snapshotC?.[key]
+                  const d = snapshotD?.[key]
+                  const vals = [a, b, c, d].filter((v): v is number => v != null)
+                  const deltaMax = vals.length >= 2 ? Math.max(...vals) - Math.min(...vals) : null
+                  const pctMax = vals.length >= 2 && Math.min(...vals) !== 0
+                    ? (deltaMax! / Math.min(...vals)) * 100 : null
+                  const fmt = (v: number | null | undefined) => v != null ? v.toFixed(decimals) : "—"
                   return (
                     <tr key={key} className="border-b border-gray-100 last:border-0">
                       <td className="py-1 pr-2 font-sans text-gray-600">{key}</td>
-                      <td className="py-1 pr-2 text-emerald-700">{a != null ? a.toFixed(decimals) : "—"} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
-                      <td className="py-1 pr-2 text-indigo-700">{b != null ? b.toFixed(decimals) : "—"} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
-                      <td className={`py-1 ${delta == null ? "text-gray-400" : delta > 0 ? "text-emerald-600" : delta < 0 ? "text-rose-600" : "text-gray-500"}`}>
-                        {delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta.toFixed(decimals)}`}
-                        {pct != null && <span className="text-[9px] opacity-60 ml-1">({pct > 0 ? "+" : ""}{pct.toFixed(1)}%)</span>}
+                      <td className="py-1 pr-2 text-emerald-700">{fmt(a)} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
+                      <td className="py-1 pr-2 text-indigo-700">{fmt(b)} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
+                      <td className="py-1 pr-2 text-violet-700">{fmt(c)} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
+                      <td className="py-1 pr-2 text-amber-700">{fmt(d)} <span className="text-gray-400 font-sans text-[9px]">{unit}</span></td>
+                      <td className={`py-1 ${deltaMax == null ? "text-gray-400" : deltaMax > 0 ? "text-rose-600 font-semibold" : "text-gray-500"}`}>
+                        {deltaMax == null ? "—" : deltaMax.toFixed(decimals)}
+                        {pctMax != null && <span className="text-[9px] opacity-60 ml-1">({pctMax.toFixed(1)}%)</span>}
                       </td>
                     </tr>
                   )
@@ -1738,10 +2008,359 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       )}
 
+      {/* 🎉 Confetti Burst 전역 (스냅샷 저장 시 트리거) */}
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
+        <ConfettiBurst trigger={confettiTrigger} />
+      </div>
+
+      {/* 🛡 플로팅 실시간 경고 HUD (우하단 sticky) */}
+      <FloatingWarnings
+        warnings={warnings}
+        darkMode={darkMode}
+        onDetailClick={() => {
+          document.querySelector('[data-section="warnings"]')?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }}
+      />
+
+      {/* Welcome 모달 (첫 방문 자동) */}
+      <WelcomeModal
+        darkMode={darkMode}
+        onPickExample={applyWelcomePreset}
+        forceOpen={welcomeOpen}
+        onClose={() => setWelcomeOpen(false)}
+      />
+
+      {/* Command Palette Ctrl+K */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        darkMode={darkMode}
+        onApplyExample={applyExampleById}
+        onJumpToSection={jumpToSection}
+        onOpenHelp={() => setShortcutsHelpOpen(true)}
+      />
+
+      {/* 🎬 실시간 절삭 시뮬레이션 씬 */}
+      {showLiveScene && simMode.showAdvancedMetrics && (
+        <div data-section="live-scene" className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
+              {simMode.showVendorTags && <VendorTag featureId="real-time-warnings" size="xs" darkMode={darkMode} />}
+            </h4>
+            <button onClick={() => setShowLiveScene(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+          </div>
+          <LiveCuttingScene
+            shape={activeShape}
+            diameter={diameter}
+            flutes={fluteCount}
+            Vc={VcEff}
+            Vf={result.Vf}
+            rpm={result.n}
+            ap={ap}
+            ae={ae}
+            stickoutMm={stickoutMm}
+            materialGroup={isoGroup}
+            chatterRisk={chatter.level}
+            bueRisk={advBue.risk}
+            chipMorph={advChipMorph.type}
+            darkMode={darkMode}
+          />
+        </div>
+      )}
+
+      {/* 🔄 3D 엔드밀 + 📐 도면 (양쪽 배치) */}
+      {(show3DPreview || showBlueprint) && simMode.showAdvancedMetrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {show3DPreview && (
+            <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">🔄 3D 엔드밀 프리뷰
+                  {simMode.showVendorTags && <VendorTag featureId="shopfloor-card" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShow3DPreview(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <div className="flex justify-center">
+                <Endmill3DPreview
+                  shape={activeShape}
+                  diameter={diameter}
+                  flutes={fluteCount}
+                  rpm={result.n}
+                  helixAngle={helixAngleDeg}
+                  cornerR={cornerR}
+                  coating={coating}
+                  darkMode={darkMode}
+                />
+              </div>
+            </div>
+          )}
+          {showBlueprint && (
+            <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">📐 YG-1 기술 도면
+                  {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShowBlueprint(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <ToolBlueprint
+                shape={activeShape}
+                diameter={diameter}
+                shankDia={shankDia}
+                LOC={LOC}
+                OAL={OAL}
+                flutes={fluteCount}
+                helixAngle={helixAngleDeg}
+                cornerR={cornerR}
+                coating={coating}
+                seriesCode={productCode || undefined}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🗺 툴패스 + 📡 진동 (2-col) */}
+      {(showToolPath || showVibration) && simMode.showAdvancedMetrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {showToolPath && (
+            <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">🗺 가공 경로 애니메이션
+                  {simMode.showVendorTags && <VendorTag featureId="beginner-matrix" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShowToolPath(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <ToolPathScene
+                strategy={(toolPath === "slot" ? "zigzag" : toolPath === "adaptive" ? "adaptive" : toolPath === "trochoidal" ? "trochoidal" : "zigzag") as "zigzag" | "spiral" | "trochoidal" | "adaptive"}
+                stockWidth={stockW}
+                stockLength={stockL}
+                diameter={diameter}
+                ae={ae}
+                Vf={result.Vf}
+                shape={activeShape}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+          {showVibration && (
+            <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">📡 스핀들 진동 오실로스코프
+                  {simMode.showVendorTags && <VendorTag featureId="chatter-analyzer" size="xs" darkMode />}
+                </h4>
+                <button onClick={() => setShowVibration(false)} className="text-xs text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <VibrationOscilloscope
+                rpm={result.n}
+                chatterRisk={chatter.risk}
+                chatterLevel={chatter.level === "med" ? "med" : chatter.level}
+                flutes={fluteCount}
+                stickoutMm={stickoutMm}
+                diameter={diameter}
+                darkMode
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🌡 온도 + ➡ 힘 벡터 (2-col) */}
+      {(showTempHeatmap || showForceVec) && simMode.showAdvancedMetrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {showTempHeatmap && (
+            <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">🌡 절삭 온도 히트맵
+                  {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShowTempHeatmap(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <TemperatureHeatmap
+                chipTempC={advHeat.chipTempC}
+                toolTempC={advHeat.toolTempC}
+                workpieceTempC={advHeat.workpieceTempC}
+                chipHeatPct={advHeat.chipHeatPct}
+                Vc={VcEff}
+                materialGroup={isoGroup}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+          {showForceVec && (
+            <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">➡ 절삭력 벡터
+                  {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShowForceVec(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <div className="flex justify-center">
+                <ForceVectorDiagram
+                  tangentialForceN={advHelix.tangentialForceN}
+                  radialForceN={advHelix.radialForceN}
+                  axialForceN={advHelix.axialForceN}
+                  helixAngle={helixAngleDeg}
+                  liftRatio={advHelix.liftRatio}
+                  diameter={diameter}
+                  darkMode={darkMode}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🔧 공구 마모 게이지 */}
+      {showWearGauge && simMode.showAdvancedMetrics && (
+        <div data-section="wear-gauge">
+          <WearGaugePanel
+            predictedLifeMin={toolLifeMin}
+            currentVc={VcEff}
+            vcRef={Vc}
+            darkMode={darkMode}
+          />
+        </div>
+      )}
+
+      {/* 🔬 고급 엔지니어링 지표 패널 (연구소장 모드) */}
+      <AdvancedMetricsPanel
+        heat={advHeat}
+        runout={advRunout}
+        helix={advHelix}
+        monteCarlo={advMonteCarlo}
+        bue={advBue}
+        chipMorph={advChipMorph}
+        darkMode={darkMode}
+        expanded={advancedMetricsOpen}
+        onToggle={() => setAdvancedMetricsOpen(v => !v)}
+      />
+
+      {/* Break-Even Vc × Cost 차트 */}
+      {showBreakEven && (
+        <BreakEvenChart
+          currentVc={VcEff}
+          taylorVcRef={Vc}
+          toolCostKrw={toolCostKrw}
+          machineCostPerHourKrw={machineCostPerHourKrw}
+          taylorN={0.25}
+          cycleTimeMin={cycleTimeMin}
+          darkMode={darkMode}
+        />
+      )}
+
+      {/* ═══ 단축키 도움말 모달 (Glassmorphism + 카테고리) ═══ */}
+      {shortcutsHelpOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShortcutsHelpOpen(false)}
+          onKeyDown={e => { if (e.key === "Escape") setShortcutsHelpOpen(false) }}
+        >
+          <div
+            className={`relative rounded-2xl overflow-hidden w-full max-w-lg shadow-2xl ring-1 animate-in zoom-in-95 duration-200 ${
+              darkMode ? "bg-slate-900 ring-slate-700 text-slate-100" : "bg-white ring-slate-200 text-gray-900"
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 그라디언트 헤더 */}
+            <div className="relative bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 px-5 py-4 text-white">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_60%)] pointer-events-none" />
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">⌨</span>
+                    <h4 className="text-base font-bold tracking-tight">키보드 단축키</h4>
+                    <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold backdrop-blur">v3</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-white/80">더 빠르게 — 마우스 없이 모든 작업을</p>
+                </div>
+                <button
+                  onClick={() => setShortcutsHelpOpen(false)}
+                  className="rounded-lg p-1.5 text-white/80 hover:bg-white/20 hover:text-white transition"
+                  aria-label="닫기"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 본문 — 카테고리별 섹션 */}
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              {(Object.keys(SHORTCUT_CATEGORIES) as Array<keyof typeof SHORTCUT_CATEGORIES>).map(catKey => {
+                const items = SHORTCUT_HINTS.filter(s => s.category === catKey)
+                if (items.length === 0) return null
+                const cat = SHORTCUT_CATEGORIES[catKey]
+                const colorClass = cat.color === "emerald" ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800"
+                  : cat.color === "orange" ? "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-800"
+                  : cat.color === "blue" ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800"
+                  : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                return (
+                  <section key={catKey}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${colorClass}`}>
+                        {cat.label}
+                      </span>
+                      <div className={`flex-1 h-px ${darkMode ? "bg-slate-700" : "bg-slate-200"}`} />
+                    </div>
+                    <ul className="space-y-1.5">
+                      {items.map(s => (
+                        <li
+                          key={s.label}
+                          className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2 transition ${
+                            darkMode ? "hover:bg-slate-800/70" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-lg leading-none flex-shrink-0">{s.icon}</span>
+                            <div className="min-w-0">
+                              <div className={`text-xs font-semibold truncate ${darkMode ? "text-slate-100" : "text-gray-900"}`}>
+                                {s.label}
+                              </div>
+                              {s.description && (
+                                <div className={`text-[10px] truncate ${darkMode ? "text-slate-400" : "text-gray-500"}`}>
+                                  {s.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {s.keys.map((k, i) => (
+                              <span key={i} className="flex items-center gap-1">
+                                {i > 0 && <span className={`text-[9px] ${darkMode ? "text-slate-500" : "text-slate-400"}`}>+</span>}
+                                <kbd className={`font-mono font-semibold text-[10px] px-2 py-1 rounded-md border-b-2 shadow-sm ${
+                                  darkMode
+                                    ? "bg-gradient-to-b from-slate-700 to-slate-800 border-slate-900 text-slate-100"
+                                    : "bg-gradient-to-b from-white to-slate-100 border-slate-300 text-slate-700"
+                                }`}>
+                                  {k}
+                                </kbd>
+                              </span>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
+            </div>
+
+            {/* 푸터 팁 */}
+            <div className={`border-t px-5 py-3 text-[10px] flex items-center justify-between ${
+              darkMode ? "border-slate-700 bg-slate-900/60 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-500"
+            }`}>
+              <span>💡 <span className="font-semibold">Tip.</span> 입력 필드 안에서는 단축키가 무시됩니다</span>
+              <kbd className={`font-mono text-[10px] px-2 py-0.5 rounded border-b-2 shadow-sm ${
+                darkMode ? "bg-slate-800 border-slate-900 text-slate-200" : "bg-white border-slate-300 text-slate-600"
+              }`}>Esc</kbd>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Warnings */}
       {warnings.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
-          <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+        <div data-section="warnings" className="rounded-xl border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-4 space-y-2 scroll-mt-20">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4 text-amber-600" /> 검증 경고 ({warnings.length}건)
           </h4>
           <ul className="space-y-1.5">{warnings.map((w, i) => <WarningRow key={i} w={w} />)}</ul>
@@ -1880,15 +2499,19 @@ interface PctSliderProps {
   locked?: boolean; onLockToggle?: () => void
   secondary?: { value: number; unit: string; decimals: number }
   eduId?: string
+  warnings?: SimWarning[]
+  paramKey?: ParamKey
+  darkMode?: boolean
 }
 
-function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId }: PctSliderProps) {
+function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId, warnings, paramKey, darkMode }: PctSliderProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-0.5">
         <div className="flex items-center gap-1.5">
-          <label className="text-xs font-medium text-gray-700">{label}</label>
+          <label className="text-xs font-medium text-gray-700 dark:text-slate-300">{label}</label>
           {eduId && <EduLabel id={eduId} size="xs" />}
+          {warnings && paramKey && <WarningDot warnings={warnings} param={paramKey} darkMode={darkMode} />}
           {onLockToggle && (
             <button onClick={onLockToggle} className="text-gray-400 hover:text-blue-600">
               {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
@@ -1953,17 +2576,24 @@ function StarterCard({ icon, title, desc, onClick }: { icon: React.ReactNode; ti
   )
 }
 
-function MetricCard({ label, value, unit, accent, sub, eduId }: { label: string; value: string; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string; eduId?: string }) {
-  const accentClass = accent === "warning" ? "border-amber-300 bg-amber-50/50" : accent === "volatile" ? "border-violet-300 bg-violet-50/50" : "border-gray-200 bg-white"
+function MetricCard({ label, value, unit, accent, sub, eduId, animated, decimals = 0 }: { label: string; value: string | number; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string; eduId?: string; animated?: boolean; decimals?: number }) {
+  const accentClass = accent === "warning" ? "border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 dark:border-amber-700" : accent === "volatile" ? "border-violet-300 bg-violet-50/50 dark:bg-violet-900/20 dark:border-violet-700" : "border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700"
+  const numValue = typeof value === "number" ? value : parseFloat(String(value).replace(/,/g, "")) || 0
   return (
-    <div className={`rounded-xl border ${accentClass} p-3`}>
-      <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold flex items-center gap-1">
+    <div className={`rounded-xl border ${accentClass} p-3 transition-all hover:shadow-md`}>
+      <div className="text-[9px] uppercase tracking-wider text-gray-500 dark:text-slate-400 font-semibold flex items-center gap-1">
         {label}
         {eduId && <EduLabel id={eduId} size="xs" />}
       </div>
-      <div className="text-lg font-bold mt-0.5 text-gray-900 font-mono">{value}</div>
-      <div className="text-[9px] text-gray-500">{unit}</div>
-      {sub && <div className="text-[9px] text-violet-700 mt-0.5 font-mono">{sub}</div>}
+      <div className="text-lg font-bold mt-0.5 text-gray-900 dark:text-slate-100 font-mono">
+        {animated && typeof value === "number"
+          ? <AnimatedNumber value={numValue} decimals={decimals} />
+          : animated
+            ? <AnimatedNumber value={numValue} decimals={decimals} />
+            : value}
+      </div>
+      <div className="text-[9px] text-gray-500 dark:text-slate-400">{unit}</div>
+      {sub && <div className="text-[9px] text-violet-700 dark:text-violet-300 mt-0.5 font-mono">{sub}</div>}
     </div>
   )
 }
@@ -1993,6 +2623,10 @@ function ToolSpecRow({ k, v }: { k: string; v: string }) {
       <span className="font-mono text-gray-800 flex-1 min-w-0 truncate">{v}</span>
     </div>
   )
+}
+
+function ToolbarDivider({ darkMode }: { darkMode?: boolean }) {
+  return <span className={`inline-block h-6 w-px mx-0.5 ${darkMode ? "bg-slate-700" : "bg-slate-200"}`} aria-hidden="true" />
 }
 
 function CorrChip({ label, value, active }: { label: string; value: string; active: boolean }) {

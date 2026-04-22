@@ -128,3 +128,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  /* 컨트롤/버튼 숨김 */
+  button, .no-print, [data-no-print] { display: none !important; }
+  /* 배경 색 유지 */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* 페이지 나누기 방지 */
+  .print-keep { break-inside: avoid; }
+  /* 시뮬레이터 컨테이너 여백 축소 */
+  body { margin: 0; padding: 0; }
+  main { max-width: 100% !important; padding: 8mm !important; }
+}

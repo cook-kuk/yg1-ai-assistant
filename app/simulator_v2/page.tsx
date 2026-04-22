@@ -8,10 +8,13 @@ import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
 import { EducationProvider } from "@/lib/frontend/simulator/v2/education-context"
 import { EducationControl } from "@/lib/frontend/simulator/v2/education-widgets"
 import { ManualDownloadButton } from "@/lib/frontend/simulator/v2/manual-download-button"
+import { ModeProvider } from "@/lib/frontend/simulator/v2/mode-context"
+import { ModeToggle } from "@/lib/frontend/simulator/v2/mode-toggle"
 
 function EducationControlMount() {
   return (
     <div className="ml-auto flex items-center gap-2">
+      <ModeToggle size="sm" />
       <ManualDownloadButton />
       <EducationControl />
     </div>
@@ -42,8 +45,17 @@ function SimulatorV2Content() {
             <EducationControlMount />
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            YG-1 엔드밀 전용 · Harvey MAP 완전 벤치마킹 + 교육 모드 · 차세대 7 기능
+            YG-1 엔드밀 전용 · 5사 강점 통합 · 출처 투명 공개
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+            <span className="text-gray-500">Inspired by:</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">🇺🇸 Harvey MAP</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">🇸🇪 Sandvik CoroPlus</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">🇩🇪 Walter GPS</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">🇮🇱 ISCAR ITA</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-600">🇺🇸 Kennametal NOVO</span>
+            <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">🇰🇷 + YG-1 Original</span>
+          </div>
         </div>
       </div>
 
@@ -95,10 +107,12 @@ function SimulatorV2Content() {
 
 export default function SimulatorV2Page() {
   return (
-    <EducationProvider>
-      <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
-        <SimulatorV2Content />
-      </Suspense>
-    </EducationProvider>
+    <ModeProvider>
+      <EducationProvider>
+        <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
+          <SimulatorV2Content />
+        </Suspense>
+      </EducationProvider>
+    </ModeProvider>
   )
 }

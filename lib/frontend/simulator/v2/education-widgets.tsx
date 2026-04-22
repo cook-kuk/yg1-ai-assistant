@@ -45,7 +45,7 @@ export function EduLabel({
 
   // 교육 모드 OFF면 거의 안 보이게 (완전 숨김 대신 아주 옅게 — 유저가 우연히 발견 가능)
   const baseOpacity = edu.enabled ? "opacity-80 hover:opacity-100" : "opacity-20 hover:opacity-70"
-  const color = edu.enabled ? "text-blue-600" : "text-gray-400"
+  const color = edu.enabled ? "text-blue-600" : "text-gray-400 dark:text-slate-500"
   const sizePx = size === "xs" ? 10 : size === "sm" ? 12 : 14
 
   return (
@@ -61,7 +61,7 @@ export function EduLabel({
       {open && (
         <div
           ref={popRef}
-          className="absolute z-50 left-0 top-full mt-1 w-80 rounded-lg border border-blue-200 bg-white shadow-xl p-3 text-left"
+          className="absolute z-50 left-0 top-full mt-1 w-80 rounded-lg border border-blue-200 bg-white dark:bg-slate-900 shadow-xl p-3 text-left"
           style={{ fontFamily: "inherit" }}
         >
           <EduCard entry={entry} level={edu.level} showFormulas={edu.showFormulas}
@@ -93,10 +93,10 @@ function EduCard({
   return (
     <div className="space-y-2 text-xs">
       <div>
-        <div className="font-bold text-gray-900 text-sm">{entry.korean}</div>
-        <div className="text-[10px] text-gray-500 font-mono">{entry.english}</div>
+        <div className="font-bold text-gray-900 dark:text-slate-100 text-sm">{entry.korean}</div>
+        <div className="text-[10px] text-gray-500 dark:text-slate-400 font-mono">{entry.english}</div>
       </div>
-      <div className="text-gray-800 leading-relaxed">
+      <div className="text-gray-800 dark:text-slate-200 leading-relaxed">
         {entry.definition[level]}
       </div>
       {showFormulas && entry.formula && (
@@ -105,8 +105,8 @@ function EduCard({
           {entry.formula}
         </div>
       )}
-      <div className="text-[11px] text-gray-700">
-        <span className="font-semibold text-gray-800">왜 중요?</span> {entry.whyItMatters}
+      <div className="text-[11px] text-gray-700 dark:text-slate-200">
+        <span className="font-semibold text-gray-800 dark:text-slate-100">왜 중요?</span> {entry.whyItMatters}
       </div>
       {showExamples && (
         <div className="text-[11px] text-emerald-800 bg-emerald-50 rounded px-2 py-1">
@@ -119,8 +119,8 @@ function EduCard({
         </div>
       )}
       {entry.relatedConcepts.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-100">
-          <span className="text-[10px] text-gray-500">관련:</span>
+        <div className="flex flex-wrap gap-1 pt-1 border-t border-gray-100 dark:border-slate-800">
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">관련:</span>
           {entry.relatedConcepts.map(r => (
             <button key={r} onClick={() => onJump(r)}
               className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-mono">
@@ -130,7 +130,7 @@ function EduCard({
         </div>
       )}
       {entry.sourceAuthority && (
-        <div className="text-[9px] text-gray-400 italic border-t border-gray-100 pt-1">
+        <div className="text-[9px] text-gray-400 dark:text-slate-500 italic border-t border-gray-100 dark:border-slate-800 pt-1">
           출처: {entry.sourceAuthority}
         </div>
       )}
@@ -300,32 +300,32 @@ export function EduTheater() {
         />
       )}
       {/* 하단 설명 박스 */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl rounded-xl bg-white shadow-2xl p-5 pointer-events-auto">
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl rounded-xl bg-white dark:bg-slate-900 shadow-2xl p-5 pointer-events-auto">
         <div className="flex items-center justify-between mb-2">
           <div className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">
             STEP {stepIndex + 1} / {DEFAULT_STEPS.length}
           </div>
           <button onClick={() => setActive(false)} aria-label="투어 종료"
-            className="text-gray-400 hover:text-gray-700">
+            className="text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="text-lg font-bold text-gray-900">{step.title}</div>
-        <div className="text-sm text-gray-700 mt-1.5 leading-relaxed">{step.description}</div>
+        <div className="text-lg font-bold text-gray-900 dark:text-slate-100">{step.title}</div>
+        <div className="text-sm text-gray-700 dark:text-slate-200 mt-1.5 leading-relaxed">{step.description}</div>
         {step.eduId && (
-          <div className="mt-2 text-[11px] text-gray-500">
+          <div className="mt-2 text-[11px] text-gray-500 dark:text-slate-400">
             관련 용어: <EduLabel id={step.eduId} /> {getEntry(step.eduId)?.korean}
           </div>
         )}
         <div className="flex justify-between items-center mt-4">
           <button onClick={() => setStepIndex(Math.max(0, stepIndex - 1))} disabled={stepIndex === 0}
-            className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-30">
+            className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 disabled:opacity-30">
             <ChevronLeft className="h-4 w-4" /> 이전
           </button>
           <div className="flex gap-1">
             {DEFAULT_STEPS.map((_, i) => (
               <div key={i}
-                className={`h-1.5 w-6 rounded-full ${i === stepIndex ? "bg-amber-500" : i < stepIndex ? "bg-amber-300" : "bg-gray-200"}`} />
+                className={`h-1.5 w-6 rounded-full ${i === stepIndex ? "bg-amber-500" : i < stepIndex ? "bg-amber-300" : "bg-gray-200 dark:bg-slate-700"}`} />
             ))}
           </div>
           {stepIndex < DEFAULT_STEPS.length - 1 ? (
@@ -368,7 +368,7 @@ export function EducationControl() {
         className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
           edu.enabled
             ? "border-amber-400 bg-amber-50 text-amber-800"
-            : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+            : "border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
         }`}
         aria-label="교육 모드 설정"
         aria-expanded={open}
@@ -378,19 +378,19 @@ export function EducationControl() {
         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-lg border border-gray-200 bg-white shadow-xl p-3 space-y-3">
+        <div className="absolute right-0 top-full mt-1 z-50 w-64 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-3 space-y-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={edu.enabled} onChange={(e) => edu.setEnabled(e.target.checked)} />
             <span className="text-sm font-semibold">교육 모드 켜기</span>
           </label>
 
           <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">설명 단계</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-slate-400 font-semibold">설명 단계</div>
             <div className="flex gap-1">
               {(["beginner", "intermediate", "expert"] as const).map(l => (
                 <button key={l} onClick={() => edu.setLevel(l)}
                   className={`flex-1 rounded px-2 py-1 text-[10px] font-medium ${
-                    edu.level === l ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600"
+                    edu.level === l ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300"
                   }`}>
                   {l === "beginner" ? "초급" : l === "intermediate" ? "중급" : "고급"}
                 </button>
@@ -413,7 +413,7 @@ export function EducationControl() {
             </label>
           </div>
 
-          <div className="border-t border-gray-100 pt-2">
+          <div className="border-t border-gray-100 dark:border-slate-800 pt-2">
             <EduTheater />
           </div>
         </div>
