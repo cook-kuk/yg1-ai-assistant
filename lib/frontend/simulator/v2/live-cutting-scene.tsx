@@ -356,9 +356,11 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     toolXRef.current += feedPxPerSec * dt
     const pathStartX = stockX + 30
     const pathEndX = stockX + stockW - 30
-    if (toolXRef.current > pathEndX - pathStartX) {
+    const pathSpanX = pathEndX - pathStartX
+    if (toolXRef.current > pathSpanX) {
       toolXRef.current = 0
     }
+    const linearProgress = clamp(pathSpanX <= 0 ? 0 : toolXRef.current / pathSpanX, 0, 0.9995)
     const toolCx = pathStartX + toolXRef.current + vib
     const toolDiaPx = toolPxForDiameter(p.diameter)
     const toolRadius = toolDiaPx / 2
@@ -372,15 +374,28 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     const fluteCount = Math.max(2, Math.min(12, Math.round(p.flutes)))
     const flutePatternLabel = fluteCount <= 2 ? "wide chip" : fluteCount === 3 ? "triple balance" : fluteCount === 4 ? "general purpose" : fluteCount === 5 ? "dense finish" : "micro pitch"
     const fluteSpraySpread = fluteCount <= 2 ? 1.45 : fluteCount === 3 ? 1.15 : fluteCount === 4 ? 0.95 : fluteCount === 5 ? 0.78 : 0.62
+    let renderToolCx = toolCx
+    let renderToolCy = stockY - toolRadius + apPx * 0.5
 
     if (viewMode === "top") {
       const topStockY = H * 0.22
       const topStockH = H * 0.52
       const topToolHalfW = aePx * 0.5
       const topToolHalfH = toolRadius * 0.68
-      const grooveEndX = Math.min(toolCx - vib, pathEndX)
-      const grooveStartX = pathStartX
-      const grooveW = Math.max(0, grooveEndX - grooveStartX)
+      const topRowPitch = Math.max(aePx * 0.95, 12)
+      const topRowCount = Math.max(2, Math.floor((topStockH - aePx) / topRowPitch) + 1)
+      const laneProgress = linearProgress * topRowCount
+      const currentLane = Math.min(topRowCount - 1, Math.floor(laneProgress))
+      const laneLocalProgress = clamp(laneProgress - currentLane, 0, 1)
+      const topLaneStartY = topStockY + aePx * 0.5
+      const topLaneEndY = topStockY + topStockH - aePx * 0.5
+      const topLaneY = clamp(topLaneStartY + currentLane * topRowPitch, topLaneStartY, topLaneEndY)
+      const laneForward = currentLane % 2 === 0
+      const topLaneX = laneForward
+        ? pathStartX + laneLocalProgress * pathSpanX
+        : pathEndX - laneLocalProgress * pathSpanX
+      renderToolCx = topLaneX + vib
+      renderToolCy = topLaneY + vib
 
       ctx.save()
       ctx.translate(vib, 0)
@@ -390,14 +405,46 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       ctx.fillRect(stockX, topStockY, stockW, topStockH)
       ctx.strokeRect(stockX, topStockY, stockW, topStockH)
 
-      ctx.fillStyle = darkMode ? "#020617" : "#1e293b"
-      ctx.fillRect(grooveStartX, H / 2 - aePx * 0.5, grooveW, aePx)
+      for (let lane = 0; lane < topRowCount; lane++) {
+        const laneY = clamp(topLaneStartY + lane * topRowPitch, topLaneStartY, topLaneEndY)
+        const laneIsForward = lane % 2 === 0
+        let cutStart = pathStartX
+        let cutWidth = 0
+        if (lane < currentLane) {
+          cutWidth = pathSpanX
+        } else if (lane === currentLane) {
+          cutWidth = laneLocalProgress * pathSpanX
+          cutStart = laneIsForward ? pathStartX : pathEndX - cutWidth
+        }
+        if (cutWidth <= 0) continue
+
+        ctx.fillStyle = darkMode ? "#020617" : "#1e293b"
+        ctx.fillRect(cutStart, laneY - aePx * 0.5, cutWidth, aePx)
+        ctx.fillStyle = darkMode ? "rgba(56,189,248,0.1)" : "rgba(14,165,233,0.1)"
+        ctx.fillRect(cutStart, laneY - aePx * 0.5, cutWidth, Math.max(2, aePx * 0.24))
+      }
+
+      ctx.strokeStyle = darkMode ? "rgba(56,189,248,0.45)" : "rgba(14,165,233,0.5)"
+      ctx.lineWidth = 1.1
+      ctx.setLineDash([5, 4])
+      ctx.beginPath()
+      for (let lane = 0; lane < topRowCount; lane++) {
+        const laneY = clamp(topLaneStartY + lane * topRowPitch, topLaneStartY, topLaneEndY)
+        const laneFromX = lane % 2 === 0 ? pathStartX : pathEndX
+        const laneToX = lane % 2 === 0 ? pathEndX : pathStartX
+        if (lane === 0) ctx.moveTo(laneFromX, laneY)
+        else ctx.lineTo(laneFromX, laneY)
+        ctx.lineTo(laneToX, laneY)
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+
       ctx.fillStyle = darkMode ? "rgba(56,189,248,0.18)" : "rgba(14,165,233,0.18)"
-      ctx.fillRect(Math.max(grooveStartX, toolCx - aePx), H / 2 - aePx * 0.5, aePx, aePx)
+      ctx.fillRect(topLaneX - aePx * 0.5, topLaneY - aePx * 0.5, aePx, aePx)
       ctx.restore()
 
       ctx.save()
-      ctx.translate(toolCx, H / 2 + vib)
+      ctx.translate(renderToolCx, renderToolCy)
       ctx.rotate(thetaRef.current)
       ctx.fillStyle = toolFill
       ctx.strokeStyle = toolStroke
@@ -599,7 +646,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         ctx.strokeStyle = "#ef4444"
         ctx.lineWidth = 1.2
         ctx.beginPath()
-        ctx.arc(toolCx + vib, toolCy + vib, r, 0, Math.PI * 2)
+        ctx.arc(renderToolCx, renderToolCy, r, 0, Math.PI * 2)
         ctx.stroke()
         ctx.restore()
       }
@@ -622,8 +669,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       const speed = 54 + Math.random() * (fluteCount <= 2 ? 70 : fluteCount >= 5 ? 28 : 46)
       const chipSize = clamp((fluteCount <= 2 ? 7 : fluteCount === 3 ? 6 : fluteCount === 4 ? 5 : fluteCount === 5 ? 4 : 3) + p.ap * 0.18 + (p.Vf / p.rpm / p.flutes) * 24, 2.5, 16)
       chipsRef.current.push({
-        x: toolCx + dir * toolRadius * 0.7,
-        y: toolCy,
+        x: renderToolCx + dir * toolRadius * 0.7,
+        y: renderToolCy,
         vx: Math.cos(chipBaseAngle + spread) * speed,
         vy: Math.sin(chipBaseAngle + spread) * speed - Math.abs(speed) * 0.18,
         born: ts,
@@ -668,8 +715,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI
         const spd = 80 + Math.random() * 120
         sparksRef.current.push({
-          x: toolCx,
-          y: toolCy,
+          x: renderToolCx,
+          y: renderToolCy,
           vx: Math.cos(ang) * spd,
           vy: Math.sin(ang) * spd,
           born: ts,
@@ -736,8 +783,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     [Vc, rpm, Vf],
   )
   const overlayBottomRight = useMemo(
-    () => `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°`,
-    [chipMorph, chatterRisk, helixAngle],
+    () => `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°${viewMode === "top" ? " · zigzag scan" : ""}`,
+    [chipMorph, chatterRisk, helixAngle, viewMode],
   )
   const overlayBottomLeft = useMemo(
     () => `Z${Math.round(flutes)} · ${Math.round(helixAngle)}° · ${Math.round(stickoutMm)}mm`,

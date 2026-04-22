@@ -163,6 +163,12 @@ export interface Cutting3DSceneProps {
   coolant?: boolean
   voxelStockSlot?: React.ReactNode
   onToolTipChange?: (worldPosition: [number, number, number]) => void
+  /** Cross-section slice view enable flag. */
+  sliceEnabled?: boolean
+  /** Axis of the clipping plane normal. Default 'z'. */
+  sliceAxis?: "x" | "y" | "z"
+  /** Plane constant (mm). 0 = through origin/center. Default 0. */
+  sliceOffset?: number
 }
 
 // ─────────────────────────────────────────────
@@ -294,9 +300,10 @@ interface StockProps {
   grooveProgress01: number
   operationType: OperationType
   stockMaterial: StockMaterialKind
+  clippingPlanes?: THREE.Plane[]
 }
 
-function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, operationType, stockMaterial }: StockProps) {
+function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, operationType, stockMaterial, clippingPlanes }: StockProps) {
   const cutLen = Math.max(0.001, L * grooveProgress01)
   const isTurning = operationType === "turning"
   const isDrilling = operationType === "drilling"
@@ -315,6 +322,8 @@ function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, ope
             metalness={mat.metalness}
             roughness={mat.roughness}
             envMapIntensity={1.0}
+            clippingPlanes={clippingPlanes ?? null}
+            side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
       ) : (
@@ -326,6 +335,8 @@ function Stock({ L, W, H, color, grooveDepth, grooveWidth, grooveProgress01, ope
             metalness={mat.metalness}
             roughness={mat.roughness}
             envMapIntensity={1.0}
+            clippingPlanes={clippingPlanes ?? null}
+            side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
       )}
@@ -388,6 +399,7 @@ interface EndmillProps {
   rpm: number
   reducedMotion: boolean
   fluteCount: 2 | 3 | 4 | 5 | 6
+  clippingPlanes?: THREE.Plane[]
 }
 
 // Build a helical flute groove as an ExtrudeGeometry that sweeps a small
@@ -426,7 +438,7 @@ function buildHelicalFluteGeometry(
   return tube
 }
 
-function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, fluteCount }: EndmillProps) {
+function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, fluteCount, clippingPlanes }: EndmillProps) {
   const groupRef = useRef<THREE.Group>(null)
   const shankR = (dia / 2) * SHANK_RATIO
   const shankLen = Math.max(4, OAL - LOC) * SHANK_LEN_RATIO * 0.5
@@ -477,6 +489,8 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
           metalness={TOOL_PBR_METALNESS}
           roughness={TOOL_PBR_ROUGHNESS}
           envMapIntensity={1.5}
+          clippingPlanes={clippingPlanes ?? null}
+          side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
 
@@ -488,6 +502,8 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
           metalness={TOOL_PBR_METALNESS}
           roughness={TOOL_PBR_ROUGHNESS + 0.05}
           envMapIntensity={1.3}
+          clippingPlanes={clippingPlanes ?? null}
+          side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
 
@@ -501,6 +517,8 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
           emissive={cs.emissive}
           emissiveIntensity={cs.emissiveIntensity * 0.5}
           envMapIntensity={1.4}
+          clippingPlanes={clippingPlanes ?? null}
+          side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
 
@@ -1158,7 +1176,48 @@ function InnerScene(props: InnerSceneProps) {
     coolant = false,
     voxelStockSlot,
     onToolTipChange,
+    sliceEnabled = false,
+    sliceAxis = "z",
+    sliceOffset = 0,
   } = props
+  const { gl } = useThree()
+
+  // Build a stable THREE.Plane whose normal corresponds to the requested axis.
+  // `constant` is taken as the user-supplied offset in world mm (0 = through origin).
+  // We keep the Plane instance stable across renders and mutate it in-place so
+  // materials holding a reference get live updates without a re-attach.
+  const slicePlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0))
+  useEffect(() => {
+    const normal =
+      sliceAxis === "x" ? new THREE.Vector3(1, 0, 0)
+      : sliceAxis === "y" ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(0, 0, 1)
+    slicePlaneRef.current.normal.copy(normal)
+    // THREE.Plane equation: n·x + constant = 0 (clip where n·x + constant < 0).
+    // Users pass offset in world units along the axis; the slice should pass
+    // through that coordinate, so constant = -offset.
+    slicePlaneRef.current.constant = -sliceOffset
+  }, [sliceAxis, sliceOffset])
+
+  const clippingPlanes = useMemo(
+    () => (sliceEnabled ? [slicePlaneRef.current] : undefined),
+    [sliceEnabled],
+  )
+
+  // Renderer-level local clipping toggle. Required for per-material clippingPlanes to work.
+  useEffect(() => {
+    if (!gl) return
+    const prev = gl.localClippingEnabled
+    gl.localClippingEnabled = sliceEnabled
+    // Also set the global clippingPlanes list so any descendant material that
+    // leaves its own list empty inherits the slice. Per-material lists (set
+    // explicitly below on stock + tool) take precedence over this anyway.
+    gl.clippingPlanes = sliceEnabled ? [slicePlaneRef.current] : []
+    return () => {
+      gl.localClippingEnabled = prev
+      gl.clippingPlanes = []
+    }
+  }, [gl, sliceEnabled])
 
   const [progress, setProgress] = useState(0)
   const tipPosRef = useRef(new THREE.Vector3(-stockL / 2, stockH / 2, 0))
@@ -1251,6 +1310,7 @@ function InnerScene(props: InnerSceneProps) {
           grooveProgress01={progress}
           operationType={operationType}
           stockMaterial={stockMaterial}
+          clippingPlanes={clippingPlanes}
         />
       )}
 
@@ -1279,6 +1339,7 @@ function InnerScene(props: InnerSceneProps) {
           rpm={rpm}
           reducedMotion={reducedMotion}
           fluteCount={resolvedFluteCount}
+          clippingPlanes={clippingPlanes}
         />
       </ToolMover>
 
@@ -1304,6 +1365,32 @@ function InnerScene(props: InnerSceneProps) {
 
       {/* 외부에서 삽입되는 voxel stock slot (예: <VoxelStock />). 기본 box stock 대신/옆에 마운트. */}
       {voxelStockSlot}
+
+      {/* 단면 시각화 — 반투명 blue plane. 클리핑 평면 위치를 나타내며, 클리핑 자체는 위의 gl/material 설정에서 처리 */}
+      {sliceEnabled && (() => {
+        const planeSize = Math.max(stockL, stockW, stockH) * 2
+        // 각 축 기준 plane rotation: plane 의 법선이 +Z 이므로 원하는 축에 맞게 회전시킨다.
+        const rot: [number, number, number] =
+          sliceAxis === "x" ? [0, Math.PI / 2, 0]
+          : sliceAxis === "y" ? [Math.PI / 2, 0, 0]
+          : [0, 0, 0]
+        const pos: [number, number, number] =
+          sliceAxis === "x" ? [sliceOffset, 0, 0]
+          : sliceAxis === "y" ? [0, sliceOffset, 0]
+          : [0, 0, sliceOffset]
+        return (
+          <mesh position={pos} rotation={rot} renderOrder={-1}>
+            <planeGeometry args={[planeSize, planeSize]} />
+            <meshBasicMaterial
+              color="#3b82f6"
+              transparent
+              opacity={0.15}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+        )
+      })()}
 
       <CameraDolly active={!reducedMotion} />
     </>

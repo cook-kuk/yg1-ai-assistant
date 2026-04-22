@@ -11,8 +11,13 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
-import { useFrame } from "@react-three/fiber"
+import { useFrame, useThree } from "@react-three/fiber"
 import * as THREE from "three"
+// `three-mesh-bvh` is pulled in transitively by @react-three/drei. We import it
+// for its three.js module augmentation (adds `computeBoundsTree` /
+// `disposeBoundsTree` / `acceleratedRaycast`) and fall back gracefully at
+// runtime if the package isn't actually resolvable.
+import * as MeshBVH from "three-mesh-bvh"
 
 // ─────────────────────────────────────────────
 // SSOT constants
@@ -22,6 +27,25 @@ const REBUILD_VOXEL_THRESHOLD = 32
 const REBUILD_FRAME_THRESHOLD = 4
 const REBUILD_MAX_HZ = 30
 const REBUILD_MIN_DT = 1 / REBUILD_MAX_HZ
+
+// Thermal model constants
+// COOL_RATE = 0.8 => full heat (1.0) decays to 0 in ~1.25 seconds.
+const COOL_RATE = 0.8
+// Contact heat propagation radius multiplier (applied on top of toolRadius).
+const HEAT_RADIUS_OFFSET_FACTOR = 1.35
+
+// Heat gradient stops used for vertex coloring. Matches the task spec:
+//   0.0 -> base material color (resolved at build-time per material)
+//   0.3 -> warm         (#e8a05b)
+//   0.7 -> bright orange(#ff6a1f)
+//   1.0 -> near white-hot(#ffd24a)
+const HEAT_STOP_T = [0.0, 0.3, 0.7, 1.0] as const
+const HEAT_STOP_RGB: [number, number, number][] = [
+  [0, 0, 0], // placeholder; index 0 is overwritten with base color per-build
+  [0xe8 / 255, 0xa0 / 255, 0x5b / 255],
+  [0xff / 255, 0x6a / 255, 0x1f / 255],
+  [0xff / 255, 0xd2 / 255, 0x4a / 255],
+]
 
 type MaterialKey = "steel" | "aluminum" | "copper" | "titanium"
 
@@ -45,6 +69,28 @@ export interface VoxelStockProps {
   toolRadius: number
   material?: MaterialKey
   onVolumeRemoved?: (mm3: number) => void
+  /**
+   * Optional world-space clipping planes applied to the voxel stock material.
+   * When provided (and non-empty), the stock mesh uses `DoubleSide` so the
+   * interior cross-section is visible at the clip. Non-breaking: omit to keep
+   * prior (unclipped) behavior.
+   */
+  clippingPlanes?: THREE.Plane[]
+  /**
+   * Per-voxel thermal visualization intensity.
+   *
+   *   0  => disabled (default). Vertex-color heat gradient and emissive glow
+   *         are both suppressed; behavior is identical to the pre-thermal
+   *         version of this component.
+   *   1  => full strength. Heat-gradient colors mix in proportional to
+   *         per-voxel temperature, and the material's emissive intensity is
+   *         scaled by the maximum stock temperature so the part glows in
+   *         dark scenes.
+   *
+   * Values in between linearly lerp between "base color" and the hot gradient
+   * and likewise scale emissive intensity.
+   */
+  thermalIntensity?: number
   /**
    * Optional seed geometry to voxelize as the initial stock.
    *
@@ -73,42 +119,34 @@ const MAX_VOXELIZE_CELLS = 64 * 64 * 64
 // Reduced cap when no BVH accelerator is available.
 const MAX_VOXELIZE_CELLS_NO_BVH = 48 * 48 * 48
 
-// Runtime probe for `three-mesh-bvh`. We resolve lazily and cache the result so
-// we avoid paying the dynamic-require cost per voxelization attempt, and so the
-// component still builds when the dependency is absent from node_modules.
-interface MeshBvhShim {
-  // Patched methods attached to BufferGeometry.prototype and Raycaster.prototype.
-  computeBoundsTree: unknown
-  disposeBoundsTree: unknown
-  acceleratedRaycast: unknown
-}
-let meshBvhProbe: MeshBvhShim | null | undefined
-function tryLoadMeshBvh(): MeshBvhShim | null {
-  if (meshBvhProbe !== undefined) return meshBvhProbe
-  try {
-    // Use a dynamic require so bundlers don't hard-fail when the dep is absent.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-    const req: NodeRequire | undefined =
-      typeof require === "function" ? (require as NodeRequire) : undefined
-    if (!req) {
-      meshBvhProbe = null
-      return null
-    }
-    const mod = req("three-mesh-bvh") as MeshBvhShim
-    if (
-      mod &&
-      typeof mod.computeBoundsTree !== "undefined" &&
-      typeof mod.acceleratedRaycast !== "undefined"
-    ) {
-      meshBvhProbe = mod
-      return mod
-    }
-    meshBvhProbe = null
-    return null
-  } catch {
-    meshBvhProbe = null
-    return null
+// Detect `three-mesh-bvh` at runtime. Even though we import it statically above
+// (it's pulled in transitively by @react-three/drei), we still feature-detect
+// in case the install has been pruned or the module didn't fully initialize —
+// in that case we fall back to the raw raycaster with the 48^3 cap.
+let meshBvhInstalled: boolean | undefined
+let meshBvhPatched = false
+function tryUseMeshBvh(): boolean {
+  if (meshBvhInstalled === undefined) {
+    meshBvhInstalled =
+      typeof MeshBVH.computeBoundsTree === "function" &&
+      typeof MeshBVH.disposeBoundsTree === "function" &&
+      typeof MeshBVH.acceleratedRaycast === "function"
   }
+  if (meshBvhInstalled && !meshBvhPatched) {
+    // Patch three prototypes once. Idempotent; drei / other consumers may have
+    // already patched but reassignment is harmless.
+    ;(
+      THREE.BufferGeometry.prototype as THREE.BufferGeometry
+    ).computeBoundsTree = MeshBVH.computeBoundsTree
+    ;(
+      THREE.BufferGeometry.prototype as THREE.BufferGeometry
+    ).disposeBoundsTree = MeshBVH.disposeBoundsTree
+    ;(
+      THREE.Raycaster.prototype as unknown as { raycast: unknown }
+    ).raycast = MeshBVH.acceleratedRaycast
+    meshBvhPatched = true
+  }
+  return meshBvhInstalled
 }
 
 // Quad face templates: 6 neighbor directions with 4 corner offsets (unit cube)
@@ -201,6 +239,9 @@ interface VoxelGrid {
   vy: number
   vz: number
   data: Uint8Array
+  // Per-voxel surface temperature in [0, 1], parallel to `data`. 1.0 = tool
+  // contact temperature (white-hot), 0.0 = ambient. Decays each frame.
+  temperature: Float32Array
   solidCount: number
 }
 
@@ -219,7 +260,18 @@ function makeGrid(
   const vz = H / nz
   const data = new Uint8Array(nx * ny * nz)
   data.fill(1)
-  return { nx, ny, nz, vx, vy, vz, data, solidCount: nx * ny * nz }
+  const temperature = new Float32Array(nx * ny * nz)
+  return {
+    nx,
+    ny,
+    nz,
+    vx,
+    vy,
+    vz,
+    data,
+    temperature,
+    solidCount: nx * ny * nz,
+  }
 }
 
 // Voxelize a BufferGeometry by testing each voxel center with an axis-aligned
@@ -263,8 +315,8 @@ function voxelizeGeometry(
 
   // Accelerator probe. When no BVH is available, clamp at 48^3 by rescaling
   // voxel size while preserving the aspect ratio of the bbox.
-  const bvh = tryLoadMeshBvh()
-  if (!bvh && nx * ny * nz > MAX_VOXELIZE_CELLS_NO_BVH) {
+  const bvhAvailable = tryUseMeshBvh()
+  if (!bvhAvailable && nx * ny * nz > MAX_VOXELIZE_CELLS_NO_BVH) {
     const scale = Math.cbrt(MAX_VOXELIZE_CELLS_NO_BVH / (nx * ny * nz))
     nx = Math.max(1, Math.floor(nx * scale))
     ny = Math.max(1, Math.floor(ny * scale))
@@ -286,37 +338,17 @@ function voxelizeGeometry(
   const workGeom = geometry.clone()
   // Ensure a non-indexed form for the raw-raycaster path; BVH handles both.
   const prepared =
-    !bvh && workGeom.index ? workGeom.toNonIndexed() : workGeom
+    !bvhAvailable && workGeom.index ? workGeom.toNonIndexed() : workGeom
   const mesh = new THREE.Mesh(prepared, new THREE.MeshBasicMaterial())
 
   const raycaster = new THREE.Raycaster()
   // Arbitrary +X axis ray; inside test is direction-agnostic.
   const rayDir = new THREE.Vector3(1, 0, 0)
 
-  // Attach BVH if available. Use a structurally-typed view so the dynamic dep
-  // does not leak into this file's static types.
-  interface BvhCapableGeometry extends THREE.BufferGeometry {
-    computeBoundsTree?: () => void
-    disposeBoundsTree?: () => void
-  }
-  interface BvhCapableRaycaster extends THREE.Raycaster {
-    firstHitOnly?: boolean
-  }
-  if (bvh) {
-    const protoGeom = THREE.BufferGeometry.prototype as BvhCapableGeometry
-    const protoRay = THREE.Raycaster.prototype as unknown as {
-      raycast?: unknown
-    }
-    if (!protoGeom.computeBoundsTree) {
-      ;(protoGeom as unknown as { computeBoundsTree: unknown }).computeBoundsTree =
-        bvh.computeBoundsTree
-      ;(protoGeom as unknown as { disposeBoundsTree: unknown }).disposeBoundsTree =
-        bvh.disposeBoundsTree
-      protoRay.raycast = bvh.acceleratedRaycast
-    }
-    const pgeom = prepared as BvhCapableGeometry
-    pgeom.computeBoundsTree?.()
-    ;(raycaster as BvhCapableRaycaster).firstHitOnly = false
+  if (bvhAvailable) {
+    prepared.computeBoundsTree()
+    // Count every hit (even-odd inside test), not just the first.
+    raycaster.firstHitOnly = false
   }
 
   const data = new Uint8Array(nx * ny * nz)
@@ -347,21 +379,30 @@ function voxelizeGeometry(
   }
 
   // Dispose BVH / clone resources.
-  if (bvh) {
-    const pgeom = prepared as BvhCapableGeometry
-    pgeom.disposeBoundsTree?.()
+  if (bvhAvailable) {
+    prepared.disposeBoundsTree()
   }
   if (prepared !== workGeom) prepared.dispose()
   workGeom.dispose()
   ;(mesh.material as THREE.Material).dispose()
 
+  const temperature = new Float32Array(nx * ny * nz)
   return {
-    grid: { nx, ny, nz, vx, vy, vz, data, solidCount },
+    grid: { nx, ny, nz, vx, vy, vz, data, temperature, solidCount },
     dimensions: [L, W, H],
   }
 }
 
 // Carve sphere; returns number of voxels flipped to empty.
+//
+// Simultaneously applies per-voxel surface heating to:
+//   (a) voxels inside the tool sphere (set to 1.0 before carving so that the
+//       event is recorded even though those voxels will be removed — harmless
+//       but kept for symmetry / debugging),
+//   (b) voxels inside the expanded heat sphere (toolRadius * HEAT_RADIUS_OFFSET_FACTOR)
+//       receive a Gaussian-falloff temperature based on distance to tool center,
+//   (c) the 6-connected neighbors of every carved voxel are clamped to 1.0
+//       so freshly-exposed surfaces always glow brightly right at the cut.
 function carveSphere(
   grid: VoxelGrid,
   dimensions: [number, number, number],
@@ -370,7 +411,7 @@ function carveSphere(
 ): number {
   if (radius <= 0) return 0
   const [L, W, H] = dimensions
-  const { nx, ny, nz, vx, vy, vz, data } = grid
+  const { nx, ny, nz, vx, vy, vz, data, temperature } = grid
 
   // Stock is centered at origin on XZ (and Y), matching typical R3F stock convention:
   //   stock spans [-L/2, L/2] × [-W/2, W/2] × [-H/2, H/2]
@@ -382,16 +423,27 @@ function carveSphere(
   const [tx, ty, tz] = toolPos
   const r2 = radius * radius
 
-  // Broad-phase bounding box in voxel indices
-  const i0 = Math.max(0, Math.floor((tx - radius - originX) / vx))
-  const i1 = Math.min(nx - 1, Math.floor((tx + radius - originX) / vx))
-  const j0 = Math.max(0, Math.floor((ty - radius - originY) / vy))
-  const j1 = Math.min(ny - 1, Math.floor((ty + radius - originY) / vy))
-  const k0 = Math.max(0, Math.floor((tz - radius - originZ) / vz))
-  const k1 = Math.min(nz - 1, Math.floor((tz + radius - originZ) / vz))
+  // Heat sphere radius: slightly larger than tool so that neighbors adjacent to
+  // the contact surface get heated (even if they are never carved themselves).
+  const heatRadius = radius * HEAT_RADIUS_OFFSET_FACTOR
+  const hr2 = heatRadius * heatRadius
+  // Gaussian falloff: temperature = exp(-k * (d/heatRadius)^2). k=3 gives a
+  // ~5% tail at the heatRadius boundary, which is a nice soft glow.
+  const falloffK = 3
+
+  // Broad-phase bounding box in voxel indices. Use the LARGER of carve & heat
+  // radii so the heat-only pass can fill in near-miss neighbors.
+  const bradius = heatRadius
+  const i0 = Math.max(0, Math.floor((tx - bradius - originX) / vx))
+  const i1 = Math.min(nx - 1, Math.floor((tx + bradius - originX) / vx))
+  const j0 = Math.max(0, Math.floor((ty - bradius - originY) / vy))
+  const j1 = Math.min(ny - 1, Math.floor((ty + bradius - originY) / vy))
+  const k0 = Math.max(0, Math.floor((tz - bradius - originZ) / vz))
+  const k1 = Math.min(nz - 1, Math.floor((tz + bradius - originZ) / vz))
   if (i1 < i0 || j1 < j0 || k1 < k0) return 0
 
   let flipped = 0
+  const nynz = ny * nz
   for (let i = i0; i <= i1; i++) {
     const cx = originX + (i + 0.5) * vx
     const ddx = cx - tx
@@ -404,11 +456,48 @@ function carveSphere(
         const cz = originZ + (k + 0.5) * vz
         const ddz = cz - tz
         const dist2 = ddx2 + ddy2 + ddz * ddz
-        if (dist2 <= r2) {
-          const id = i * ny * nz + j * nz + k
-          if (data[id] === 1) {
-            data[id] = 0
-            flipped++
+        if (dist2 > hr2) continue
+        const id = i * nynz + j * nz + k
+
+        // Heat pass — every voxel within the heat sphere (solid or empty)
+        // gets its temperature bumped up toward the falloff value. Using
+        // max() means repeated passes over the same voxel don't cool it.
+        if (data[id] === 1) {
+          const norm = dist2 / hr2
+          const t = Math.exp(-falloffK * norm)
+          if (t > temperature[id]) temperature[id] = t
+        }
+
+        // Carve pass — only voxels strictly inside the tool sphere.
+        if (dist2 <= r2 && data[id] === 1) {
+          data[id] = 0
+          flipped++
+
+          // Heat the 6-connected neighbors of the carved voxel to 1.0 — these
+          // are the freshly-exposed surfaces at the cut boundary.
+          if (i > 0) {
+            const nid = id - nynz
+            if (data[nid] === 1) temperature[nid] = 1
+          }
+          if (i < nx - 1) {
+            const nid = id + nynz
+            if (data[nid] === 1) temperature[nid] = 1
+          }
+          if (j > 0) {
+            const nid = id - nz
+            if (data[nid] === 1) temperature[nid] = 1
+          }
+          if (j < ny - 1) {
+            const nid = id + nz
+            if (data[nid] === 1) temperature[nid] = 1
+          }
+          if (k > 0) {
+            const nid = id - 1
+            if (data[nid] === 1) temperature[nid] = 1
+          }
+          if (k < nz - 1) {
+            const nid = id + 1
+            if (data[nid] === 1) temperature[nid] = 1
           }
         }
       }
@@ -420,13 +509,81 @@ function carveSphere(
   return flipped
 }
 
+// Decay every voxel's temperature toward 0 linearly with `dt * COOL_RATE`.
+// Tight loop, no per-voxel closures. Returns the maximum temperature found
+// after decay so the caller can drive material-level emissive intensity.
+function decayTemperature(temperature: Float32Array, dt: number): number {
+  const d = dt * COOL_RATE
+  let maxT = 0
+  const n = temperature.length
+  for (let i = 0; i < n; i++) {
+    const v = temperature[i] - d
+    if (v > 0) {
+      temperature[i] = v
+      if (v > maxT) maxT = v
+    } else {
+      temperature[i] = 0
+    }
+  }
+  return maxT
+}
+
+// Sample the heat gradient at t ∈ [0, 1]. `baseRGB` is used as the t=0 anchor.
+// Writes result into out[outOff..outOff+2].
+function sampleHeatGradient(
+  t: number,
+  baseRGB: [number, number, number],
+  out: Float32Array,
+  outOff: number,
+): void {
+  if (t <= 0) {
+    out[outOff] = baseRGB[0]
+    out[outOff + 1] = baseRGB[1]
+    out[outOff + 2] = baseRGB[2]
+    return
+  }
+  if (t >= 1) {
+    const c = HEAT_STOP_RGB[3]
+    out[outOff] = c[0]
+    out[outOff + 1] = c[1]
+    out[outOff + 2] = c[2]
+    return
+  }
+  // Find the gradient segment.
+  let seg = 0
+  for (let i = 0; i < HEAT_STOP_T.length - 1; i++) {
+    if (t >= HEAT_STOP_T[i] && t <= HEAT_STOP_T[i + 1]) {
+      seg = i
+      break
+    }
+  }
+  const t0 = HEAT_STOP_T[seg]
+  const t1 = HEAT_STOP_T[seg + 1]
+  const a = seg === 0 ? baseRGB : HEAT_STOP_RGB[seg]
+  const b = HEAT_STOP_RGB[seg + 1]
+  const u = (t - t0) / (t1 - t0)
+  const inv = 1 - u
+  out[outOff] = a[0] * inv + b[0] * u
+  out[outOff + 1] = a[1] * inv + b[1] * u
+  out[outOff + 2] = a[2] * inv + b[2] * u
+}
+
 // Build exposed-face geometry. Allocates tight typed arrays.
+//
+// When `thermalIntensity` > 0, per-vertex colors are emitted using the heat
+// gradient (interpolated between the material's base color and the white-hot
+// stops) and a per-vertex "heat" attribute is written (used for emissive
+// boosting if the caller wants a custom shader). For `thermalIntensity === 0`
+// the color attribute is still emitted as the flat base color (cheap, keeps
+// material.vertexColors=true valid in all paths) and `heat` is all zeros.
 function buildGeometry(
   grid: VoxelGrid,
   dimensions: [number, number, number],
+  baseRGB: [number, number, number],
+  thermalIntensity: number,
 ): THREE.BufferGeometry {
   const [L, W, H] = dimensions
-  const { nx, ny, nz, vx, vy, vz, data } = grid
+  const { nx, ny, nz, vx, vy, vz, data, temperature } = grid
   const originX = -L / 2
   const originY = -W / 2
   const originZ = -H / 2
@@ -458,10 +615,16 @@ function buildGeometry(
 
   const positions = new Float32Array(faceCount * 4 * 3)
   const normals = new Float32Array(faceCount * 4 * 3)
+  const colors = new Float32Array(faceCount * 4 * 3)
+  const heats = new Float32Array(faceCount * 4)
   const indices = new Uint32Array(faceCount * 6)
+
+  const clampedIntensity = Math.max(0, Math.min(1, thermalIntensity))
 
   let pPtr = 0
   let nPtr = 0
+  let cPtr = 0
+  let hPtr = 0
   let iPtr = 0
   let vertBase = 0
 
@@ -470,8 +633,14 @@ function buildGeometry(
     for (let j = 0; j < ny; j++) {
       const y0 = originY + j * vy
       for (let k = 0; k < nz; k++) {
-        if (data[idxOf(i, j, k, ny, nz)] !== 1) continue
+        const srcId = idxOf(i, j, k, ny, nz)
+        if (data[srcId] !== 1) continue
         const z0 = originZ + k * vz
+        // Source voxel temperature, attenuated by thermalIntensity so the
+        // gradient softly fades back to the base color as intensity goes to 0.
+        const rawT = temperature[srcId]
+        const effT = rawT * clampedIntensity
+
         for (let f = 0; f < 6; f++) {
           const face = FACES[f]
           const [dx, dy, dz] = face.dir
@@ -497,6 +666,9 @@ function buildGeometry(
             normals[nPtr++] = nxN
             normals[nPtr++] = nyN
             normals[nPtr++] = nzN
+            sampleHeatGradient(effT, baseRGB, colors, cPtr)
+            cPtr += 3
+            heats[hPtr++] = effT
           }
           indices[iPtr++] = vertBase + 0
           indices[iPtr++] = vertBase + 1
@@ -513,6 +685,12 @@ function buildGeometry(
   const geom = new THREE.BufferGeometry()
   geom.setAttribute("position", new THREE.BufferAttribute(positions, 3))
   geom.setAttribute("normal", new THREE.BufferAttribute(normals, 3))
+  geom.setAttribute("color", new THREE.BufferAttribute(colors, 3))
+  // Per-vertex heat attribute, available for custom shaders that want to
+  // modulate emissive per-vertex. three's built-in MeshStandardMaterial does
+  // not consume this by default; we approximate emissive on the material level
+  // using the maximum stock temperature instead.
+  geom.setAttribute("heat", new THREE.BufferAttribute(heats, 1))
   geom.setIndex(new THREE.BufferAttribute(indices, 1))
   geom.computeBoundingSphere()
   geom.computeBoundingBox()
@@ -526,10 +704,13 @@ export function VoxelStock({
   toolRadius,
   material = "steel",
   onVolumeRemoved,
+  thermalIntensity = 0,
   initialGeometry: seedGeometry,
+  clippingPlanes,
 }: VoxelStockProps): React.ReactElement {
   const meshRef = useRef<THREE.Mesh>(null)
   const gridRef = useRef<VoxelGrid | null>(null)
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null)
 
   // Per-voxel volume in mm^3 (computed on grid init / dims change)
   const voxelVolumeRef = useRef(0)
@@ -569,7 +750,23 @@ export function VoxelStock({
     framesSinceBuildRef.current = 0
     lastBuildAtRef.current = 0
     removedVolumeRef.current = 0
-    return buildGeometry(g, dims)
+    // We use the MATERIAL_STYLES color directly here (rather than the closed-
+    // over `style.color`) because this memo is intentionally NOT dependent on
+    // material — a material switch only affects per-frame vertex colors on
+    // next rebuild, not the initial grid allocation itself.
+    const initStyle = MATERIAL_STYLES[material] ?? MATERIAL_STYLES.steel
+    const initColor = new THREE.Color(initStyle.color)
+    return buildGeometry(
+      g,
+      dims,
+      [initColor.r, initColor.g, initColor.b],
+      thermalIntensity,
+    )
+    // NOTE: we intentionally DO NOT include `material` / `thermalIntensity` in
+    // the dep list — changes to either should NOT blow away the current
+    // carving state. They are re-read on the next throttled rebuild inside
+    // useFrame via the refs above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dimensions, resolution, seedGeometry])
 
   // Keep a ref to currently assigned geometry so we can dispose on swap.
@@ -590,6 +787,23 @@ export function VoxelStock({
 
   const style = MATERIAL_STYLES[material] ?? MATERIAL_STYLES.steel
 
+  // Precompute base color as an [r,g,b] tuple in linear-ish 0..1 for the
+  // vertex-color gradient interpolation. We parse via THREE.Color to accept any
+  // CSS color string the style may use.
+  const baseRGB = useMemo<[number, number, number]>(() => {
+    const c = new THREE.Color(style.color)
+    return [c.r, c.g, c.b]
+  }, [style.color])
+
+  // Ref tracks the latest thermalIntensity so the useFrame loop can read it
+  // without needing to rebind each render.
+  const thermalIntensityRef = useRef(thermalIntensity)
+  thermalIntensityRef.current = thermalIntensity
+
+  // Track the latest baseRGB in a ref for the mesh rebuild path.
+  const baseRGBRef = useRef<[number, number, number]>(baseRGB)
+  baseRGBRef.current = baseRGB
+
   useFrame((state, delta) => {
     const grid = gridRef.current
     const mesh = meshRef.current
@@ -609,16 +823,46 @@ export function VoxelStock({
     }
     framesSinceBuildRef.current += 1
 
+    // Decay temperature every frame. Tight inlined loop, no closures per voxel.
+    // The return value is the current maximum temperature across the stock,
+    // which we use to drive material-level emissive intensity so that the
+    // whole part softly glows when heavily heated (visible in dark scenes).
+    const maxT = decayTemperature(grid.temperature, delta)
+    const mat = materialRef.current
+    const intensity = thermalIntensityRef.current
+    if (mat) {
+      if (intensity > 0 && maxT > 0) {
+        // Scale emissive intensity by both the max-temp heat of the stock and
+        // the externally-controlled thermalIntensity prop. Capped at 1.5 so
+        // bloom post-processing doesn't blow out at peak temps.
+        mat.emissiveIntensity = Math.min(1.5, maxT * intensity * 1.5)
+      } else {
+        mat.emissiveIntensity = 0
+      }
+    }
+
     const now = state.clock.elapsedTime
     const timeSinceBuild = now - lastBuildAtRef.current
+    // Rebuild when we've carved enough voxels OR waited long enough. We also
+    // force a rebuild whenever there's still measurable temperature on the
+    // surface, so the vertex-color gradient keeps re-sampling the cooling
+    // temperatures (otherwise the stock would show stale heat colors between
+    // carves). Throttled by REBUILD_MIN_DT to keep the rebuild rate bounded.
+    const hasHeat = intensity > 0 && maxT > 1e-3
     const shouldRebuild =
-      flippedSinceBuildRef.current > 0 &&
       timeSinceBuild >= REBUILD_MIN_DT &&
       (flippedSinceBuildRef.current >= REBUILD_VOXEL_THRESHOLD ||
-        framesSinceBuildRef.current >= REBUILD_FRAME_THRESHOLD)
+        (flippedSinceBuildRef.current > 0 &&
+          framesSinceBuildRef.current >= REBUILD_FRAME_THRESHOLD) ||
+        (hasHeat && framesSinceBuildRef.current >= REBUILD_FRAME_THRESHOLD))
 
     if (shouldRebuild) {
-      const next = buildGeometry(grid, effectiveDimsRef.current)
+      const next = buildGeometry(
+        grid,
+        effectiveDimsRef.current,
+        baseRGBRef.current,
+        intensity,
+      )
       const old = mesh.geometry
       mesh.geometry = next
       currentGeomRef.current = next
@@ -637,12 +881,32 @@ export function VoxelStock({
     }
   }, [])
 
+  // Emissive color is picked to match the hottest gradient stop so that the
+  // glow looks consistent with the vertex-color ramp. When thermalIntensity
+  // is 0 we still set the emissive color but `emissiveIntensity` stays at 0
+  // (driven from useFrame above), so the material looks identical to the
+  // pre-thermal version.
+  const emissiveColor = "#ffb347"
+
+  // Auto-detect renderer-level clipping planes set by the parent scene so the
+  // voxel stock can render DoubleSide at the cross-section without requiring
+  // the caller to manually thread a per-material `clippingPlanes` array.
+  const { gl } = useThree()
+  const rendererHasClip = !!(gl && gl.clippingPlanes && gl.clippingPlanes.length > 0)
+  const hasClip = !!(clippingPlanes && clippingPlanes.length > 0) || rendererHasClip
   return (
     <mesh ref={meshRef} castShadow receiveShadow>
       <meshStandardMaterial
+        ref={materialRef}
         color={style.color}
         roughness={style.roughness}
         metalness={style.metalness}
+        vertexColors
+        emissive={emissiveColor}
+        emissiveIntensity={0}
+        toneMapped
+        clippingPlanes={clippingPlanes ?? null}
+        side={hasClip ? THREE.DoubleSide : THREE.FrontSide}
       />
     </mesh>
   )

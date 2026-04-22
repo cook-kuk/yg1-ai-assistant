@@ -78,6 +78,7 @@ test.describe("YG-1 Simulator v3 스모크", () => {
 
     const dual = page.getByTestId("dual-replacement-sim")
     await expect(dual).toBeVisible()
+    await dual.scrollIntoViewIfNeeded()
     await expect(dual.getByText("A · Harvey 기준")).toBeVisible()
     await expect(dual.getByText("B · Sandvik 비교")).toBeVisible()
     await expect(dual.getByText("C · YG-1 대체품")).toBeVisible()
@@ -88,6 +89,7 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(dual.getByText("ae", { exact: true })).toBeVisible()
     await expect(dual.getByText("Stick", { exact: true })).toBeVisible()
     await expect(dual.getByText("Top-Down Stock View").first()).toBeVisible()
+    await expect(dual.getByText("zigzag scan").first()).toBeVisible()
     await expect(page.getByTestId("ab-visual-split")).toBeVisible()
   })
 

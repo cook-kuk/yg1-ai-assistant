@@ -1,7 +1,8 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import type { BufferGeometry } from "three"
 import { toast } from "sonner"
 import {
   Search, Gauge, Zap, Shield, BarChart3, RefreshCw, Lock, Unlock,
@@ -96,58 +97,79 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
 // Phase-A 신규 — 도면 업로드 패널
 const DrawingImport = dynamic(() => import("./drawing-import").then(m => ({ default: m.DrawingImport })), { ssr: false, loading: () => <div className="h-20 flex items-center justify-center text-xs text-slate-400">📐 도면 업로더 로딩중...</div> })
-// Phase-A 신규 — 실시간 voxel 절삭 애니메이션 (Canvas 래퍼를 함께 동적 로드)
-type VoxelCanvasProps = {
+// Phase-A — VoxelStock 을 Cutting3DScene 내부 (voxelStockSlot) 에서 live 업데이트하기 위한
+// 래퍼. toolRef (ref) 에 매 프레임 최신 월드 공구 팁 위치가 담기며, useFrame 으로 안정적인
+// [number,number,number] 튜플을 mutate 해 VoxelStock 에 그대로 전달한다.
+// VoxelStock 의 자체 좌표계는 (x=L, y=W, z=H) 이므로 Cutting3DScene (y=H up) 과 맞추려면
+// 그룹을 -π/2 만큼 X축으로 회전 + 월드좌표 (x, y, z) → 로컬 (x, -z, y) 로 변환한다.
+type VoxelStockTrackedProps = {
   dimensions: [number, number, number]
-  toolPosition: [number, number, number]
+  toolRef: React.MutableRefObject<[number, number, number]>
   toolRadius: number
   material: "steel" | "aluminum" | "copper" | "titanium"
-  darkMode?: boolean
-  height?: number
+  initialGeometry?: BufferGeometry | null
   onVolumeRemoved?: (mm3: number) => void
 }
-const VoxelStockCanvas = dynamic<VoxelCanvasProps>(
+// Phase-B 신규 — 툴 경로 ghost trail + 자동 sweep driver.
+//   ToolPathTrail: <Line> (drei) 기반. bufferGeometry 는 drei 가 관리.
+//   AutoSweepDriver: headless — useFrame 에서 매 프레임 [x,y,z] 를 onPosition 으로 흘린다.
+const ToolPathTrail = dynamic(
+  () => import("./tool-path-trail").then(m => ({ default: m.ToolPathTrail })),
+  { ssr: false },
+)
+const AutoSweepDriver = dynamic(
+  () => import("./auto-sweep").then(m => ({ default: m.AutoSweepDriver })),
+  { ssr: false },
+)
+
+const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
   () =>
     Promise.all([
+      import("react"),
       import("@react-three/fiber"),
-      import("@react-three/drei"),
       import("./voxel-stock"),
-    ]).then(([fiber, drei, voxel]) => {
-      const { Canvas } = fiber
-      const { OrbitControls } = drei
+    ]).then(([React, fiber, voxel]) => {
+      const { useRef } = React
+      const { useFrame } = fiber
       const { VoxelStock } = voxel
       const Wrapper = ({
         dimensions,
-        toolPosition,
+        toolRef,
         toolRadius,
         material,
-        darkMode = false,
-        height = 360,
+        initialGeometry,
         onVolumeRemoved,
-      }: VoxelCanvasProps) => (
-        <div style={{ height }} className="w-full rounded-lg overflow-hidden">
-          <Canvas
-            shadows
-            camera={{ position: [dimensions[0] * 1.6, dimensions[1] * 1.2, dimensions[2] * 2.2], fov: 45 }}
-            style={{ background: darkMode ? "#0f172a" : "#f8fafc" }}
-          >
-            <ambientLight intensity={0.55} />
-            <directionalLight position={[50, 80, 40]} intensity={1.2} castShadow />
-            <hemisphereLight args={["#bde0fe", "#1e293b", 0.3]} />
-            <OrbitControls makeDefault enableDamping />
+      }: VoxelStockTrackedProps) => {
+        const stableTool = useRef<[number, number, number]>([
+          toolRef.current[0],
+          toolRef.current[1],
+          toolRef.current[2],
+        ])
+        useFrame(() => {
+          const wx = toolRef.current[0]
+          const wy = toolRef.current[1]
+          const wz = toolRef.current[2]
+          // 월드 (x, y=up, z) → VoxelStock 로컬 (x, y=W, z=H)
+          stableTool.current[0] = wx
+          stableTool.current[1] = -wz
+          stableTool.current[2] = wy
+        })
+        return (
+          <group rotation={[-Math.PI / 2, 0, 0]}>
             <VoxelStock
               dimensions={dimensions}
-              toolPosition={toolPosition}
+              toolPosition={stableTool.current}
               toolRadius={toolRadius}
               material={material}
+              initialGeometry={initialGeometry ?? null}
               onVolumeRemoved={onVolumeRemoved}
             />
-          </Canvas>
-        </div>
-      )
+          </group>
+        )
+      }
       return { default: Wrapper }
     }),
-  { ssr: false, loading: () => <div className="h-[360px] flex items-center justify-center text-sm text-slate-400">🔧 Voxel 씬 로딩중...</div> },
+  { ssr: false },
 )
 const InteractiveGcodeViewer = dynamic(() => import("./interactive-gcode-viewer"), { ssr: false })
 const LiveCuttingScene = dynamic(() => import("./live-cutting-scene"), { ssr: false })
@@ -168,6 +190,9 @@ const InteractiveTutorial = dynamic(() => import("./interactive-tutorial"), { ss
 const CheatSheetPanel = dynamic(() => import("./cheat-sheet-panel"), { ssr: false })
 const AdvancedMetricsPanel = dynamic(() => import("./advanced-metrics-panel"), { ssr: false })
 const BreakEvenChart = dynamic(() => import("./break-even-chart"), { ssr: false })
+const StabilityLobeDiagram = dynamic(() => import("./stability-lobe-diagram"), { ssr: false })
+const CostWaterfallChart = dynamic(() => import("./cost-waterfall-chart"), { ssr: false })
+const WearProgressionAnimation = dynamic(() => import("./wear-progression-animation"), { ssr: false })
 const WearGaugePanel = dynamic(() => import("./wear-gauge-panel"), { ssr: false })
 const DashboardHeroDisplay = dynamic(() => import("./dashboard-hero-display"), { ssr: false })
 const BenchmarkLeaderboard = dynamic(() => import("./benchmark-leaderboard"), { ssr: false })
@@ -367,6 +392,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [snapshotD, setSnapshotD] = useState<SnapshotSummary | null>(null)
   const [urlHydrated, setUrlHydrated] = useState(false)
   const [showBreakEven, setShowBreakEven] = useState(false)
+  const [showStabilityLobe, setShowStabilityLobe] = useState(false)
+  const [showCostWaterfall, setShowCostWaterfall] = useState(false)
+  const [showWearProg, setShowWearProg] = useState(false)
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
@@ -437,37 +465,45 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   // 패널 single-toggle + RAF로 unmount/mount 분리 + 맨 위 스크롤 + 강제 remount 키
   const activatePanel = useCallback((panelKey: string | null) => {
     window.scrollTo({ top: 0, behavior: "smooth" })
-    // 1) 모든 비주얼 패널 먼저 OFF (react가 완전 unmount 하도록)
-    setShowLiveScene(false); setShow3DPreview(false); setShowBlueprint(false)
-    setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
-    setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
-    setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
-    if (typeof setShow3DScene === "function") setShow3DScene(false)
-    if (typeof setShowVideoPanel === "function") setShowVideoPanel(false)
-    if (typeof setShowLeaderboard === "function") setShowLeaderboard(false)
-    if (typeof setShowAutoAgent === "function") setShowAutoAgent(false)
-    if (typeof setShowFavorites === "function") setShowFavorites(false)
+    startTransition(() => {
+      // 1) 모든 비주얼 패널 먼저 OFF (react가 완전 unmount 하도록)
+      setShowLiveScene(false); setShow3DPreview(false); setShowBlueprint(false)
+      setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
+      setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
+      setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
+      setShowStabilityLobe(false); setShowCostWaterfall(false); setShowWearProg(false)
+      if (typeof setShow3DScene === "function") setShow3DScene(false)
+      if (typeof setShowVideoPanel === "function") setShowVideoPanel(false)
+      if (typeof setShowLeaderboard === "function") setShowLeaderboard(false)
+      if (typeof setShowAutoAgent === "function") setShowAutoAgent(false)
+      if (typeof setShowFavorites === "function") setShowFavorites(false)
+    })
     if (!panelKey) return
     // 2) 다음 프레임에 대상 ON — unmount/mount 확실히 분리 → 깨끗한 초기화
-    setPanelInstance(Date.now())
+    startTransition(() => setPanelInstance(Date.now()))
     requestAnimationFrame(() => {
-      if (panelKey === "live") setShowLiveScene(true)
-      else if (panelKey === "3d") setShow3DPreview(true)
-      else if (panelKey === "blueprint") setShowBlueprint(true)
-      else if (panelKey === "gauges") setShowAnalogGauges(true)
-      else if (panelKey === "tool-path") setShowToolPath(true)
-      else if (panelKey === "vibration") setShowVibration(true)
-      else if (panelKey === "temp") setShowTempHeatmap(true)
-      else if (panelKey === "force") setShowForceVec(true)
-      else if (panelKey === "wear") setShowWearGauge(true)
-      else if (panelKey === "break-even") setShowBreakEven(true)
-      else if (panelKey === "advanced") setAdvancedMetricsOpen(true)
-      else if (panelKey === "cheat") setShowCheatSheet(true)
-      else if (panelKey === "3d-scene") setShow3DScene(true)
-      else if (panelKey === "video") setShowVideoPanel(true)
-      else if (panelKey === "leaderboard") setShowLeaderboard(true)
-      else if (panelKey === "auto-agent") setShowAutoAgent(true)
-      else if (panelKey === "favorites") setShowFavorites(true)
+      startTransition(() => {
+        if (panelKey === "live") setShowLiveScene(true)
+        else if (panelKey === "3d") setShow3DPreview(true)
+        else if (panelKey === "blueprint") setShowBlueprint(true)
+        else if (panelKey === "gauges") setShowAnalogGauges(true)
+        else if (panelKey === "tool-path") setShowToolPath(true)
+        else if (panelKey === "vibration") setShowVibration(true)
+        else if (panelKey === "temp") setShowTempHeatmap(true)
+        else if (panelKey === "force") setShowForceVec(true)
+        else if (panelKey === "wear") setShowWearGauge(true)
+        else if (panelKey === "break-even") setShowBreakEven(true)
+        else if (panelKey === "advanced") setAdvancedMetricsOpen(true)
+        else if (panelKey === "cheat") setShowCheatSheet(true)
+        else if (panelKey === "3d-scene") setShow3DScene(true)
+        else if (panelKey === "video") setShowVideoPanel(true)
+        else if (panelKey === "leaderboard") setShowLeaderboard(true)
+        else if (panelKey === "auto-agent") setShowAutoAgent(true)
+        else if (panelKey === "favorites") setShowFavorites(true)
+        else if (panelKey === "stability-lobe") setShowStabilityLobe(true)
+        else if (panelKey === "cost-waterfall") setShowCostWaterfall(true)
+        else if (panelKey === "wear-prog") setShowWearProg(true)
+      })
     })
     // 3) 맨 위로 스크롤 — 헤더 오프셋 보정하여 패널이 화면 최상단에 위치
     setTimeout(() => {
@@ -517,6 +553,25 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   } | null>(null)
   const [voxelAnimationEnabled, setVoxelAnimationEnabled] = useState(false)
   const [voxelRemovedMm3, setVoxelRemovedMm3] = useState(0)
+  // Cross-section slice view (3D scene clipping plane).
+  // 단면 활성화 시 선택된 축에 수직인 THREE.Plane 이 stock / tool / voxel stock material 에 적용된다.
+  const [sliceEnabled, setSliceEnabled] = useState(false)
+  const [sliceAxis, setSliceAxis] = useState<"x" | "y" | "z">("z")
+  const [sliceOffset, setSliceOffset] = useState(0)
+  // Cutting3DScene onToolTipChange 콜백으로 들어오는 월드-공구-팁 좌표 (mm).
+  // 프레임당 상태 업데이트는 렌더 폭탄이라 ref 로 보관하고, UI 표시는 10Hz rAF 루프로만 본 값을 읽어 state 로 흘린다.
+  const toolTipRef = useRef<[number, number, number]>([0, 0, 0])
+  const [toolTipDisplay, setToolTipDisplay] = useState<[number, number, number]>([0, 0, 0])
+
+  // Phase-B — 툴 경로 ghost trail + 자동 sweep 모드.
+  //   toolPathPositions: 최근 공구 팁 월드 좌표 히스토리 (최대 200 샘플, 10Hz 주기로 append).
+  //   showToolPathTrail: 경로 표시 토글. voxel 애니메이션 켤 때 자동으로 true 로 승격.
+  //   autoSweepEnabled: enabled=true 면 AutoSweepDriver 가 매 프레임 toolTipRef 를 override.
+  const TOOL_PATH_MAX = 200
+  const [toolPathPositions, setToolPathPositions] = useState<Array<[number, number, number]>>([])
+  const [showToolPathTrail, setShowToolPathTrail] = useState(true)
+  const [autoSweepEnabled, setAutoSweepEnabled] = useState(false)
+  const [autoSweepPattern, setAutoSweepPattern] = useState<"zigzag" | "spiral">("zigzag")
 
   // STEP 4·5·6 통합 상태
   const [toolPathModalOpen, setToolPathModalOpen] = useState(false)
@@ -529,6 +584,42 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   const resultsAnchorRef = useRef<HTMLDivElement>(null)
   const reportAreaRef = useRef<HTMLDivElement>(null)
+
+  // Tool-tip 좌표 10Hz 표출 — rAF 기반 스로틀. ref → state 로만 흘려서 매 프레임 rerender 방지.
+  //   동시에 toolPathPositions 히스토리도 여기서 10Hz 로 append (max 200 샘플).
+  useEffect(() => {
+    if (!voxelAnimationEnabled) return
+    let rafId = 0
+    let lastAt = 0
+    const tick = (now: number) => {
+      rafId = requestAnimationFrame(tick)
+      if (now - lastAt < 100) return // 10Hz
+      lastAt = now
+      const [x, y, z] = toolTipRef.current
+      setToolTipDisplay(prev =>
+        prev[0] === x && prev[1] === y && prev[2] === z ? prev : [x, y, z],
+      )
+      // ghost trail 히스토리 — 마지막 샘플과 동일 좌표면 skip (정지 상태 점 쌓임 방지).
+      setToolPathPositions(prev => {
+        const last = prev[prev.length - 1]
+        if (last && last[0] === x && last[1] === y && last[2] === z) return prev
+        const next = prev.length >= TOOL_PATH_MAX ? prev.slice(prev.length - TOOL_PATH_MAX + 1) : prev.slice()
+        next.push([x, y, z])
+        return next
+      })
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [voxelAnimationEnabled])
+
+  // voxel 애니메이션이 꺼지면 trail 히스토리를 초기화 — 다시 켰을 때 이전 세션이 이어져 보이지 않게.
+  useEffect(() => {
+    if (!voxelAnimationEnabled) {
+      setToolPathPositions([])
+      // 자동 sweep 도 같이 끔 — sweep 은 voxel 애니메이션과 세트로 의미 있음.
+      setAutoSweepEnabled(false)
+    }
+  }, [voxelAnimationEnabled])
 
   // Apply spindle preset
   useEffect(() => {
@@ -1309,6 +1400,33 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     toolLifeMin,
   ])
   const deferredAiCoachResults = useDeferredValue(aiCoachResults)
+  const sessionExportState = useMemo(() => ({
+    productCode,
+    isoGroup,
+    operation,
+    diameter,
+    fluteCount,
+    activeShape,
+    Vc: VcEff,
+    fz: fzEff,
+    ap,
+    ae,
+  }), [VcEff, activeShape, ae, ap, diameter, fluteCount, fzEff, isoGroup, operation, productCode])
+  const sessionExportResults = useMemo(() => ({
+    n: result.n,
+    Vf: result.Vf,
+    MRR: result.MRR,
+    Pc: result.Pc,
+    torque: advanced.torque,
+    deflection: advanced.deflection,
+    toolLifeMin,
+    Ra: raUm,
+    chatterRisk: chatter.risk,
+  }), [advanced.deflection, advanced.torque, chatter.risk, raUm, result.MRR, result.Pc, result.Vf, result.n, toolLifeMin])
+  const sessionExportSnapshots = useMemo(
+    () => [snapshotA, snapshotB, snapshotC, snapshotD],
+    [snapshotA, snapshotB, snapshotC, snapshotD],
+  )
 
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
@@ -1754,9 +1872,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         />
         <SessionExport
           darkMode={darkMode}
-          state={{ productCode, isoGroup, operation, diameter, fluteCount, activeShape, Vc: VcEff, fz: fzEff, ap, ae }}
-          results={{ n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, torque: advanced.torque, deflection: advanced.deflection, toolLifeMin, Ra: raUm, chatterRisk: chatter.risk }}
-          snapshots={[snapshotA, snapshotB, snapshotC, snapshotD]}
+          state={sessionExportState}
+          results={sessionExportResults}
+          snapshots={sessionExportSnapshots}
           warnings={warnings}
         />
         <AiOptimizeButton
@@ -1807,6 +1925,21 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <button onClick={() => activatePanel(showBreakEven ? null : "break-even")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             💰 Break-Even
+          </button>
+          <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")}
+            title="Stability Lobe · 채터 안정 영역"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            📈 채터 안정
+          </button>
+          <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")}
+            title="Cost Waterfall · 원가 분해"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🧾 원가 분해
+          </button>
+          <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")}
+            title="Wear Progression · 공구 마모 진행"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearProg ? "bg-rose-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🛠 마모 진행
           </button>
           <button onClick={() => activatePanel(showToolPath ? null : "tool-path")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
@@ -1966,6 +2099,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               </span>
             )}
           </button>
+          {importedGeometry && (
+            <button
+              type="button"
+              onClick={() => {
+                setImportedGeometry(null)
+                toast.success("도면 제거 — 기본 박스 stock 으로 복귀")
+              }}
+              className="flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+            >
+              <span>📐 도면 제거</span>
+            </button>
+          )}
           <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
             <span>🔧 실시간 절삭 애니메이션</span>
             <input
@@ -1973,12 +2118,66 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               checked={voxelAnimationEnabled}
               onChange={e => {
                 setVoxelAnimationEnabled(e.target.checked)
-                if (e.target.checked) setVoxelRemovedMm3(0)
+                if (e.target.checked) {
+                  setVoxelRemovedMm3(0)
+                  // voxel 애니메이션을 켤 때는 trail 도 자동으로 ON 으로 승격 (UX 가이드).
+                  setShowToolPathTrail(true)
+                }
               }}
               className="h-3.5 w-3.5 accent-indigo-600"
             />
             <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${voxelAnimationEnabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
               {voxelAnimationEnabled ? "ON" : "OFF"}
+            </span>
+          </label>
+          {voxelAnimationEnabled && (
+            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
+              <span>🌀 툴 경로 표시</span>
+              <input
+                type="checkbox"
+                checked={showToolPathTrail}
+                onChange={e => setShowToolPathTrail(e.target.checked)}
+                className="h-3.5 w-3.5 accent-indigo-600"
+              />
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${showToolPathTrail ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                {showToolPathTrail ? "ON" : "OFF"}
+              </span>
+            </label>
+          )}
+          {voxelAnimationEnabled && (
+            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
+              <span>⚡ 자동 스윕</span>
+              <input
+                type="checkbox"
+                checked={autoSweepEnabled}
+                onChange={e => setAutoSweepEnabled(e.target.checked)}
+                className="h-3.5 w-3.5 accent-indigo-600"
+              />
+              {autoSweepEnabled && (
+                <select
+                  value={autoSweepPattern}
+                  onChange={e => setAutoSweepPattern(e.target.value as "zigzag" | "spiral")}
+                  className="rounded border border-indigo-200 bg-white px-1 py-0.5 text-[10px] font-mono text-indigo-700 focus:outline-none"
+                >
+                  <option value="zigzag">zigzag</option>
+                  <option value="spiral">spiral</option>
+                </select>
+              )}
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${autoSweepEnabled ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                {autoSweepEnabled ? "ON" : "OFF"}
+              </span>
+            </label>
+          )}
+          <label className="flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold text-sky-700 cursor-pointer select-none hover:bg-sky-50">
+            <span>🔪 단면 보기</span>
+            <input
+              type="checkbox"
+              checked={sliceEnabled}
+              onChange={e => setSliceEnabled(e.target.checked)}
+              className="h-3.5 w-3.5 accent-sky-600"
+            />
+            <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${sliceEnabled ? "bg-sky-100 text-sky-700" : "bg-gray-100 text-gray-500"}`}>
+              {sliceEnabled ? "ON" : "OFF"}
             </span>
           </label>
         </div>
@@ -1990,6 +2189,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               onGeometry={(geometry, metadata) => {
                 setImportedGeometry({ geometry, metadata })
                 const [bx, by, bz] = metadata.bbox
+                // 도면 bbox 를 stock 치수로 반영 (L/W/H). 0.1mm 이상으로 floor 해서 voxel 경계 보호.
+                setStockL(Math.max(1, Math.round(bx * 10) / 10))
+                setStockW(Math.max(1, Math.round(by * 10) / 10))
+                setStockH(Math.max(1, Math.round(bz * 10) / 10))
                 toast.success(`도면 불러옴: ${bx.toFixed(0)}×${by.toFixed(0)}×${bz.toFixed(0)}mm`)
               }}
             />
@@ -1997,30 +2200,66 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
 
         {voxelAnimationEnabled && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 text-[11px]">
-              <div className="font-semibold text-indigo-800">실시간 Voxel 절삭 프리뷰</div>
-              <div className="font-mono text-indigo-600">
-                제거량: {(voxelRemovedMm3 / 1000).toFixed(2)} cm³
-              </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-white/70 px-3 py-2 text-[11px]">
+            <div className="font-semibold text-indigo-800">실시간 Voxel 절삭</div>
+            <div className="font-mono text-indigo-600">
+              제거량: {(voxelRemovedMm3 / 1000).toFixed(2)} cm³
             </div>
-            <VoxelStockCanvas
-              dimensions={[stockL, stockW, stockH]}
-              toolPosition={[
-                // X: feed 기반 근사 (왼쪽 진입부 + 5mm offset 으로 z-fighting 회피)
-                -stockL / 2 + 5,
-                // Y: 가공 깊이 ap 만큼 상단에서 내려간 위치
-                stockH / 2 - Math.min(ap, stockH * 0.8),
-                0,
-              ]}
-              toolRadius={Math.max(0.1, diameter / 2)}
-              material={stockMaterialKind}
-              darkMode={darkMode}
-              height={320}
-              onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
-            />
+            <div className="font-mono text-slate-600">
+              툴 팁 좌표 (mm): x {toolTipDisplay[0].toFixed(2)} · y {toolTipDisplay[1].toFixed(2)} · z {toolTipDisplay[2].toFixed(2)}
+            </div>
           </div>
         )}
+
+        {sliceEnabled && (() => {
+          // axis-aligned stock half-length: x<->L, y<->H (up), z<->W
+          const axisLen = sliceAxis === "x" ? stockL : sliceAxis === "y" ? stockH : stockW
+          const halfLen = Math.max(1, axisLen / 2)
+          const clamped = Math.max(-halfLen, Math.min(halfLen, sliceOffset))
+          return (
+            <div className="mt-3 space-y-2 rounded-lg border border-sky-100 bg-white/70 px-3 py-2 text-[11px]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-sky-800">🔪 단면 보기</div>
+                <div className="font-mono text-sky-600">
+                  {sliceAxis.toUpperCase()} = {clamped.toFixed(1)} mm · 범위 [{(-halfLen).toFixed(1)}, {halfLen.toFixed(1)}]
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">축</span>
+                  {(["x", "y", "z"] as const).map(ax => (
+                    <label key={ax} className="flex items-center gap-1 text-[11px] text-slate-700 cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="slice-axis"
+                        checked={sliceAxis === ax}
+                        onChange={() => {
+                          setSliceAxis(ax)
+                          setSliceOffset(0)
+                        }}
+                        className="h-3 w-3 accent-sky-600"
+                      />
+                      <span className="font-mono">{ax.toUpperCase()}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex flex-1 min-w-[200px] items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">오프셋</span>
+                  <input
+                    type="range"
+                    min={-halfLen}
+                    max={halfLen}
+                    step={0.1}
+                    value={clamped}
+                    onChange={e => setSliceOffset(parseFloat(e.target.value))}
+                    className="flex-1 accent-sky-600"
+                  />
+                  <span className="font-mono text-sky-700 w-14 text-right">{clamped.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       <div
@@ -2081,7 +2320,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
       </div>
 
-      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || beforeAfterData) && (
+      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || beforeAfterData) && (
         <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-cyan-50/60 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -2122,6 +2361,33 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     stockMaterial={stockMaterialKind}
                     fluteCount={resolvedFluteCountProp}
                     coolant={coolantEnabled}
+                    sliceEnabled={sliceEnabled}
+                    sliceAxis={sliceAxis}
+                    sliceOffset={sliceOffset}
+                    onToolTipChange={(p) => { toolTipRef.current = p }}
+                    voxelStockSlot={voxelAnimationEnabled ? (
+                      <>
+                        <VoxelStockTracked
+                          dimensions={[stockL, stockW, stockH]}
+                          toolRef={toolTipRef}
+                          toolRadius={Math.max(0.1, diameter / 2)}
+                          material={stockMaterialKind}
+                          initialGeometry={(importedGeometry?.geometry as BufferGeometry | undefined) ?? null}
+                          onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
+                        />
+                        {showToolPathTrail && (
+                          <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
+                        )}
+                        {autoSweepEnabled && (
+                          <AutoSweepDriver
+                            enabled={autoSweepEnabled}
+                            stockDimensions={[stockL, stockW, stockH]}
+                            pattern={autoSweepPattern}
+                            onPosition={(p) => { toolTipRef.current = p }}
+                          />
+                        )}
+                      </>
+                    ) : undefined}
                   />
                 </div>
               </HolographicFrame>
@@ -2454,6 +2720,43 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 machineCostPerHourKrw={machineCostPerHourKrw}
                 taylorN={0.25}
                 cycleTimeMin={cycleTimeMin}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showStabilityLobe && (
+            <div data-visual-panel="stability-lobe" className="scroll-mt-20" key={`stability-lobe-${panelInstance}`}>
+              <StabilityLobeDiagram
+                spindleRpm={result.n}
+                apMm={ap}
+                material={subgroupKey || isoGroup}
+                toolDiameterMm={diameter}
+                teethCount={fluteCount}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showCostWaterfall && (
+            <div data-visual-panel="cost-waterfall" className="scroll-mt-20" key={`cost-waterfall-${panelInstance}`}>
+              <CostWaterfallChart
+                toolCostKrw={toolCostKrw}
+                machineCostPerHourKrw={machineCostPerHourKrw}
+                laborCostPerHourKrw={30000}
+                cycleTimeMin={cycleTimeMin}
+                partsPerTool={Math.max(1, Math.round(toolLifeMin / Math.max(0.1, cycleTimeMin)))}
+                materialCostKrw={5000}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showWearProg && (
+            <div data-visual-panel="wear-prog" className="scroll-mt-20" key={`wear-prog-${panelInstance}`}>
+              <WearProgressionAnimation
+                currentVc={VcEff}
+                toolLifeMin={toolLifeMin}
                 darkMode={darkMode}
               />
             </div>
