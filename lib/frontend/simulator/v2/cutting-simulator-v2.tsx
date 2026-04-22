@@ -48,6 +48,18 @@ import { ADOCRDOCAdjuster } from "./adoc-rdoc-adjuster"
 import { ToolPathDiagram } from "./tool-path-diagrams"
 import { stateToQuery, queryToState, type SerializableState, type SnapshotSummary } from "./state-serde"
 import { generateGCode } from "./gcode-gen"
+// STEP 4·5·6 신규 컴포넌트
+import { ProvenancePanel } from "./provenance-panel"
+import { ToolPathInfoModal } from "./tool-path-info-modal"
+import { CornerFeedPanelV2 } from "./corner-panel-v2"
+import { WorkholdingSlider } from "./workholding-slider"
+import { AiCoachPanel } from "./ai-coach-panel"
+import { HeatmapPanel } from "./heatmap-panel"
+import { MachiningAnimation } from "./machining-animation"
+import { ToolLifeScenario } from "./tool-life-scenario"
+import { MultiToolCompare } from "./multi-tool-compare"
+import { LearningMode } from "./learning-mode"
+import { CompetitorLiveCompare } from "./competitor-live-compare"
 import {
   SPINDLE_PRESETS, HOLDER_PRESETS, TOOL_MATERIALS, TOOL_PATHS, MATERIAL_SUBGROUPS, convertHardness,
   COOLANTS, COATINGS, TOOL_GROUPS, OPERATION_DEFAULTS, STRATEGY_OPTIONS,
@@ -237,6 +249,15 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [formulaOpen, setFormulaOpen] = useState(false)
   const [diagnosticOpen, setDiagnosticOpen] = useState(false)
   const [strategy, setStrategy] = useState<string>("")
+
+  // STEP 4·5·6 통합 상태
+  const [toolPathModalOpen, setToolPathModalOpen] = useState(false)
+  const [nextFeaturesOpen, setNextFeaturesOpen] = useState(false)
+  const [speedsFeedsBaseline, setSpeedsFeedsBaseline] = useState<{
+    sfm: number; iptInch: number
+    source: "default" | "pdf_verified" | "pdf_partial" | "estimated" | "none"
+    confidence: number; sourceRef?: string
+  } | null>(null)
 
   const resultsAnchorRef = useRef<HTMLDivElement>(null)
   const reportAreaRef = useRef<HTMLDivElement>(null)
@@ -1069,11 +1090,23 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
           <div className="rounded border border-gray-200 bg-gray-50 p-2 text-[10px] text-gray-600 min-h-[60px] flex items-start gap-2">
             <ToolPathDiagram pathKey={toolPath} className="w-12 h-12 flex-shrink-0 text-blue-600" />
-            <div>
-              <div className="font-semibold text-gray-700 mb-0.5 flex items-center gap-1"><Info className="h-2.5 w-2.5" /> Tool Path</div>
+            <div className="flex-1">
+              <div className="font-semibold text-gray-700 mb-0.5 flex items-center gap-1">
+                <Info className="h-2.5 w-2.5" /> Tool Path
+                <button onClick={() => setToolPathModalOpen(true)}
+                  className="ml-auto text-[9px] text-blue-600 hover:text-blue-800 underline">
+                  모든 경로 보기 →
+                </button>
+              </div>
               {TOOL_PATHS.find(t => t.key === toolPath)?.hint ?? "—"}
             </div>
           </div>
+          <ToolPathInfoModal
+            open={toolPathModalOpen}
+            onClose={() => setToolPathModalOpen(false)}
+            currentPath={toolPath}
+            onSelectPath={(p) => { setToolPath(p); setStrategy(""); setToolPathModalOpen(false) }}
+          />
           <div>
             <label className="text-[10px] text-gray-500">최적화 모드</label>
             <div className="flex rounded border border-gray-200 overflow-hidden">
@@ -1102,18 +1135,13 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <NumInputSmall label="MAX IPM" value={maxIpm} onChange={setMaxIpm} />
             <NumInputSmall label="MAX kW" value={maxKw} onChange={setMaxKw} />
           </div>
-          <div>
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] text-gray-500">Workholding 강성</label>
-              <span className="text-[10px] font-mono font-bold text-blue-700">{workholding}%</span>
-            </div>
-            <input type="range" min={0} max={100} step={5} value={workholding}
-              onChange={e => setWorkholding(parseInt(e.target.value))}
-              className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
-            <div className="flex justify-between text-[9px] text-gray-400">
-              <span>Loose</span><span>Rigid</span>
-            </div>
-          </div>
+          <WorkholdingSlider
+            value={workholding}
+            onChange={setWorkholding}
+            D={diameter}
+            currentAp={ap}
+            currentAe={ae}
+          />
           <MiniSelect label="Coolant 💧" value={coolant} onChange={setCoolant}
             options={COOLANTS.map(c => ({ value: c.key, label: c.label }))} />
           <MiniSelect label="Coating ✨" value={coating} onChange={setCoating}
@@ -1297,6 +1325,108 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           sub={`공구 ${cost.toolCostPerPart.toLocaleString()} + 머신 ${cost.machineCostPerPart.toLocaleString()}`}
           accent="neutral" />
       </div>
+
+      {/* Provenance — 이 값들이 어디서 왔는지 */}
+      <ProvenancePanel
+        Vc={VcEff}
+        fz={fzEff}
+        n={result.n}
+        Vf={result.Vf}
+        kc={KC_TABLE[isoGroup] ?? 2000}
+        D={diameter}
+        Z={fluteCount}
+        baseline={speedsFeedsBaseline}
+        coolantMult={coolantMult}
+        coatingMult={coatingMult}
+        hardnessMult={hardDerate}
+        stickoutMult={stickoutD.vc}
+        speedPct={speedPct}
+        feedPct={feedPct}
+      />
+
+      {/* 🚀 차세대 기능 (초월 7기능) */}
+      <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 dark:border-indigo-800">
+        <button onClick={() => setNextFeaturesOpen(!nextFeaturesOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
+          <span className="text-sm font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+            🚀 차세대 기능 (MAP 초월)
+            <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-200">
+              DEMO
+            </span>
+          </span>
+          <span className={`text-xs text-slate-500 transition-transform ${nextFeaturesOpen ? "rotate-180" : ""}`}>▼</span>
+        </button>
+        {nextFeaturesOpen && (
+          <div className="border-t border-indigo-200 dark:border-indigo-800 p-4 space-y-6">
+            {/* AI 코치 */}
+            <AiCoachPanel
+              state={{
+                productCode, diameter, fluteCount, activeShape, LOC, OAL, shankDia, cornerR, toolMaterial,
+                isoGroup, subgroupKey, condition, hardnessScale, hardnessValue,
+                operation, toolPath, spindleKey, holderKey, maxRpm, maxKw, maxIpm, workholding,
+                coolant, coating, stickoutMm, Vc, fz, ap, ae, speedPct, feedPct, climb,
+              } as Record<string, unknown>}
+              results={{
+                n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc,
+                Fc: advanced.Fc, torque: advanced.torque, deflection: advanced.deflection,
+                toolLife: toolLifeMin, Ra: raUm,
+                chatterRisk: `${chatter.risk}% (${chatter.level.toUpperCase()})`,
+              }}
+            />
+
+            {/* Tool Life 3시나리오 비교 */}
+            <ToolLifeScenario
+              currentVc={VcEff}
+              VcReference={VcReferenceVal}
+              coatingMult={coatingMult}
+              isoGroup={isoGroup}
+              toolMaterialE={toolMatE}
+              toolCostKrw={toolCostKrw}
+              machineCostPerHourKrw={machineCostPerHourKrw}
+              cycleTimeMin={cycleTimeMin}
+              MRR={result.MRR}
+              onApplyScenario={(newVc) => { setVc(Math.round(newVc)); setSpeedPct(0) }}
+            />
+
+            {/* 가공 애니메이션 */}
+            <MachiningAnimation
+              D={diameter} LOC={LOC} ap={ap} ae={ae}
+              Vf={result.Vf} n={result.n} MRR={result.MRR}
+              shape={activeShape} toolPath={toolPath}
+            />
+
+            {/* 히트맵 */}
+            <HeatmapPanel
+              currentAp={ap} currentAe={ae}
+              D={diameter} Z={fluteCount}
+              isoGroup={isoGroup}
+              Vc={VcEff} fz={fzEff}
+              maxKw={maxKw}
+              onSpotClick={(newAp, newAe) => { setAp(newAp); setAe(newAe) }}
+            />
+
+            {/* 다중공구 비교 */}
+            <MultiToolCompare
+              isoGroup={isoGroup}
+              ap={ap} ae={ae}
+              operation={operation}
+              onSelectTool={(series, D) => { setProductCode(series); setDiameter(D); setEverInteracted(true) }}
+            />
+
+            {/* MAP/SpeedLab 병렬 비교 */}
+            <CompetitorLiveCompare
+              ariaResults={{
+                Vc: VcEff, fz: fzEff, n: result.n, Vf: result.Vf,
+                MRR: result.MRR, SFM: UNITS.mPerMinToSFM(VcEff),
+                IPM: UNITS.mmPerMinToIPM(result.Vf),
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 학습 모드 — 처음 방문자 자동 open */}
+      <LearningMode autoOpen={false} />
 
       {/* [수식] 계산식 패널 */}
       <div className="rounded-xl border border-slate-200 bg-white">

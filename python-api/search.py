@@ -136,11 +136,18 @@ SELECT_COLS = """
     milling_shank_dia,
     holemaking_tool_material,
     holemaking_coolant_hole,
-    holemaking_point_angle,
+    -- holemaking_point_angle was dropped from the MV schema. Emitting it as
+    -- NULL keeps downstream code (main.py point_angle=c.get(...)) working
+    -- without a column-not-found error on load. Filter uses already go
+    -- through _mv_column_present("holemaking_point_angle") so the filter
+    -- path self-disables when the column is absent.
+    NULL::numeric AS holemaking_point_angle,
     threading_tool_material,
     threading_coolant_hole,
-    threading_pitch,
-    threading_tpi,
+    -- threading_pitch / threading_tpi also dropped from current MV; emit
+    -- as NULL for the same rationale as holemaking_point_angle above.
+    NULL::numeric AS threading_pitch,
+    NULL::numeric AS threading_tpi,
     series_application_shape,
     country_codes,
     -- norm_brand / norm_coating are absent from the current MV. _build_where
