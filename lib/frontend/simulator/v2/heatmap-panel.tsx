@@ -26,6 +26,7 @@ import {
   calculateCutting,
   estimateChatterRisk,
 } from "@/lib/frontend/simulator/cutting-calculator"
+import FeatureExplainer from "./feature-explainer"
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -331,6 +332,7 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
               EDU
             </span>
           )}
+          <FeatureExplainer featureId="heatmap" inline />
         </div>
 
         <div className="text-[11px] text-slate-500 dark:text-slate-400">

@@ -30,6 +30,7 @@ import {
   ISO_LABELS,
 } from "../cutting-calculator"
 import { useEducation } from "./education-context"
+import FeatureExplainer from "./feature-explainer"
 
 // ── 공통 타입 ─────────────────────────────────────────
 export interface MultiToolCompareProps {
@@ -248,6 +249,7 @@ export function MultiToolCompare({
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Trophy className="h-5 w-5 text-amber-500" />
             다중 공구 비교 — {ISO_LABELS[isoGroup] ?? isoGroup} · {operation}
+            <FeatureExplainer featureId="multi-tool-compare" inline />
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             같은 재질·op 조건에서 최대 {MAX_SLOTS}개 공구의 MRR / 수명 / 동력 / 단가 / Ra 를 나란히 비교합니다.

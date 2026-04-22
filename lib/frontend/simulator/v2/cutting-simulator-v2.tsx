@@ -81,6 +81,10 @@ import FeatureExplainer from "./feature-explainer"
 import { AiQueryBar } from "./ai-query-bar"
 import { AiOptimizeButton } from "./ai-optimize-button"
 import { AiWarningExplain } from "./ai-warning-explain"
+import BlueprintGallery from "./blueprint-gallery"
+import AnalogGauges from "./analog-gauges"
+import DashboardHeroDisplay from "./dashboard-hero-display"
+import HolographicFrame from "./holographic-frame"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
 import { ProvenancePanel } from "./provenance-panel"
@@ -271,6 +275,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showLiveScene, setShowLiveScene] = useState(false)
   const [showWearGauge, setShowWearGauge] = useState(false)
   const [showBlueprint, setShowBlueprint] = useState(false)
+  const [showBlueprintGallery, setShowBlueprintGallery] = useState(false)
+  const [showAnalogGauges, setShowAnalogGauges] = useState(false)
+  const [showHeroDisplay, setShowHeroDisplay] = useState(true)
   const [showToolPath, setShowToolPath] = useState(false)
   const [showVibration, setShowVibration] = useState(false)
   const [showTempHeatmap, setShowTempHeatmap] = useState(false)
@@ -1112,6 +1119,22 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       </div>
 
+      {/* ✨ 영웅 KPI 디스플레이 — 시네마틱 최상단 (모든 모드) */}
+      {showHeroDisplay && (
+        <HolographicFrame accent="cyan" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
+          <DashboardHeroDisplay
+            rpm={result.n}
+            rpmMax={maxRpm}
+            mrr={result.MRR}
+            pc={result.Pc}
+            pcMax={maxKw}
+            toolLifeMin={toolLifeMin}
+            chatterLevel={chatter.level === "med" ? "med" : chatter.level}
+            darkMode={darkMode}
+          />
+        </HolographicFrame>
+      )}
+
       {/* 💡 초보자 오늘의 팁 — 초보 모드일 때 상단 노출 */}
       {simMode.isBeginner && showLessonCards && (
         <BeginnerLessonCards darkMode={darkMode} onClose={() => setShowLessonCards(false)} />
@@ -1153,6 +1176,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <button onClick={() => setShowBlueprint(v => !v)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📐 도면
+          </button>
+          <button onClick={() => setShowBlueprintGallery(true)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🖼 갤러리(6)
+          </button>
+          <button onClick={() => setShowAnalogGauges(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🎛 게이지
+          </button>
+          <button onClick={() => setShowHeroDisplay(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            ✨ 영웅 KPI
           </button>
           <button onClick={() => setShowWearGauge(v => !v)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
@@ -2161,6 +2196,59 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         onJumpToSection={jumpToSection}
         onOpenHelp={() => setShortcutsHelpOpen(true)}
       />
+
+      {/* 🎛 아날로그 계기판 */}
+      {showAnalogGauges && (
+        <HolographicFrame accent="rose" intensity="medium" scanlines darkMode={darkMode}>
+          <div className="p-2">
+            <AnalogGauges
+              rpm={result.n}
+              rpmMax={maxRpm}
+              Vf={result.Vf}
+              VfMax={maxIpm * 25.4}
+              Pc={result.Pc}
+              PcMax={maxKw}
+              toolLifePct={Math.min(100, Math.max(0, (toolLifeMin / 120) * 100))}
+              chatterRisk={chatter.risk}
+              darkMode={darkMode}
+            />
+          </div>
+        </HolographicFrame>
+      )}
+
+      {/* 🖼 도면 갤러리 6종 (모달) */}
+      {showBlueprintGallery && (
+        <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-md overflow-y-auto p-4" onClick={() => setShowBlueprintGallery(false)}>
+          <div className="max-w-6xl mx-auto mt-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-white">📐 YG-1 엔드밀 도면 갤러리 (6종)</h3>
+              <button onClick={() => setShowBlueprintGallery(false)} className="rounded-lg bg-white/10 hover:bg-white/20 text-white p-1.5"><X className="h-5 w-5" /></button>
+            </div>
+            <BlueprintGallery
+              darkMode={darkMode}
+              onApplyTool={(tool) => {
+                setProductCode(tool.seriesCode)
+                setDiameter(tool.diameter)
+                setShankDia(tool.shankDia)
+                setLOC(tool.LOC)
+                setOAL(tool.OAL)
+                setFluteCount(tool.flutes)
+                setActiveShape(tool.shape)
+                if (tool.cornerR) setCornerR(tool.cornerR)
+                setCoating(tool.coating)
+                setIsoGroup(tool.recommendedMaterial)
+                setVc(tool.recommendedVc)
+                setFz(tool.recommendedFz)
+                setAp(tool.recommendedAp)
+                setAe(tool.recommendedAe)
+                setShowBlueprintGallery(false)
+                setEverInteracted(true)
+                toast.success(`✓ ${tool.seriesCode} 적용됨`, { description: `Vc ${tool.recommendedVc} · fz ${tool.recommendedFz}` })
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 🎬 실시간 절삭 시뮬레이션 씬 */}
       {showLiveScene && (

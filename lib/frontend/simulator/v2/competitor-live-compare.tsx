@@ -28,6 +28,7 @@ import {
   CheckCircle2, AlertTriangle, AlertCircle,
 } from "lucide-react"
 import { useEducation } from "./education-context"
+import FeatureExplainer from "./feature-explainer"
 
 // ── Props ────────────────────────────────────────────
 export interface CompetitorLiveCompareProps {
@@ -201,6 +202,7 @@ export function CompetitorLiveCompare({ ariaResults, educationMode }: Competitor
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Target className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
             ARIA · Harvey MAP · YG-1 SpeedLab 실시간 비교
+            <FeatureExplainer featureId="competitor-live" inline />
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             각 툴에서 받은 값을 붙여넣으면 ARIA 대비 % 차이를 자동 계산합니다.

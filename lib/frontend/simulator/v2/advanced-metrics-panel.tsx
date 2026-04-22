@@ -8,6 +8,7 @@ import type {
   HeatEstimation, RunoutEffect, HelixDecomposition,
   MonteCarloResult, BueRisk, ChipMorphology,
 } from "../advanced-metrics"
+import FeatureExplainer from "./feature-explainer"
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -688,6 +689,7 @@ export function AdvancedMetricsPanel({
         >
           연구소장 모드
         </span>
+        <FeatureExplainer featureId="advanced-metrics" inline darkMode={darkMode} />
         <button
           type="button"
           onClick={onToggle}

@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Markdown } from "@/components/ui/markdown"
+import FeatureExplainer from "./feature-explainer"
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -370,6 +371,7 @@ export function AiCoachPanel(props: AiCoachPanelProps) {
               EDU
             </span>
           )}
+          <FeatureExplainer featureId="ai-coach" inline darkMode />
         </div>
 
         <div className="flex items-center gap-2">

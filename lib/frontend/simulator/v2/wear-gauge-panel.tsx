@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from "react"
 import { Wrench, RotateCcw, Plus, AlertTriangle, CheckCircle2, Siren, BookOpen } from "lucide-react"
+import FeatureExplainer from "./feature-explainer"
 
 // ─────────────────────────────────────────────────────────────────────
 // 상수 (로컬 SSOT — 임계치/색상/빠른버튼 값)
@@ -189,6 +190,7 @@ export function WearGaugePanel({
         <div className="flex items-center gap-2">
           <Wrench className={darkMode ? "h-5 w-5 text-amber-400" : "h-5 w-5 text-amber-600"} />
           <h3 className={`text-base font-bold sm:text-lg ${headerTitleCls}`}>🔧 공구 마모 예측 게이지</h3>
+          <FeatureExplainer featureId="wear-gauge" inline darkMode={darkMode} />
         </div>
         {/* TODO: <VendorTag featureId="wear-gauge" /> */}
       </div>

@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { SimWarning } from "@/lib/frontend/simulator/cutting-calculator"
+import FeatureExplainer from "./feature-explainer"
 
 const PULSE_DURATION_MS = 500
 const SHAKE_DURATION_MS = 500
@@ -194,6 +195,7 @@ export default function FloatingWarnings({
               <span className="text-sm font-semibold whitespace-nowrap">
                 <span aria-hidden="true">⚠</span> 실시간 검증
               </span>
+              <FeatureExplainer featureId="warnings-hud" inline darkMode={darkMode} />
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeBg}`}
               >

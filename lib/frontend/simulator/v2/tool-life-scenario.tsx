@@ -7,6 +7,7 @@
 import { useMemo } from "react"
 import { Clock, Wrench, Timer, Coins, Trophy, TrendingUp, Info, BookOpen, ArrowRight } from "lucide-react"
 import { estimateToolLifeMin, estimateCostPerPart } from "../cutting-calculator"
+import FeatureExplainer from "./feature-explainer"
 
 // ─── 상수 (로컬 SSOT) ────────────────────────────────
 // 시나리오 3단계 — 이름, Vc 배수, 테마
@@ -189,6 +190,7 @@ export function ToolLifeScenario({
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-slate-600 dark:text-slate-300" />
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">공구 수명 시나리오 비교</h3>
+          <FeatureExplainer featureId="tool-life-scenario" inline />
           <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
             기준 Vc {vcBase.toFixed(1)} m/min · {LOTS_FOR_COMPARE}개 가공 기준
           </span>

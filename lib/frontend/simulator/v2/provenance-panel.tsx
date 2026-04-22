@@ -7,6 +7,7 @@
 import { useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, BookOpen, Database, AlertTriangle, Info } from "lucide-react"
 import type { SpeedsFeedsRow } from "./speeds-feeds-types"
+import FeatureExplainer from "./feature-explainer"
 
 // ── Props ──
 export interface ProvenancePanelProps {
@@ -402,6 +403,7 @@ export function ProvenancePanel(p: ProvenancePanelProps) {
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">값의 출처 (Provenance)</h3>
+          <FeatureExplainer featureId="provenance" inline />
         </div>
         <div className="flex items-center gap-2">
           <span className={["text-[11px] px-1.5 py-0.5 rounded", srcStyle.bg, srcStyle.fg].join(" ")}>

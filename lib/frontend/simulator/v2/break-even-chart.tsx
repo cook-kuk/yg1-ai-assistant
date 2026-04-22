@@ -12,6 +12,7 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts"
+import FeatureExplainer from "./feature-explainer"
 
 /**
  * Break-Even Vc × Cost/부품 chart
@@ -233,8 +234,9 @@ export default function BreakEvenChart({
           marginBottom: 12,
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
           💰 Break-Even 분석 · Vc × Cost/부품
+          <FeatureExplainer featureId="break-even" inline darkMode={darkMode} />
         </h3>
         <div style={{ fontSize: 11, color: subFg }}>
           Taylor n = {taylorN} · Ref Vc = {taylorVcRef} m/min
