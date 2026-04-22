@@ -55,6 +55,11 @@ export function TourSpotlight({ target }: TourSpotlightProps) {
   useEffect(() => {
     if (typeof document === "undefined") return
 
+    // Clear the previous rect immediately so rapid step advances don't
+    // leave a stale highlight flashing on the old element while we wait
+    // for the new scroll + measure to resolve.
+    setRect(null)
+
     let cancelled = false
     let timeoutId: number | undefined
 

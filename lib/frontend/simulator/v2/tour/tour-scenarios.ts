@@ -69,7 +69,7 @@ const FIRST_VISIT: TourScenario = {
     },
     {
       id: "ml-prediction",
-      target: "[data-tour=\"ml-tool-life-prediction\"]",
+      target: "[data-tour=\"ml-prediction-gauge\"]",
       title: "ML 공구 수명 예측",
       content:
         "머신러닝 모델이 현재 조건에서의 **공구 수명**을 실시간으로 예측합니다. 값 옆의 작은 마크는 신뢰구간이에요.",
@@ -134,7 +134,7 @@ const ML_DEEP_DIVE: TourScenario = {
   steps: [
     {
       id: "ml-tool-life-prediction",
-      target: "[data-tour=\"ml-tool-life-prediction\"]",
+      target: "[data-tour=\"ml-prediction-gauge\"]",
       title: "공구 수명 예측 모델",
       content:
         "Gradient-boosted 회귀 + 생존분석 하이브리드 모델이 **남은 유효 수명**을 분 단위로 예측합니다.",

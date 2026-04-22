@@ -51,7 +51,9 @@ function reducer(state: TourState, action: TourAction): TourState {
     case "START":
       return { isActive: true, scenario: action.scenario, currentIndex: 0 }
     case "STOP":
-      return { ...state, isActive: false }
+      // Clear scenario + index so consumers reading currentStep after the
+      // tour closes can't accidentally see a stale step (state hygiene).
+      return { isActive: false, scenario: null, currentIndex: 0 }
     case "NEXT": {
       if (!state.scenario) return state
       const nextIdx = state.currentIndex + 1
@@ -63,7 +65,7 @@ function reducer(state: TourState, action: TourAction): TourState {
       return { ...state, currentIndex: state.currentIndex - 1 }
     }
     case "COMPLETE":
-      return { ...state, isActive: false }
+      return { isActive: false, scenario: null, currentIndex: 0 }
     default:
       return state
   }

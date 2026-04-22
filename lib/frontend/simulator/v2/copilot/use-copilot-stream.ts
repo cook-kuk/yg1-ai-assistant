@@ -11,7 +11,7 @@
  * - clear(): 대화 초기화
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CopilotMessage } from "./copilot-messages";
 
 interface SendContext {
@@ -32,6 +32,17 @@ export function useCopilotStream(): UseCopilotStreamReturn {
   const [streamingMessage, setStreamingMessage] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Mirror current state in refs so sendMessage (useCallback, [] deps) can
+  // read the latest values without re-creating the callback on every state
+  // change, and without impure state updaters (StrictMode runs those twice).
+  const messagesRef = useRef<CopilotMessage[]>([]);
+  const isStreamingRef = useRef(false);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
 
   const clear = useCallback(() => {
     if (abortRef.current) {
@@ -52,6 +63,14 @@ export function useCopilotStream(): UseCopilotStreamReturn {
       const trimmed = (text ?? "").trim();
       if (!trimmed) return;
 
+      // Guard: never start a second stream while one is in-flight.
+      // Rapid-fire "copilot:ask" events from multiple InfoToggle clicks
+      // used to clobber streamingMessage and duplicate assistant messages.
+      if (isStreamingRef.current) {
+        abortRef.current?.abort();
+        // Fall through to start the new stream — user's latest intent wins.
+      }
+
       const userMsg: CopilotMessage = {
         role: "user",
         content: trimmed,
@@ -59,12 +78,11 @@ export function useCopilotStream(): UseCopilotStreamReturn {
         context,
       };
 
-      // snapshot past messages BEFORE adding new user message for API payload
-      let pastMsgs: CopilotMessage[] = [];
-      setMessages((prev) => {
-        pastMsgs = prev;
-        return [...prev, userMsg];
-      });
+      // Snapshot past messages via ref (pure), not via impure state updater.
+      // Strict-mode double-invocation of the updater used to leak the *new*
+      // user message into pastMsgs, causing the payload to duplicate it.
+      const pastMsgs = messagesRef.current;
+      setMessages((prev) => [...prev, userMsg]);
 
       setStreamingMessage("");
       setIsStreaming(true);
