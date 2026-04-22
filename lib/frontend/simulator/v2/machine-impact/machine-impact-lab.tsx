@@ -131,9 +131,47 @@ export const MachineImpactLab = memo(function MachineImpactLab({
     [lockedInput],
   )
 
+  const currentPresetKey = matchPresetKey(config)
+
+  const handleShare = async () => {
+    const url = buildShareUrl(config)
+    const ok = await copyText(url)
+    if (ok) {
+      toast.success(
+        currentPresetKey
+          ? `${IMPACT_PRESETS[currentPresetKey].label} 링크 복사됨`
+          : "커스텀 시나리오 링크 복사됨",
+      )
+    } else {
+      toast.error("클립보드 복사 실패 — URL 을 직접 복사하세요")
+    }
+  }
+
   return (
     <div className="space-y-3">
       <LockedToolBanner tool={tool} material={material} operation={operation} />
+
+      {/* Share header — compact strip above KPIs */}
+      <div className="flex items-center justify-end gap-2">
+        {currentPresetKey ? (
+          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+            프리셋 일치: {IMPACT_PRESETS[currentPresetKey].label}
+          </span>
+        ) : (
+          <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+            커스텀 설정 (프리셋 미일치)
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={handleShare}
+          aria-label="이 시나리오 링크 복사"
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <Link2 className="h-3 w-3" />
+          시나리오 링크 복사
+        </button>
+      </div>
 
       <LiveKpiStrip result={result} baseline={baseline} />
 

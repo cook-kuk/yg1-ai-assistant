@@ -72,6 +72,28 @@ test.describe("Machine Impact Lab 스모크", () => {
     await expect(page.getByText("고정 (Locked)")).toBeVisible()
   })
 
+  test("?lab=custom&spindle=hsm&... 딥링크 → 커스텀 설정 하이드레이션", async ({ page }) => {
+    await page.goto(
+      "/simulator_v2?lab=custom&spindle=hsm&holder=shrink-fit&coolant=throughspindle&stickout=1.0&wh=95",
+    )
+    // highspeed 프리셋과 동일 조합이므로 실제로는 매치되지만, URL 진입 경로는 custom.
+    // 헤더에 "프리셋 일치" 혹은 "커스텀" 중 하나가 표시돼야 함.
+    await expect(
+      page
+        .getByText(/프리셋 일치|커스텀 설정/)
+        .first(),
+    ).toBeVisible()
+    // HSM 고속 + through-spindle 조합은 BASELINE 대비 MRR 양수 델타
+    const mrrCard = page.locator("div").filter({ hasText: /^MRR/ }).first()
+    await expect(mrrCard.getByText(/\+\d+% vs BASE/)).toBeVisible()
+  })
+
+  test("Share 버튼이 Lab 진입 시 존재하고 aria-label 로 발견된다", async ({ page }) => {
+    await page.goto("/simulator_v2?lab=premium")
+    const shareBtn = page.getByLabel("이 시나리오 링크 복사")
+    await expect(shareBtn).toBeVisible()
+  })
+
   test("?lab=<unknown-key> 은 BASELINE 으로 폴백", async ({ page }) => {
     await page.goto("/simulator_v2?lab=does-not-exist")
 

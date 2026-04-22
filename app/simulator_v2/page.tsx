@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic"
 import { startTransition, Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Calculator, ArrowLeftRight, FlaskConical } from "lucide-react"
+import { Calculator, ArrowLeftRight, FlaskConical, Sparkles } from "lucide-react"
 import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulator-v2"
 import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
 import { EducationProvider } from "@/lib/frontend/simulator/v2/education-context"
@@ -19,6 +19,23 @@ const CinematicBackdrop = dynamic(() => import("@/lib/frontend/simulator/v2/cine
 const MachineImpactLab = dynamic(
   () => import("@/lib/frontend/simulator/v2/machine-impact/machine-impact-lab").then(m => ({ default: m.MachineImpactLab })),
   { ssr: false, loading: () => <div className="flex items-center justify-center py-12 text-sm text-gray-400">🔬 Machine Impact Lab 로딩중...</div> },
+)
+// AI Research Lab — 8 섹션 + 실시간 센서 시뮬 + Copilot 포함. Heavy 청크 분리.
+const AiResearchLab = dynamic(
+  () => import("@/lib/frontend/simulator/v2/ai-research-lab/ai-research-lab").then(m => ({ default: m.AiResearchLab })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center py-12 text-sm text-gray-400">🧪 AI Research Lab 로딩중...</div> },
+)
+const TourOverlay = dynamic(
+  () => import("@/lib/frontend/simulator/v2/tour/tour-overlay").then(m => ({ default: m.TourOverlay })),
+  { ssr: false },
+)
+const FirstVisitPrompt = dynamic(
+  () => import("@/lib/frontend/simulator/v2/tour/first-visit-prompt").then(m => ({ default: m.FirstVisitPrompt })),
+  { ssr: false },
+)
+const TourProvider = dynamic(
+  () => import("@/lib/frontend/simulator/v2/tour/tour-provider").then(m => ({ default: m.TourProvider })),
+  { ssr: false },
 )
 // CyberpunkHud 현재 비활성 (성능 부담). 필요 시 관리자 설정에서 활성화.
 // const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
@@ -67,7 +84,19 @@ function SimulatorV2Content() {
   const searchParams = useSearchParams()
 
   // ?lab=<preset-key> 딥링크 — 탭 자동 전환 + 프리셋 자동 로드 (demo/share-URL 용)
+  // ?lab=custom&spindle=...&holder=...&coolant=...&stickout=...&wh=... 형태의
+  // 커스텀 설정 공유도 동일 경로로 처리.
   const labPreset = searchParams.get("lab") ?? undefined
+  const labInitialConfig =
+    labPreset === "custom"
+      ? {
+          spindleKey: searchParams.get("spindle") ?? "vmc-std",
+          holderKey: searchParams.get("holder") ?? "shrink-fit",
+          coolantKey: searchParams.get("coolant") ?? "flood",
+          stickoutInch: Number(searchParams.get("stickout") ?? "1.5"),
+          workholdingPct: Number(searchParams.get("wh") ?? "100"),
+        }
+      : undefined
   const initialTab: "simulator" | "competitor" | "machine-impact" = labPreset
     ? "machine-impact"
     : "simulator"
@@ -161,7 +190,10 @@ function SimulatorV2Content() {
         ) : tab === "competitor" ? (
           <CompetitorTab />
         ) : (
-          <MachineImpactLab initialPresetKey={labPreset} />
+          <MachineImpactLab
+            initialPresetKey={labPreset === "custom" ? undefined : labPreset}
+            initialConfig={labInitialConfig}
+          />
         )}
       </div>
     </div>
