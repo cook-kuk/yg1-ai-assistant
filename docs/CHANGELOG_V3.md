@@ -9,10 +9,10 @@
 
 - [x] **STEP 1** — 현재 v2 코드 감사 · `V3_CURRENT_STATE_AUDIT.md` 작성 (413줄, 2 subagent 병렬)
 - [x] **STEP 2** — MAP Gap 3분류 · `V3_MAP_BENCHMARK_GAPS.md`
-- [ ] **STEP 3** — 🎓 교육 모드 토글 시스템 (80~100 콘텐츠 entry + 5 widgets + 헤더 컨트롤)
-- [ ] **STEP 4** — Harvey MAP 자동로드 파이프라인 (Speeds&Feeds DB + UI 자동로드 + provenance 패널)
-- [ ] **STEP 5** — MAP 대비 부족 기능 4종 보강 (Tool Path 모달 · Corner · PDF · Workholding)
-- [ ] **STEP 6** — MAP 초월 7기능 (AI 코치 · 히트맵 · 애니메이션 · Tool Life · 다중공구 · 학습모드 · 경쟁사 병렬)
+- [x] **STEP 3** — 🎓 교육 모드 토글 시스템 (112 entry + 5 widgets + EduLabel 19위치 배치)
+- [x] **STEP 4** — Speeds/Feeds 파이프라인 (types + Harvey 파일럿 + YG-1 15 seed + API + provenance)
+- [x] **STEP 5** — MAP Gap 4종 보강 (Tool Path 모달 · Corner v2 · PDF generator · Workholding slider)
+- [x] **STEP 6** — MAP 초월 7기능 (AI 코치 · 히트맵 · 애니메이션 · Tool Life · 다중공구 · 학습모드 · 경쟁사 병렬) — **전부 완료**
 
 ---
 
