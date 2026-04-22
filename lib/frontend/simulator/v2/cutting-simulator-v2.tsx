@@ -79,6 +79,8 @@ import BeginnerLessonCards from "./beginner-lesson-cards"
 import CheatSheetPanel from "./cheat-sheet-panel"
 import FeatureExplainer from "./feature-explainer"
 import { AiQueryBar } from "./ai-query-bar"
+import { AiOptimizeButton } from "./ai-optimize-button"
+import { AiWarningExplain } from "./ai-warning-explain"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
 import { ProvenancePanel } from "./provenance-panel"
@@ -1115,13 +1117,27 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         <BeginnerLessonCards darkMode={darkMode} onClose={() => setShowLessonCards(false)} />
       )}
 
-      {/* 🔮 AI 자연어 검색바 — 모든 모드에서 상시 */}
-      <AiQueryBar
-        darkMode={darkMode}
-        onApplyPreset={(p) => {
-          applyWelcomePreset({ id: "ai-nl", title: "AI 자연어 추천", subtitle: "Claude Haiku 생성", icon: "🔮", color: "violet", params: p as WelcomePreset["params"] } as WelcomePreset)
-        }}
-      />
+      {/* 🔮 AI 자연어 검색바 + 🤖 1-click 최적화 — 상시 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-start">
+        <AiQueryBar
+          darkMode={darkMode}
+          onApplyPreset={(p) => {
+            applyWelcomePreset({ id: "ai-nl", title: "AI 자연어 추천", subtitle: "Claude Haiku 생성", icon: "🔮", color: "violet", params: p as WelcomePreset["params"] } as WelcomePreset)
+          }}
+        />
+        <AiOptimizeButton
+          currentState={{
+            Vc, fz, ap, ae, diameter, fluteCount, activeShape,
+            isoGroup, subgroupKey, operation, coating, workholding,
+            stickoutMm, hardnessScale, hardnessValue,
+          }}
+          darkMode={darkMode}
+          onApply={(opt) => {
+            setVc(opt.Vc); setFz(opt.fz); setAp(opt.ap); setAe(opt.ae)
+            toast.success("🤖 AI 최적화 조건 적용")
+          }}
+        />
+      </div>
 
       {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 모든 모드에서 표시 */}
       <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
@@ -2151,6 +2167,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         <div data-section="live-scene" className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
+              <FeatureExplainer featureId="live-scene" inline darkMode={darkMode} />
               {simMode.showVendorTags && <VendorTag featureId="real-time-warnings" size="xs" darkMode={darkMode} />}
             </h4>
             <button onClick={() => setShowLiveScene(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2181,6 +2198,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">🔄 3D 엔드밀 프리뷰
+                  <FeatureExplainer featureId="3d-endmill" inline darkMode={darkMode} />
                   {simMode.showVendorTags && <VendorTag featureId="shopfloor-card" size="xs" darkMode={darkMode} />}
                 </h4>
                 <button onClick={() => setShow3DPreview(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2203,6 +2221,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">📐 YG-1 기술 도면
+                  <FeatureExplainer featureId="blueprint" inline darkMode={darkMode} />
                   {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
                 </h4>
                 <button onClick={() => setShowBlueprint(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2232,6 +2251,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">🗺 가공 경로 애니메이션
+                  <FeatureExplainer featureId="tool-path" inline darkMode={darkMode} />
                   {simMode.showVendorTags && <VendorTag featureId="beginner-matrix" size="xs" darkMode={darkMode} />}
                 </h4>
                 <button onClick={() => setShowToolPath(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2252,6 +2272,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">📡 스핀들 진동 오실로스코프
+                  <FeatureExplainer featureId="vibration" inline darkMode />
                   {simMode.showVendorTags && <VendorTag featureId="chatter-analyzer" size="xs" darkMode />}
                 </h4>
                 <button onClick={() => setShowVibration(false)} className="text-xs text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
@@ -2277,6 +2298,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">🌡 절삭 온도 히트맵
+                  <FeatureExplainer featureId="temperature" inline darkMode={darkMode} />
                   {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
                 </h4>
                 <button onClick={() => setShowTempHeatmap(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2296,6 +2318,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">➡ 절삭력 벡터
+                  <FeatureExplainer featureId="force-vector" inline darkMode={darkMode} />
                   {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
                 </h4>
                 <button onClick={() => setShowForceVec(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
@@ -2468,8 +2491,24 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         <div data-section="warnings" className="rounded-xl border border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700 p-4 space-y-2 scroll-mt-20">
           <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4 text-amber-600" /> 검증 경고 ({warnings.length}건)
+            <FeatureExplainer featureId="warnings-hud" inline darkMode={darkMode} />
           </h4>
-          <ul className="space-y-1.5">{warnings.map((w, i) => <WarningRow key={i} w={w} />)}</ul>
+          <ul className="space-y-2">{warnings.map((w, i) => (
+            <li key={i} className="space-y-1">
+              <WarningRow w={w} />
+              <div className="pl-5">
+                <AiWarningExplain
+                  warning={w}
+                  context={{
+                    Vc: VcEff, fz: fzEff, ap, ae,
+                    materialGroup: isoGroup, diameter, fluteCount,
+                    stickoutMm, rpm: result.n,
+                  }}
+                  darkMode={darkMode}
+                />
+              </div>
+            </li>
+          ))}</ul>
         </div>
       )}
 
