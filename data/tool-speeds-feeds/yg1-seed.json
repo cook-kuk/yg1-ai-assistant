@@ -1,0 +1,282 @@
+{
+  "_meta": {
+    "schemaVersion": 1,
+    "description": "YG-1 대표 15 공구 SpeedsFeeds seed (ENDMILL_EXAMPLES 0~14 참조). 모든 row는 confidence:2, source:'estimated' — SpeedLab PDF 연동 전 placeholder.",
+    "placeholderWarning": "⚠ SpeedLab PDF 연동 전 placeholder — 실측 기반 교체 필요",
+    "generatedFor": "ARIA Simulator v3 STEP 4"
+  },
+  "tools": [
+    {
+      "toolId": "EHD84100",
+      "seriesId": "EHD84",
+      "coating": "AlTiN",
+      "cutterDiameter": 10,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "SUS-CUT EHD84 시리즈는 SUS304 등 오스테나이트 스테인리스 측면가공 전용 4날 Square 엔드밀. AlTiN 코팅으로 work-hardening 억제.",
+        "typicalUse": "SUS304/316 finishing side-milling, ap=0.5~1xD, flood 쿨런트, climb milling.",
+        "avoidUse": "경화강(>40HRC) · Titanium 슬로팅 금지 — 4날은 chip evacuation 불리."
+      },
+      "entries": [
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 394, "vcMetric": 120, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2, "eduNote": "repCondition Vc=120 / fz=0.05 / ap=10 / ae=2 기반 추정." },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "roughing", "sfm": 328, "vcMetric": 100, "iptInch": 0.00236, "fzMetric": 0.060, "adocRatio": "1xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "slotting", "sfm": 262, "vcMetric": 80, "iptInch": 0.00158, "fzMetric": 0.040, "adocRatio": "0.3xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "martensitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 328, "vcMetric": 100, "iptInch": 0.00177, "fzMetric": 0.045, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "max", "sfm": 230, "vcMetric": 70, "iptInch": 0.00276, "fzMetric": 0.070, "adocRatio": "1xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GA93108",
+      "seriesId": "GA931",
+      "coating": "AlTiN",
+      "cutterDiameter": 8,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "GA931 범용 4날 스퀘어 — M계열 스테인리스 범용 가공용.",
+        "typicalUse": "SUS 계열 general-purpose milling, ap≤1xD.",
+        "avoidUse": "고경도(>45HRC) · 고온합금 슬로팅."
+      },
+      "entries": [
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 427, "vcMetric": 130, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "roughing", "sfm": 361, "vcMetric": 110, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.75xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "martensitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 328, "vcMetric": 100, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "slotting", "sfm": 262, "vcMetric": 80, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.3xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GAC25060",
+      "seriesId": "GAC25",
+      "coating": "AlTiN",
+      "cutterDiameter": 6,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "GAC25 미디움 롱 4날 — 깊은 포켓/측벽 가공 시 shank 간섭 회피.",
+        "typicalUse": "SUS 깊이 LOC 18mm 포켓.",
+        "avoidUse": "헤비컷 · 슬로팅 ap>0.3xD."
+      },
+      "entries": [
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 377, "vcMetric": 115, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "roughing", "sfm": 312, "vcMetric": 95, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.75xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "martensitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 295, "vcMetric": 90, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "slotting", "sfm": 230, "vcMetric": 70, "iptInch": 0.00098, "fzMetric": 0.025, "adocRatio": "0.3xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "CGMG62100",
+      "seriesId": "CGMG62",
+      "coating": "AlTiN",
+      "cutterDiameter": 10,
+      "flutes": 6,
+      "eduSummary": {
+        "whyThisTool": "CGMG62 6날 고속 피니싱 — 절삭력 분산·Ra 우수.",
+        "typicalUse": "SUS finishing side-wall, ap≤0.3xD 얕은 절삭.",
+        "avoidUse": "슬로팅 금지 — 6날은 chip room 부족."
+      },
+      "entries": [
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 459, "vcMetric": 140, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.3xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "roughing", "sfm": 394, "vcMetric": 120, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.5xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "martensitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 394, "vcMetric": 120, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.3xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "alloy-steel", "condition": "Annealed", "operation": "finishing", "sfm": 492, "vcMetric": 150, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.3xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GMG87080",
+      "seriesId": "GMG87",
+      "coating": "AlTiN",
+      "cutterDiameter": 8,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "V7 PLUS GMG87 — 회주철/구상흑연 주철 헤비컷 4날.",
+        "typicalUse": "GC200/FCD 슬로팅·측면 · dry 또는 air-blast.",
+        "avoidUse": "스테인리스 · 알루미늄 (geometry/코팅 misalignment)."
+      },
+      "entries": [
+        { "materialGroup": "K", "materialSubgroup": "gray-iron", "condition": "As-Cast", "operation": "slotting", "sfm": 591, "vcMetric": 180, "iptInch": 0.00315, "fzMetric": 0.080, "adocRatio": "1xD", "rdocRatio": "0.5xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2, "eduNote": "repCondition Vc=180/fz=0.08 기반." },
+        { "materialGroup": "K", "materialSubgroup": "gray-iron", "condition": "As-Cast", "operation": "roughing", "sfm": 656, "vcMetric": 200, "iptInch": 0.00354, "fzMetric": 0.090, "adocRatio": "1.5xD", "rdocRatio": "0.4xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "gray-iron", "condition": "As-Cast", "operation": "finishing", "sfm": 722, "vcMetric": 220, "iptInch": 0.00236, "fzMetric": 0.060, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "ductile-iron", "condition": "As-Cast", "operation": "roughing", "sfm": 525, "vcMetric": 160, "iptInch": 0.00276, "fzMetric": 0.070, "adocRatio": "1.5xD", "rdocRatio": "0.4xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GMH54120",
+      "seriesId": "GMH54",
+      "coating": "AlTiN",
+      "cutterDiameter": 12,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "V7 PLUS GMH54 — FCD 구상흑연주철 헤비컷 4날.",
+        "typicalUse": "FCD450~700 heavy rough, ap=1xD 풀슬롯.",
+        "avoidUse": "피니싱 · 스테인리스."
+      },
+      "entries": [
+        { "materialGroup": "K", "materialSubgroup": "ductile-iron", "condition": "As-Cast", "operation": "roughing", "sfm": 656, "vcMetric": 200, "iptInch": 0.00394, "fzMetric": 0.100, "adocRatio": "1xD", "rdocRatio": "0.5xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "ductile-iron", "condition": "As-Cast", "operation": "slotting", "sfm": 525, "vcMetric": 160, "iptInch": 0.00315, "fzMetric": 0.080, "adocRatio": "1xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "gray-iron", "condition": "As-Cast", "operation": "roughing", "sfm": 722, "vcMetric": 220, "iptInch": 0.00433, "fzMetric": 0.110, "adocRatio": "1xD", "rdocRatio": "0.5xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "ductile-iron", "condition": "As-Cast", "operation": "finishing", "sfm": 820, "vcMetric": 250, "iptInch": 0.00276, "fzMetric": 0.070, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "SG8A01060",
+      "seriesId": "SG8A01",
+      "coating": "AlTiN",
+      "cutterDiameter": 6,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "SG8 프리하든강(40~50HRC) 4날 Square.",
+        "typicalUse": "Pre-hardened mold steel (SKD61, NAK80) side-milling.",
+        "avoidUse": "55HRC 이상 · 인코넬 · 알루미늄."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "finishing", "sfm": 361, "vcMetric": 110, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "roughing", "sfm": 295, "vcMetric": 90, "iptInch": 0.00158, "fzMetric": 0.040, "adocRatio": "0.75xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 262, "vcMetric": 80, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "tool-steel-p", "condition": "Hardened", "operation": "finishing", "sfm": 394, "vcMetric": 120, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GNX35050",
+      "seriesId": "GNX35",
+      "coating": "AlCrN",
+      "cutterDiameter": 5,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "GNX35 고경도강(50~60HRC) 4날. AlCrN 고온 코팅.",
+        "typicalUse": "금형 hardened steel finishing, 얕은 ap.",
+        "avoidUse": "알루미늄 · 주철 · 슬로팅."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 262, "vcMetric": 80, "iptInch": 0.00098, "fzMetric": 0.025, "adocRatio": "0.3xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5565", "condition": "Hardened", "operation": "finishing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00079, "fzMetric": 0.020, "adocRatio": "0.2xD", "rdocRatio": "0.08xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "roughing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.5xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "tool-steel-h", "condition": "Hardened", "operation": "finishing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00079, "fzMetric": 0.020, "adocRatio": "0.3xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "CGM3S01060",
+      "seriesId": "CGM3S01",
+      "coating": "AlCrN",
+      "cutterDiameter": 6,
+      "flutes": 3,
+      "eduSummary": {
+        "whyThisTool": "3S 3날 고속가공 — 경화강 고효율.",
+        "typicalUse": "SKD11/SKD61 hardened, HEM trochoidal.",
+        "avoidUse": "알루미늄 · 슬로팅 풀로딩."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "finishing", "sfm": 295, "vcMetric": 90, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.5xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "roughing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "1xD", "rdocRatio": "0.08xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2, "eduNote": "HEM trochoidal 추천 — ae 작고 ap 큰 패턴." },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 262, "vcMetric": 80, "iptInch": 0.00098, "fzMetric": 0.025, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "tool-steel-p", "condition": "Hardened", "operation": "finishing", "sfm": 361, "vcMetric": 110, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "SEM813080",
+      "seriesId": "SEM813",
+      "coating": "AlTiN",
+      "cutterDiameter": 8,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "SEM813 탄소강 고효율 4날 — S45C 측면가공.",
+        "typicalUse": "Carbon steel 일반 milling, climb.",
+        "avoidUse": "경화(>45HRC) · 알루미늄."
+      },
+      "entries": [
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "finishing", "sfm": 591, "vcMetric": 180, "iptInch": 0.00236, "fzMetric": 0.060, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "roughing", "sfm": 492, "vcMetric": 150, "iptInch": 0.00276, "fzMetric": 0.070, "adocRatio": "0.75xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "low-carbon", "condition": "Normalized", "operation": "finishing", "sfm": 656, "vcMetric": 200, "iptInch": 0.00236, "fzMetric": 0.060, "adocRatio": "0.5xD", "rdocRatio": "0.25xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "alloy-steel", "condition": "Q&T", "operation": "finishing", "sfm": 525, "vcMetric": 160, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "slotting", "sfm": 394, "vcMetric": 120, "iptInch": 0.00158, "fzMetric": 0.040, "adocRatio": "0.5xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GNX98050",
+      "seriesId": "GNX98",
+      "coating": "AlCrN",
+      "cutterDiameter": 0.5,
+      "flutes": 2,
+      "eduSummary": {
+        "whyThisTool": "E-FORCE GNX98 미세 볼(Ø0.5, 2날) — 프리하든강 미세형상.",
+        "typicalUse": "30~45HRC mold micro-feature, ap<0.1D.",
+        "avoidUse": "거친 가공 · stickout 10xD 이상."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "finishing", "sfm": 262, "vcMetric": 80, "iptInch": 0.00031, "fzMetric": 0.008, "adocRatio": "0.1xD", "rdocRatio": "0.05xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00020, "fzMetric": 0.005, "adocRatio": "0.05xD", "rdocRatio": "0.025xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "roughing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00039, "fzMetric": 0.010, "adocRatio": "0.15xD", "rdocRatio": "0.08xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "tool-steel-p", "condition": "Hardened", "operation": "finishing", "sfm": 295, "vcMetric": 90, "iptInch": 0.00031, "fzMetric": 0.008, "adocRatio": "0.1xD", "rdocRatio": "0.05xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "SEM846060",
+      "seriesId": "SEM846",
+      "coating": "AlCrN",
+      "cutterDiameter": 6,
+      "flutes": 2,
+      "eduSummary": {
+        "whyThisTool": "4G MILLS SEM846 고경도 2날 롱넥 볼.",
+        "typicalUse": "55~65HRC mold 깊은 리브 피니싱.",
+        "avoidUse": "알루미늄 · 슬로팅 · ap>0.5mm."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-5565", "condition": "Hardened", "operation": "finishing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00079, "fzMetric": 0.020, "adocRatio": "0.05xD", "rdocRatio": "0.025xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00098, "fzMetric": 0.025, "adocRatio": "0.08xD", "rdocRatio": "0.04xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "tool-steel-h", "condition": "Hardened", "operation": "finishing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00079, "fzMetric": 0.020, "adocRatio": "0.05xD", "rdocRatio": "0.025xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5565", "condition": "Hardened", "operation": "roughing", "sfm": 164, "vcMetric": 50, "iptInch": 0.00098, "fzMetric": 0.025, "adocRatio": "0.1xD", "rdocRatio": "0.05xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GNX46040",
+      "seriesId": "GNX46",
+      "coating": "AlCrN",
+      "cutterDiameter": 4,
+      "flutes": 2,
+      "eduSummary": {
+        "whyThisTool": "GNX46 롱넥 2날 볼 — 깊은 포켓/언더컷.",
+        "typicalUse": "경화강 깊은 리브, stickout 4~5xD.",
+        "avoidUse": "거친 가공 · 알루미늄."
+      },
+      "entries": [
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "finishing", "sfm": 230, "vcMetric": 70, "iptInch": 0.00059, "fzMetric": 0.015, "adocRatio": "0.05xD", "rdocRatio": "0.025xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-5055", "condition": "Hardened", "operation": "finishing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00047, "fzMetric": 0.012, "adocRatio": "0.05xD", "rdocRatio": "0.025xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "H", "materialSubgroup": "hardened-4045", "condition": "Hardened", "operation": "roughing", "sfm": 197, "vcMetric": 60, "iptInch": 0.00079, "fzMetric": 0.020, "adocRatio": "0.1xD", "rdocRatio": "0.05xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "tool-steel-p", "condition": "Hardened", "operation": "finishing", "sfm": 262, "vcMetric": 80, "iptInch": 0.00059, "fzMetric": 0.015, "adocRatio": "0.08xD", "rdocRatio": "0.04xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "X5070100R05",
+      "seriesId": "X5070",
+      "coating": "AlTiN",
+      "cutterDiameter": 10,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "X5070 탄소강 코너R 4날 (R0.5) — S50C 측면 피니싱.",
+        "typicalUse": "Carbon/Alloy steel ap≤1xD 측면, 코너R로 chipping 억제.",
+        "avoidUse": "고경도강 (>45HRC) · 알루미늄."
+      },
+      "entries": [
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "finishing", "sfm": 525, "vcMetric": 160, "iptInch": 0.00236, "fzMetric": 0.060, "adocRatio": "0.8xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "roughing", "sfm": 427, "vcMetric": 130, "iptInch": 0.00276, "fzMetric": 0.070, "adocRatio": "1xD", "rdocRatio": "0.3xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "alloy-steel", "condition": "Q&T", "operation": "finishing", "sfm": 459, "vcMetric": 140, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.5xD", "rdocRatio": "0.2xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "slotting", "sfm": 361, "vcMetric": 110, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.5xD", "rdocRatio": "1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    },
+    {
+      "toolId": "GME83060",
+      "seriesId": "GME83",
+      "coating": "AlTiN",
+      "cutterDiameter": 6,
+      "flutes": 4,
+      "eduSummary": {
+        "whyThisTool": "V7 PLUS GME83 45° 챔퍼 4날 — 범용 모따기/디버링.",
+        "typicalUse": "탄소강/합금강 edge break, ap<2mm.",
+        "avoidUse": "슬로팅 · 깊은 절삭."
+      },
+      "entries": [
+        { "materialGroup": "P", "materialSubgroup": "medium-carbon", "condition": "Normalized", "operation": "finishing", "sfm": 459, "vcMetric": 140, "iptInch": 0.00157, "fzMetric": 0.040, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "P", "materialSubgroup": "alloy-steel", "condition": "Q&T", "operation": "finishing", "sfm": 394, "vcMetric": 120, "iptInch": 0.00138, "fzMetric": 0.035, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "M", "materialSubgroup": "austenitic-ss", "condition": "Annealed", "operation": "finishing", "sfm": 328, "vcMetric": 100, "iptInch": 0.00118, "fzMetric": 0.030, "adocRatio": "0.25xD", "rdocRatio": "0.1xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 },
+        { "materialGroup": "K", "materialSubgroup": "gray-iron", "condition": "As-Cast", "operation": "finishing", "sfm": 525, "vcMetric": 160, "iptInch": 0.00197, "fzMetric": 0.050, "adocRatio": "0.3xD", "rdocRatio": "0.15xD", "source": "estimated", "sourceRef": "⚠ SpeedLab PDF 연동 전 placeholder", "confidence": 2 }
+      ]
+    }
+  ]
+}
