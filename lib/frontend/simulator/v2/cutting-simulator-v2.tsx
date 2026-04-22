@@ -1100,9 +1100,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       </div>
 
-      {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 연구소장 모드용 */}
-      {simMode.showAdvancedMetrics && (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
+      {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 모든 모드에서 표시 */}
+      <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
           <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
           <button onClick={() => setShowLiveScene(v => !v)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
@@ -1145,8 +1144,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             ➡ 힘 벡터
           </button>
           {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
-        </div>
-      )}
+      </div>
 
       {/* 상관관계 라이브 스트립 — 현재 적용되는 multiplier 투명하게 공개 */}
       {autoCorrelate && (
@@ -2040,7 +2038,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       />
 
       {/* 🎬 실시간 절삭 시뮬레이션 씬 */}
-      {showLiveScene && simMode.showAdvancedMetrics && (
+      {showLiveScene && (
         <div data-section="live-scene" className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
@@ -2068,7 +2066,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       )}
 
       {/* 🔄 3D 엔드밀 + 📐 도면 (양쪽 배치) */}
-      {(show3DPreview || showBlueprint) && simMode.showAdvancedMetrics && (
+      {(show3DPreview || showBlueprint) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {show3DPreview && (
             <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 p-3">
@@ -2119,7 +2117,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       )}
 
       {/* 🗺 툴패스 + 📡 진동 (2-col) */}
-      {(showToolPath || showVibration) && simMode.showAdvancedMetrics && (
+      {(showToolPath || showVibration) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {showToolPath && (
             <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 p-3">
@@ -2164,7 +2162,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       )}
 
       {/* 🌡 온도 + ➡ 힘 벡터 (2-col) */}
-      {(showTempHeatmap || showForceVec) && simMode.showAdvancedMetrics && (
+      {(showTempHeatmap || showForceVec) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {showTempHeatmap && (
             <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900 p-3">
@@ -2210,7 +2208,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       )}
 
       {/* 🔧 공구 마모 게이지 */}
-      {showWearGauge && simMode.showAdvancedMetrics && (
+      {showWearGauge && (
         <div data-section="wear-gauge">
           <WearGaugePanel
             predictedLifeMin={toolLifeMin}

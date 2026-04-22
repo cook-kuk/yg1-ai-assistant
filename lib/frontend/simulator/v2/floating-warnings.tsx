@@ -109,7 +109,7 @@ export default function FloatingWarnings({
       : "bg-emerald-50 text-emerald-700 border-emerald-300"
     return (
       <div
-        className="fixed bottom-5 right-5 z-40"
+        className="fixed bottom-5 right-5 z-[55]"
         role="status"
         aria-live="polite"
       >
@@ -166,7 +166,7 @@ export default function FloatingWarnings({
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-40 flex flex-col items-end"
+      className="fixed bottom-5 right-5 z-[55] flex flex-col items-end"
       role="status"
       aria-live="polite"
     >
