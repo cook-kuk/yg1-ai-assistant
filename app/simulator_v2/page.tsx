@@ -12,6 +12,7 @@ import { ModeProvider } from "@/lib/frontend/simulator/v2/mode-context"
 import { ModeToggle } from "@/lib/frontend/simulator/v2/mode-toggle"
 import CinematicBackdrop from "@/lib/frontend/simulator/v2/cinematic-backdrop"
 import CyberpunkHud from "@/lib/frontend/simulator/v2/cyberpunk-hud"
+import { SimErrorBoundary } from "@/lib/frontend/simulator/v2/sim-error-boundary"
 
 function EducationControlMount() {
   return (
@@ -33,19 +34,8 @@ function SimulatorV2Content() {
 
   return (
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
-      {/* 🎬 시네마틱 배경 (aurora + 금속 파티클) */}
-      <CinematicBackdrop intensity="medium" theme="aurora" />
-
-      {/* 🤖 사이버펑크 HUD 코너 브래킷 */}
-      <CyberpunkHud
-        rpm={8218}
-        Vf={5095}
-        Pc={4.25}
-        chatterLevel="low"
-        mode="LIVE"
-        theme="cyan"
-        cornerOnly
-      />
+      {/* 🎬 시네마틱 배경 — low intensity로 성능 보호 */}
+      <CinematicBackdrop intensity="low" theme="aurora" />
       {/* Header */}
       <div className="border-b bg-white/95">
         <div className="mx-auto max-w-6xl px-4 py-5">
@@ -124,9 +114,11 @@ export default function SimulatorV2Page() {
   return (
     <ModeProvider>
       <EducationProvider>
-        <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
-          <SimulatorV2Content />
-        </Suspense>
+        <SimErrorBoundary>
+          <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
+            <SimulatorV2Content />
+          </Suspense>
+        </SimErrorBoundary>
       </EducationProvider>
     </ModeProvider>
   )
