@@ -337,33 +337,51 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     const s = history.redo()
     if (s) { applyHistoryState(s); toast.info("↷ 다음 조건") }
   }, [history, applyHistoryState])
-  // 패널 single-toggle 헬퍼: 하나 켜면 나머지 자동 꺼지고 상단 스크롤
+  // 활성 패널 인스턴스 키 — 활성화 시마다 값 변경되어 React가 완전 unmount/remount (깨끗한 상태, 메모리 해제)
+  const [panelInstance, setPanelInstance] = useState(0)
+  // 패널 single-toggle + RAF로 unmount/mount 분리 + 맨 위 스크롤 + 강제 remount 키
   const activatePanel = useCallback((panelKey: string | null) => {
-    // 모든 비주얼 패널 닫기
+    // 1) 모든 비주얼 패널 먼저 OFF (react가 완전 unmount 하도록)
     setShowLiveScene(false); setShow3DPreview(false); setShowBlueprint(false)
     setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
     setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
     setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
-    // 대상 켜기
-    if (panelKey === "live") setShowLiveScene(true)
-    else if (panelKey === "3d") setShow3DPreview(true)
-    else if (panelKey === "blueprint") setShowBlueprint(true)
-    else if (panelKey === "gauges") setShowAnalogGauges(true)
-    else if (panelKey === "tool-path") setShowToolPath(true)
-    else if (panelKey === "vibration") setShowVibration(true)
-    else if (panelKey === "temp") setShowTempHeatmap(true)
-    else if (panelKey === "force") setShowForceVec(true)
-    else if (panelKey === "wear") setShowWearGauge(true)
-    else if (panelKey === "break-even") setShowBreakEven(true)
-    else if (panelKey === "advanced") setAdvancedMetricsOpen(true)
-    else if (panelKey === "cheat") setShowCheatSheet(true)
-    // 상단 스크롤 (활성 패널 앵커로)
-    if (panelKey) {
-      setTimeout(() => {
-        const el = document.querySelector(`[data-visual-panel="${panelKey}"]`)
-        el?.scrollIntoView({ behavior: "smooth", block: "start" })
-      }, 120)
-    }
+    if (typeof setShow3DScene === "function") setShow3DScene(false)
+    if (typeof setShowVideoPanel === "function") setShowVideoPanel(false)
+    if (typeof setShowLeaderboard === "function") setShowLeaderboard(false)
+    if (typeof setShowAutoAgent === "function") setShowAutoAgent(false)
+    if (typeof setShowFavorites === "function") setShowFavorites(false)
+    if (!panelKey) return
+    // 2) 다음 프레임에 대상 ON — unmount/mount 확실히 분리 → 깨끗한 초기화
+    setPanelInstance(Date.now())
+    requestAnimationFrame(() => {
+      if (panelKey === "live") setShowLiveScene(true)
+      else if (panelKey === "3d") setShow3DPreview(true)
+      else if (panelKey === "blueprint") setShowBlueprint(true)
+      else if (panelKey === "gauges") setShowAnalogGauges(true)
+      else if (panelKey === "tool-path") setShowToolPath(true)
+      else if (panelKey === "vibration") setShowVibration(true)
+      else if (panelKey === "temp") setShowTempHeatmap(true)
+      else if (panelKey === "force") setShowForceVec(true)
+      else if (panelKey === "wear") setShowWearGauge(true)
+      else if (panelKey === "break-even") setShowBreakEven(true)
+      else if (panelKey === "advanced") setAdvancedMetricsOpen(true)
+      else if (panelKey === "cheat") setShowCheatSheet(true)
+      else if (panelKey === "3d-scene") setShow3DScene(true)
+      else if (panelKey === "video") setShowVideoPanel(true)
+      else if (panelKey === "leaderboard") setShowLeaderboard(true)
+      else if (panelKey === "auto-agent") setShowAutoAgent(true)
+      else if (panelKey === "favorites") setShowFavorites(true)
+    })
+    // 3) 맨 위로 스크롤 — 헤더 오프셋 보정하여 패널이 화면 최상단에 위치
+    setTimeout(() => {
+      const el = document.querySelector(`[data-visual-panel="${panelKey}"]`)
+      if (el instanceof HTMLElement) {
+        const HEADER_OFFSET = 80
+        const top = window.scrollY + el.getBoundingClientRect().top - HEADER_OFFSET
+        window.scrollTo({ top, behavior: "smooth" })
+      }
+    }, 240)
   }, [])
 
   // v2.3: Coolant, Coating, Tool Group, Advanced filters, Cost, Corner, GCode
@@ -1361,23 +1379,23 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📚 용어사전 ↗
           </a>
-          <button onClick={() => setShowVideoPanel(v => !v)}
+          <button onClick={() => activatePanel(showVideoPanel ? null : "video")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🎥 가공영상
           </button>
-          <button onClick={() => setShowLeaderboard(v => !v)}
+          <button onClick={() => activatePanel(showLeaderboard ? null : "leaderboard")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🏆 리더보드
           </button>
-          <button onClick={() => setShowFavorites(v => !v)}
+          <button onClick={() => activatePanel(showFavorites ? null : "favorites")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFavorites ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             ⭐ 즐겨찾기
           </button>
-          <button onClick={() => setShow3DScene(v => !v)}
+          <button onClick={() => activatePanel(show3DScene ? null : "3d-scene")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🎮 3D 씬
           </button>
-          <button onClick={() => setShowAutoAgent(v => !v)}
+          <button onClick={() => activatePanel(showAutoAgent ? null : "auto-agent")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🤖 자율 AI
           </button>
@@ -2304,9 +2322,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       )}
 
-      {/* 🎮 진짜 3D WebGL 가공 씬 (react-three-fiber) */}
+      {/* 🎮 진짜 3D WebGL 가공 씬 (react-three-fiber) — key remount로 WebGL context 완전 해제 */}
       {show3DScene && (
-        <div data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
+        <div key={`3d-${panelInstance}`} data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
           <OperationPicker value={operationType} onChange={setOperationType} darkMode={darkMode} />
           <HolographicFrame accent="violet" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
             <div className="p-2">
