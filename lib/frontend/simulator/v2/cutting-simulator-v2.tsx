@@ -318,6 +318,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showPrimaryParameterMap, setShowPrimaryParameterMap] = useState(true)
   const [selectedHarveyReplacementId, setSelectedHarveyReplacementId] = useState(HARVEY_REPLACEMENT_PRESETS[0]?.id ?? "")
   const [replacementVisualMode, setReplacementVisualMode] = useState<"split" | "flutes" | "live">("split")
+  const [replacementFluteOverride, setReplacementFluteOverride] = useState<number | null>(null)
+  const [replacementHelixAngle, setReplacementHelixAngle] = useState<number | null>(null)
   const [replacementVcScale, setReplacementVcScale] = useState(100)
   const [replacementFzScale, setReplacementFzScale] = useState(100)
   const [replacementApRatio, setReplacementApRatio] = useState(50)
@@ -905,19 +907,20 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const harveyReplacementCards = useMemo(() => {
     if (!harveyReplacementPair) return []
     const buildCard = (tool: ToolOption) => {
+      const pairFlutes = replacementFluteOverride ?? tool.Z
       const pairAp = Math.min(tool.LOC, parseFloat(((replacementApRatio / 100) * tool.D).toFixed(1)))
       const pairAe = Math.min(tool.D, parseFloat(((replacementAeRatio / 100) * tool.D).toFixed(1)))
       const pairVc = parseFloat((tool.Vc * (replacementVcScale / 100)).toFixed(0))
       const pairFz = parseFloat((tool.fz * (replacementFzScale / 100)).toFixed(4))
       const pairStickout = parseFloat((tool.D * (replacementStickoutRatio / 100)).toFixed(1))
-      const helixAngle = Math.max(28, Math.min(52, 24 + tool.Z * 4))
+      const helixAngle = replacementHelixAngle ?? Math.max(28, Math.min(52, 24 + pairFlutes * 4))
       const cutting = calculateCutting({
         Vc: pairVc,
         fz: pairFz,
         ap: pairAp,
         ae: pairAe,
         D: tool.D,
-        Z: tool.Z,
+        Z: pairFlutes,
         isoGroup: tool.iso,
       })
       const adv = computeAdvanced({
@@ -942,6 +945,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       })
       return {
         tool,
+        flutes: pairFlutes,
         ap: pairAp,
         ae: pairAe,
         Vc: pairVc,
@@ -963,7 +967,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       buildCard(harveyReplacementPair.sandvik),
       buildCard(harveyReplacementPair.yg1),
     ]
-  }, [harveyReplacementPair, replacementAeRatio, replacementApRatio, replacementFzScale, replacementStickoutRatio, replacementVcScale])
+  }, [harveyReplacementPair, replacementAeRatio, replacementApRatio, replacementFluteOverride, replacementFzScale, replacementHelixAngle, replacementStickoutRatio, replacementVcScale])
 
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
@@ -2163,6 +2167,64 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 {mode.label}
               </button>
             ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-white/80 px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-900">날수 선택</span>
+            {[2, 3, 4, 5, 6].map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => setReplacementFluteOverride(count)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  replacementFluteOverride === count
+                    ? "border-violet-600 bg-violet-600 text-white"
+                    : "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                }`}
+              >
+                {count}날
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setReplacementFluteOverride(null)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                replacementFluteOverride == null
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              원래 날수
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-200 bg-white/80 px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-900">헬릭스 각도</span>
+            {[30, 35, 38, 42, 45, 50].map((angle) => (
+              <button
+                key={angle}
+                type="button"
+                onClick={() => setReplacementHelixAngle(angle)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  replacementHelixAngle === angle
+                    ? "border-cyan-600 bg-cyan-600 text-white"
+                    : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100"
+                }`}
+              >
+                {angle}°
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setReplacementHelixAngle(null)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                replacementHelixAngle == null
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              자동 각도
+            </button>
           </div>
 
           <div className="mt-3 grid gap-2 rounded-xl border border-amber-200 bg-white/80 p-3 lg:grid-cols-5">
@@ -3404,27 +3466,54 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
             />
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">LIVE Cutting View</div>
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <LiveCuttingScene
-                shape={card.tool.shape}
-                diameter={card.tool.D}
-                flutes={card.tool.Z}
-                helixAngle={card.helixAngle}
-                Vc={card.Vc}
-                Vf={card.Vf}
-                rpm={card.n}
-                ap={card.ap}
-                ae={card.ae}
-                stickoutMm={card.stickoutMm}
-                materialGroup={card.tool.iso}
-                chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
-                chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
-                darkMode={false}
-                width={320}
-                height={220}
-              />
+          <div className="grid gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">LIVE Cutting View</div>
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <LiveCuttingScene
+                  shape={card.tool.shape}
+                  diameter={card.tool.D}
+                  flutes={card.tool.Z}
+                  helixAngle={card.helixAngle}
+                  Vc={card.Vc}
+                  Vf={card.Vf}
+                  rpm={card.n}
+                  ap={card.ap}
+                  ae={card.ae}
+                  stickoutMm={card.stickoutMm}
+                  materialGroup={card.tool.iso}
+                  chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
+                  chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                  darkMode={false}
+                  width={320}
+                  height={220}
+                  viewMode="side"
+                />
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Top-Down Stock View</div>
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <LiveCuttingScene
+                  shape={card.tool.shape}
+                  diameter={card.tool.D}
+                  flutes={card.tool.Z}
+                  helixAngle={card.helixAngle}
+                  Vc={card.Vc}
+                  Vf={card.Vf}
+                  rpm={card.n}
+                  ap={card.ap}
+                  ae={card.ae}
+                  stickoutMm={card.stickoutMm}
+                  materialGroup={card.tool.iso}
+                  chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
+                  chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                  darkMode={false}
+                  width={320}
+                  height={220}
+                  viewMode="top"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -3471,6 +3560,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
               darkMode={false}
               width={360}
               height={240}
+              viewMode="side"
             />
           </div>
         </div>

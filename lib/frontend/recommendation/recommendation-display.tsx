@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import {
   AlertCircle,
   AlertTriangle,
@@ -13,8 +14,15 @@ import {
   Info,
   BookOpen,
   PlayCircle,
+  Sparkles,
   Zap,
 } from "lucide-react"
+
+// 제품카드 → 시뮬 미리보기 + 대체품 A/B 모달 (lazy)
+const SimulationPreviewModal = dynamic(
+  () => import("@/lib/frontend/recommendation/simulation-preview-modal"),
+  { ssr: false },
+)
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -229,6 +237,65 @@ function InventoryBlock({
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * 🎬 절삭조건 시뮬레이션 버튼 — 누르면 SimulationPreviewModal 열림
+ * 카탈로그 절삭조건 + 제품 정보로 실시간 계산/씬 미리보기 + 대체품 A/B
+ */
+function SimulateButton({
+  conditions,
+  product,
+}: {
+  conditions: CuttingConditions | null
+  product: {
+    edpNo: string
+    seriesName: string
+    brandName?: string
+    diameter?: number
+    fluteCount?: number
+    shape?: "square" | "ball" | "radius" | "chamfer"
+    coating?: string
+    material?: string
+  }
+}) {
+  const [open, setOpen] = useState(false)
+  // 카탈로그 조건이 전혀 없으면 버튼 hide (데이터 너무 부족)
+  const hasData = conditions && (conditions.Vc || conditions.fz || conditions.ap || conditions.ae)
+  if (!hasData) return null
+
+  // string "150 m/min" → number 150
+  const parseNum = (v: string | null | undefined): number | undefined => {
+    if (!v) return undefined
+    const m = v.match(/[\d.]+/)
+    return m ? parseFloat(m[0]) : undefined
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        title="이 조건으로 시뮬레이션 · 대체품 A/B 비교"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-800 border border-violet-300 hover:from-violet-200 hover:to-fuchsia-200 transition-all shadow-sm"
+      >
+        <Sparkles size={10} />
+        🎬 시뮬레이션
+      </button>
+      {open && (
+        <SimulationPreviewModal
+          open={open}
+          onOpenChange={setOpen}
+          product={product}
+          conditions={{
+            Vc: parseNum(conditions?.Vc),
+            fz: parseNum(conditions?.fz),
+            ap: parseNum(conditions?.ap),
+            ae: parseNum(conditions?.ae),
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -748,8 +815,28 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
               {c.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}
             </div>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {c.hasEvidence && c.bestCondition && <EvidenceBadge conditions={c.bestCondition} />}
+            {c.hasEvidence && c.bestCondition && (
+              <SimulateButton
+                conditions={c.bestCondition}
+                product={{
+                  edpNo: c.displayCode ?? "",
+                  seriesName: c.seriesName ?? "",
+                  brandName: c.brand ?? undefined,
+                  diameter: c.diameterMm ?? undefined,
+                  fluteCount: undefined,
+                  shape: (() => {
+                    const s = (c.toolSubtype ?? "").toLowerCase()
+                    if (s.includes("ball") || s.includes("볼")) return "ball"
+                    if (s.includes("radius") || s.includes("r") || s.includes("라디우스")) return "radius"
+                    if (s.includes("chamfer") || s.includes("챔퍼")) return "chamfer"
+                    return "square"
+                  })(),
+                  material: c.materialTags?.[0],
+                }}
+              />
+            )}
           </div>
           <InventoryBlock totalStock={c.totalStock} snapshotDate={c.inventorySnapshotDate} locations={c.inventoryLocations} />
         </>

@@ -116,6 +116,8 @@ export function Endmill3DPreview({
 
   // 나선 stripe 위치 (flutes 수만큼)
   const fluteCount = Math.max(2, Math.min(6, flutes || 4))
+  const fluteGrooveWidth = Math.max(6, bodyWidth * (fluteCount <= 2 ? 0.18 : fluteCount === 3 ? 0.15 : fluteCount === 4 ? 0.13 : fluteCount === 5 ? 0.11 : 0.1))
+  const fluteFaceLabel = fluteCount <= 2 ? "wide flute" : fluteCount === 3 ? "balanced flute" : fluteCount === 4 ? "general flute" : fluteCount === 5 ? "dense flute" : "micro flute"
   const stripes = Array.from({ length: fluteCount }, (_, i) => ({
     offset: (i / fluteCount) * 100,
     key: i,
@@ -243,6 +245,24 @@ export function Endmill3DPreview({
         helix {helixAngle}°
       </div>
 
+      <div
+        style={{
+          position: "absolute",
+          top: 68,
+          right: 8,
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "3px 8px",
+          borderRadius: 999,
+          background: labelBg,
+          color: textColor,
+          border: `1px solid ${darkMode ? "#2a2f3a" : "#d1d5db"}`,
+          zIndex: 3,
+        }}
+      >
+        Z{fluteCount} · {fluteFaceLabel}
+      </div>
+
       {/* 3D 스테이지 */}
       <div
         onPointerDown={onPointerDown}
@@ -327,8 +347,8 @@ export function Endmill3DPreview({
                 style={{
                   position: "absolute",
                   top: -28,
-                  left: `calc(${s.offset}% - ${Math.max(3, bodyWidth * 0.06)}px)`,
-                  width: Math.max(6, bodyWidth * 0.12),
+                  left: `calc(${s.offset}% - ${fluteGrooveWidth / 2}px)`,
+                  width: fluteGrooveWidth,
                   height: bodyHeight + 56,
                   borderRadius: 999,
                   background: `linear-gradient(180deg, rgba(0,0,0,0.72), rgba(255,255,255,0.12) 18%, rgba(0,0,0,0.82) 58%, rgba(255,255,255,0.08))`,
@@ -359,6 +379,22 @@ export function Endmill3DPreview({
                 pointerEvents: "none",
               }}
             />
+            {stripes.map((s) => (
+              <div
+                key={`edge-${s.key}`}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: `calc(${s.offset}% - 1px)`,
+                  width: 2,
+                  height: "100%",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0.02))",
+                  opacity: fluteCount >= 5 ? 0.45 : 0.65,
+                  transform: `rotate(${helixLean}deg)`,
+                  transformOrigin: "top center",
+                }}
+              />
+            ))}
           </div>
           {/* Tip */}
           <div style={tipStyle} />
@@ -385,6 +421,31 @@ export function Endmill3DPreview({
         }}
       >
         D{diameter}mm · Z{flutes} · {shape}
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          left: 10,
+          bottom: 38,
+          display: "flex",
+          gap: 4,
+          zIndex: 3,
+        }}
+      >
+        {Array.from({ length: fluteCount }, (_, i) => (
+          <span
+            key={`flute-badge-${i}`}
+            style={{
+              width: fluteCount >= 5 ? 10 : 12,
+              height: fluteCount >= 5 ? 10 : 12,
+              borderRadius: 999,
+              background: i % 2 === 0 ? tint.highlight : tint.edge,
+              border: `1px solid ${darkMode ? "#111827" : "#cbd5e1"}`,
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.25) inset",
+            }}
+          />
+        ))}
       </div>
 
       {/* 힌트 (hover 시) */}

@@ -77,6 +77,7 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(dual.getByText("ap", { exact: true })).toBeVisible()
     await expect(dual.getByText("ae", { exact: true })).toBeVisible()
     await expect(dual.getByText("Stick", { exact: true })).toBeVisible()
+    await expect(dual.getByText("Top-Down Stock View").first()).toBeVisible()
     await expect(page.getByTestId("ab-visual-split")).toBeVisible()
   })
 

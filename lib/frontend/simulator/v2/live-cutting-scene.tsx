@@ -86,6 +86,7 @@ export interface LiveCuttingSceneProps {
   chatterRisk: ChatterRisk
   bueRisk?: BueRisk
   chipMorph?: ChipMorph
+  viewMode?: "side" | "top"
   darkMode?: boolean
   width?: number
   height?: number
@@ -225,6 +226,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     chatterRisk,
     bueRisk = "none",
     chipMorph = "continuous",
+    viewMode = "side",
     darkMode = false,
     width = DEFAULT_W,
     height = DEFAULT_H,
@@ -337,46 +339,95 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     const engagementRatio = clamp(aePx / Math.max(toolDiaPx, 1), 0.08, 1)
     const helixAngleLive = clamp(p.helixAngle ?? helixAngle, 20, 55)
     const helixSkew = ((helixAngleLive - 20) / 35) * toolRadius * 0.9
+    const fluteCount = Math.max(2, Math.min(12, Math.round(p.flutes)))
+    const flutePatternLabel = fluteCount <= 2 ? "wide chip" : fluteCount === 3 ? "triple balance" : fluteCount === 4 ? "general purpose" : fluteCount === 5 ? "dense finish" : "micro pitch"
+    const fluteSpraySpread = fluteCount <= 2 ? 1.45 : fluteCount === 3 ? 1.15 : fluteCount === 4 ? 0.95 : fluteCount === 5 ? 0.78 : 0.62
 
-    // Stock body
-    ctx.save()
-    ctx.translate(vib, 0)
-    ctx.fillStyle = tint
-    ctx.strokeStyle = stockStrokeColor
-    ctx.lineWidth = 1.5
-    ctx.fillRect(stockX, stockY, stockW, stockH)
-    ctx.strokeRect(stockX, stockY, stockW, stockH)
+    if (viewMode === "top") {
+      const topStockY = H * 0.22
+      const topStockH = H * 0.52
+      const topToolHalfW = aePx * 0.5
+      const topToolHalfH = toolRadius * 0.68
+      const grooveEndX = Math.min(toolCx - vib, pathEndX)
+      const grooveStartX = pathStartX
+      const grooveW = Math.max(0, grooveEndX - grooveStartX)
 
-    // Groove (이미 지나간 경로만)
-    ctx.fillStyle = darkMode ? "#020617" : "#1e293b"
-    const grooveEndX = Math.min(toolCx - vib, pathEndX)
-    const grooveStartX = pathStartX
-    const grooveW = Math.max(0, grooveEndX - grooveStartX)
-    ctx.fillRect(grooveStartX, stockY, grooveW, apPx)
-    ctx.fillStyle = darkMode ? "rgba(56,189,248,0.16)" : "rgba(14,165,233,0.16)"
-    ctx.fillRect(Math.max(grooveStartX, toolCx - aePx), stockY, aePx, apPx)
-    ctx.restore()
+      ctx.save()
+      ctx.translate(vib, 0)
+      ctx.fillStyle = tint
+      ctx.strokeStyle = stockStrokeColor
+      ctx.lineWidth = 1.5
+      ctx.fillRect(stockX, topStockY, stockW, topStockH)
+      ctx.strokeRect(stockX, topStockY, stockW, topStockH)
+
+      ctx.fillStyle = darkMode ? "#020617" : "#1e293b"
+      ctx.fillRect(grooveStartX, H / 2 - aePx * 0.5, grooveW, aePx)
+      ctx.fillStyle = darkMode ? "rgba(56,189,248,0.18)" : "rgba(14,165,233,0.18)"
+      ctx.fillRect(Math.max(grooveStartX, toolCx - aePx), H / 2 - aePx * 0.5, aePx, aePx)
+      ctx.restore()
+
+      ctx.save()
+      ctx.translate(toolCx, H / 2 + vib)
+      ctx.rotate(thetaRef.current)
+      ctx.fillStyle = toolFill
+      ctx.strokeStyle = toolStroke
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.ellipse(0, 0, topToolHalfW, topToolHalfH, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      for (let i = 0; i < fluteCount; i++) {
+        const ang = (i / fluteCount) * Math.PI * 2
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(ang) * topToolHalfW * 0.2, Math.sin(ang) * topToolHalfH * 0.2)
+        ctx.lineTo(Math.cos(ang) * topToolHalfW, Math.sin(ang) * topToolHalfH)
+        ctx.stroke()
+      }
+      ctx.restore()
+    } else {
+      // Stock body
+      ctx.save()
+      ctx.translate(vib, 0)
+      ctx.fillStyle = tint
+      ctx.strokeStyle = stockStrokeColor
+      ctx.lineWidth = 1.5
+      ctx.fillRect(stockX, stockY, stockW, stockH)
+      ctx.strokeRect(stockX, stockY, stockW, stockH)
+
+      // Groove (이미 지나간 경로만)
+      ctx.fillStyle = darkMode ? "#020617" : "#1e293b"
+      const grooveEndX = Math.min(toolCx - vib, pathEndX)
+      const grooveStartX = pathStartX
+      const grooveW = Math.max(0, grooveEndX - grooveStartX)
+      ctx.fillRect(grooveStartX, stockY, grooveW, apPx)
+      ctx.fillStyle = darkMode ? "rgba(56,189,248,0.16)" : "rgba(14,165,233,0.16)"
+      ctx.fillRect(Math.max(grooveStartX, toolCx - aePx), stockY, aePx, apPx)
+      ctx.restore()
+    }
 
     // Stickout + shank
     const stickoutPx = stickoutPxFor(p.stickoutMm)
     const shankTopY = stockY - stickoutPx
-    ctx.save()
-    ctx.translate(vib, 0)
-    ctx.strokeStyle = toolStroke
-    ctx.lineWidth = 2
-    ctx.fillStyle = darkMode ? "#475569" : "#cbd5e1"
-    const shankW = Math.max(12, toolDiaPx * 0.7)
-    ctx.fillRect(toolCx - shankW / 2, shankTopY - 20, shankW, stickoutPx - toolRadius + 20)
-    ctx.strokeRect(toolCx - shankW / 2, shankTopY - 20, shankW, stickoutPx - toolRadius + 20)
-    ctx.restore()
+    if (viewMode !== "top") {
+      ctx.save()
+      ctx.translate(vib, 0)
+      ctx.strokeStyle = toolStroke
+      ctx.lineWidth = 2
+      ctx.fillStyle = darkMode ? "#475569" : "#cbd5e1"
+      const shankW = Math.max(12, toolDiaPx * 0.7)
+      ctx.fillRect(toolCx - shankW / 2, shankTopY - 20, shankW, stickoutPx - toolRadius + 20)
+      ctx.strokeRect(toolCx - shankW / 2, shankTopY - 20, shankW, stickoutPx - toolRadius + 20)
+      ctx.restore()
+    }
 
     // Tool body
     const toolCy = stockY - toolRadius + apPx * 0.5 // 절삭 깊이 만큼 잠김
     thetaRef.current += (p.rpm / 60) * Math.PI * 2 * ROTATION_VISUAL_MULTIPLIER * dt
 
-    ctx.save()
-    ctx.translate(toolCx, toolCy + vib)
-    ctx.rotate(thetaRef.current)
+    if (viewMode !== "top") {
+      ctx.save()
+      ctx.translate(toolCx, toolCy + vib)
+      ctx.rotate(thetaRef.current)
 
     ctx.fillStyle = toolFill
     ctx.strokeStyle = toolStroke
@@ -431,12 +482,12 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     )
     ctx.closePath()
     ctx.fill()
-    ctx.restore()
+      ctx.restore()
+    }
 
     // Helical flute arcs
     ctx.strokeStyle = toolStroke
     ctx.lineWidth = 1.35
-    const fluteCount = Math.max(2, Math.min(12, Math.round(p.flutes)))
     for (let i = 0; i < fluteCount; i++) {
       const ang = (i / fluteCount) * Math.PI * 2
       ctx.beginPath()
@@ -450,6 +501,19 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         Math.sin(ang + 0.62) * toolRadius * 0.92,
       )
       ctx.stroke()
+
+      ctx.save()
+      ctx.fillStyle = i % 2 === 0 ? "#38bdf8" : "#f59e0b"
+      ctx.beginPath()
+      ctx.arc(
+        Math.cos(ang + 0.62) * toolRadius * 0.98,
+        Math.sin(ang + 0.62) * toolRadius * 0.98,
+        fluteCount >= 5 ? 1.8 : 2.4,
+        0,
+        Math.PI * 2,
+      )
+      ctx.fill()
+      ctx.restore()
     }
 
     // Center dot
@@ -466,24 +530,31 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     ctx.lineWidth = 1
     ctx.setLineDash([4, 3])
     ctx.beginPath()
-    ctx.moveTo(toolCx - aePx, stockY - 2)
-    ctx.lineTo(toolCx, stockY - 2)
+    if (viewMode === "top") {
+      ctx.moveTo(toolCx - aePx, H / 2 - aePx * 0.7)
+      ctx.lineTo(toolCx, H / 2 - aePx * 0.7)
+    } else {
+      ctx.moveTo(toolCx - aePx, stockY - 2)
+      ctx.lineTo(toolCx, stockY - 2)
+    }
     ctx.stroke()
     ctx.setLineDash([])
     ctx.restore()
 
     // Helix lean guide on shank
-    ctx.save()
-    ctx.translate(vib, 0)
-    ctx.strokeStyle = darkMode ? "#38bdf8" : "#0284c7"
-    ctx.lineWidth = 1.4
-    ctx.setLineDash([5, 4])
-    ctx.beginPath()
-    ctx.moveTo(toolCx, shankTopY - 14)
-    ctx.lineTo(toolCx + helixSkew * 0.55, toolCy - toolRadius * 0.7)
-    ctx.stroke()
-    ctx.setLineDash([])
-    ctx.restore()
+    if (viewMode !== "top") {
+      ctx.save()
+      ctx.translate(vib, 0)
+      ctx.strokeStyle = darkMode ? "#38bdf8" : "#0284c7"
+      ctx.lineWidth = 1.4
+      ctx.setLineDash([5, 4])
+      ctx.beginPath()
+      ctx.moveTo(toolCx, shankTopY - 14)
+      ctx.lineTo(toolCx + helixSkew * 0.55, toolCy - toolRadius * 0.7)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.restore()
+    }
 
     // ─────────────────────────────────────────────
     // Chatter wave rings
@@ -514,15 +585,17 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       lastChipSpawnRef.current = ts
       const morph: ChipMorph = p.bueRisk === "high" ? "bue" : (p.chipMorph ?? "continuous")
       const color = morph === "bue" ? "#ca8a04" : chipColorByVc(p.Vc)
-      const dir = Math.random() < 0.5 ? -1 : 1
-      const spread = (Math.random() - 0.5) * 1.2
-      const speed = 60 + Math.random() * 40
-      const chipSize = clamp(4 + p.ap * 0.3 + (p.Vf / p.rpm / p.flutes) * 30, 3, 14)
+      const flutePhase = ((ts / 1000) * Math.max(1, p.rpm / 600)) % fluteCount
+      const chipBaseAngle = -Math.PI / 2 + ((flutePhase / fluteCount) * Math.PI * 2)
+      const spread = (Math.random() - 0.5) * fluteSpraySpread
+      const dir = Math.cos(chipBaseAngle) >= 0 ? 1 : -1
+      const speed = 54 + Math.random() * (fluteCount <= 2 ? 70 : fluteCount >= 5 ? 28 : 46)
+      const chipSize = clamp((fluteCount <= 2 ? 7 : fluteCount === 3 ? 6 : fluteCount === 4 ? 5 : fluteCount === 5 ? 4 : 3) + p.ap * 0.18 + (p.Vf / p.rpm / p.flutes) * 24, 2.5, 16)
       chipsRef.current.push({
         x: toolCx + dir * toolRadius * 0.7,
         y: toolCy,
-        vx: dir * speed + spread * 20,
-        vy: -Math.abs(speed) * (0.6 + Math.random() * 0.4),
+        vx: Math.cos(chipBaseAngle + spread) * speed,
+        vy: Math.sin(chipBaseAngle + spread) * speed - Math.abs(speed) * 0.18,
         born: ts,
         morph,
         size: chipSize,
@@ -616,6 +689,17 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
   const overlayBottomRight = useMemo(
     () => `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°`,
     [chipMorph, chatterRisk, helixAngle],
+  )
+  const overlayBottomLeft = useMemo(
+    () => `Z${Math.round(flutes)} · ${Math.round(helixAngle)}° · ${Math.round(stickoutMm)}mm`,
+    [flutes, helixAngle, stickoutMm],
+  )
+  const flutePatternText = useMemo(
+    () => {
+      const safeFlutes = Math.max(2, Math.min(12, Math.round(flutes)))
+      return safeFlutes <= 2 ? "wide chip pattern" : safeFlutes === 3 ? "balanced triple" : safeFlutes === 4 ? "general 4F" : safeFlutes === 5 ? "dense 5F" : "micro-pitch 6F+"
+    },
+    [flutes],
   )
 
   const containerBg = darkMode ? "#020617" : "#ffffff"
@@ -717,6 +801,24 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         {paused ? "재생" : "정지"}
       </button>
 
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          bottom: 72,
+          padding: "4px 10px",
+          borderRadius: 999,
+          fontSize: 12,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          background: chipBadgeBg,
+          color: textColor,
+          border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+          pointerEvents: "none",
+        }}
+      >
+        {overlayBottomLeft} · {viewMode === "top" ? "TOP" : "SIDE"}
+      </div>
+
       {/* Caption */}
       <div
         style={{
@@ -731,6 +833,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         <span style={{ opacity: 0.7 }}>
           (⌀{diameter}mm · Z{flutes} · helix={helixAngle}° · ap={ap}mm · ae={ae}mm · stickout={stickoutMm}mm · {materialGroup})
         </span>
+        {" "}
+        <span style={{ opacity: 0.72 }}>· {flutePatternText} · {viewMode === "top" ? "top-down stock view" : "side travel view"}</span>
       </div>
     </div>
   )
