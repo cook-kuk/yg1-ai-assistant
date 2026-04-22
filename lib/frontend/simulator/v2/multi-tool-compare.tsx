@@ -300,7 +300,7 @@ export function MultiToolCompare({
           <button
             type="button"
             onClick={addSlot}
-            className="inline-flex items-center gap-1 rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 px-3 py-1.5 min-h-[32px] text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <Plus className="h-4 w-4" /> 슬롯 추가
           </button>
@@ -338,7 +338,7 @@ export function MultiToolCompare({
       )}
 
       {active.length < 2 && (
-        <div className="rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 p-6 text-center text-sm text-muted-foreground">
           슬롯에 공구를 2개 이상 선택하면 비교 표와 차트가 나타납니다.
         </div>
       )}
@@ -385,10 +385,10 @@ function ToolSlotCard(props: {
   }
 
   return (
-    <div className={`rounded-lg border p-3 flex h-full min-w-0 flex-col gap-3 ${
+    <div className={`rounded-2xl border p-4 flex h-full min-w-0 flex-col gap-3 transition-all duration-200 ${
       isYg1
-        ? "border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/10"
-        : "border-zinc-200 dark:border-zinc-800"
+        ? "border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/10 shadow-sm shadow-amber-200/40 dark:shadow-amber-950/30"
+        : "border-slate-200/70 dark:border-slate-800/60 bg-white dark:bg-slate-900/40"
     }`}>
       {/* 슬롯 헤더 */}
       <div className="flex items-center justify-between">
@@ -409,7 +409,7 @@ function ToolSlotCard(props: {
       <select
         value={toolId ?? ""}
         onChange={(e) => onSelect(e.target.value || null)}
-        className="w-full text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5"
+        className="w-full text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400/40"
       >
         <option value="">— 공구 선택 —</option>
         <optgroup label="YG-1">
@@ -460,7 +460,7 @@ function ToolSlotCard(props: {
         <button
           type="button"
           onClick={() => onApply(tool.series, tool.D)}
-          className="text-xs rounded-md bg-amber-600 hover:bg-amber-700 text-white px-2 py-1"
+          className="text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 min-h-[32px] transition-colors shadow-sm shadow-amber-600/20"
         >
           이 YG-1 공구로 시뮬레이터 세팅
         </button>
@@ -476,7 +476,7 @@ function CompareTable({ metrics, bestWorst }: {
 }) {
   const keys = Object.keys(METRIC_META) as MetricKey[]
   return (
-    <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-x-auto rounded-xl border border-zinc-200/70 dark:border-zinc-800/60">
       <table className="w-full text-xs">
         <thead className="bg-zinc-50 dark:bg-zinc-900/50">
           <tr>
@@ -541,7 +541,7 @@ function CompareBarChart({ metrics }: { metrics: SlotMetrics[] }) {
   }, [metrics])
 
   return (
-    <div className="rounded-md border border-zinc-200 dark:border-zinc-800 p-3">
+    <div className="rounded-xl border border-zinc-200/70 dark:border-zinc-800/60 p-3">
       <div className="text-xs font-medium mb-2 flex items-center gap-1">
         <Info className="h-3.5 w-3.5 text-muted-foreground" />
         정규화 비교 (각 지표의 최댓값 = 100)
@@ -671,7 +671,7 @@ function buildYg1Story(metrics: SlotMetrics[], educationMode: boolean): Yg1Story
 
 function Yg1StoryCard({ story, educationMode }: { story: Yg1Story; educationMode: boolean }) {
   return (
-    <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 p-4">
+    <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 p-4 shadow-sm shadow-amber-200/30 dark:shadow-amber-950/30">
       <div className="flex items-center gap-2 mb-2">
         <Award className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         <h3 className="font-semibold">{story.headline}</h3>

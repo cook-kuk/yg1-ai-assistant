@@ -99,7 +99,7 @@ function SectionShell({
 }) {
   return (
     <div
-      className={`flex h-full flex-col rounded-lg border p-3 min-w-0 ${
+      className={`flex h-full flex-col rounded-xl border p-3 min-w-0 ${
         darkMode
           ? "border-slate-700 bg-slate-800"
           : "border-slate-200 bg-white"
@@ -162,7 +162,7 @@ function MiniKpi({
 }) {
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
+      className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${
         darkMode
           ? "border-slate-700 bg-slate-800/60"
           : "border-slate-200 bg-white"
@@ -170,7 +170,7 @@ function MiniKpi({
     >
       <span
         className={`truncate text-[10px] uppercase tracking-wide ${
-          darkMode ? "text-slate-400" : "text-slate-500"
+          darkMode ? "text-slate-400" : "text-slate-600"
         }`}
       >
         {label}
@@ -390,7 +390,7 @@ function HelixSection({ helix, darkMode }: { helix: HelixDecomposition; darkMode
         ))}
       </div>
 
-      <div className={`mt-2 flex items-center gap-2 rounded-md border px-2 py-1.5 ${
+      <div className={`mt-2 flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
         darkMode
           ? "border-slate-700 bg-slate-900/40"
           : "border-slate-200 bg-slate-50"
@@ -664,9 +664,9 @@ export function AdvancedMetricsPanel({
 }: AdvancedMetricsPanelProps) {
   const outerClass = useMemo(() => {
     if (darkMode) {
-      return "rounded-xl border border-slate-700 bg-gradient-to-br from-slate-900 to-slate-800 p-5"
+      return "rounded-2xl border border-slate-800/60 bg-gradient-to-br from-slate-900 to-slate-800 p-5 shadow-lg shadow-slate-950/60"
     }
-    return "rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-5"
+    return "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-slate-50 to-blue-50/30 p-5 shadow-lg shadow-slate-200/40"
   }, [darkMode])
 
   const violetBadge = darkMode
@@ -713,7 +713,7 @@ export function AdvancedMetricsPanel({
       {!expanded && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div
-            className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
+            className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${
               darkMode
                 ? "border-slate-700 bg-slate-800/60"
                 : "border-slate-200 bg-white"
@@ -736,7 +736,7 @@ export function AdvancedMetricsPanel({
                 }`}
               />
               <span
-                className={`flex-shrink-0 whitespace-nowrap rounded-full border px-1.5 text-[9px] font-semibold ${chipRiskCls}`}
+                className={`flex-shrink-0 whitespace-nowrap rounded-full border px-1.5 text-[10px] font-semibold ${chipRiskCls}`}
               >
                 {chipRiskBand === "green" ? "OK" : chipRiskBand === "amber" ? "주의" : "과열"}
               </span>
@@ -748,7 +748,7 @@ export function AdvancedMetricsPanel({
             darkMode={darkMode}
           />
           <div
-            className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
+            className={`flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 ${
               darkMode
                 ? "border-slate-700 bg-slate-800/60"
                 : "border-slate-200 bg-white"
@@ -795,7 +795,7 @@ export function AdvancedMetricsPanel({
 
       {/* 하단 교육 콜아웃 */}
       <div
-        className={`mt-4 rounded-md border px-3 py-2 text-[11px] leading-snug ${
+        className={`mt-4 rounded-lg border px-3 py-2 text-[11px] leading-snug ${
           darkMode
             ? "border-violet-900/50 bg-violet-950/30 text-violet-200"
             : "border-violet-200 bg-violet-50 text-violet-800"

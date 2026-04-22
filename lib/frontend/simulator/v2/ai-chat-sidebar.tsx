@@ -441,11 +441,11 @@ export function AiChatSidebar({
 
   // ───── 스타일 토큰 ─────
   const panelBg = darkMode
-    ? "bg-slate-950 border-slate-800"
-    : "bg-white border-slate-200"
+    ? "bg-slate-950 border-slate-800/60"
+    : "bg-white border-slate-200/70"
   const headerBg = darkMode
-    ? "bg-slate-900 border-slate-800 text-slate-100"
-    : "bg-slate-50 border-slate-200 text-slate-900"
+    ? "bg-slate-900 border-slate-800/60 text-slate-100"
+    : "bg-slate-50 border-slate-200/70 text-slate-900"
   const bodyBg = darkMode ? "bg-slate-950" : "bg-white"
   const inputBg = darkMode
     ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500"
@@ -572,14 +572,14 @@ export function AiChatSidebar({
                   aria-label="AI 질문 입력"
                   rows={2}
                   disabled={streaming}
-                  className={`flex-1 resize-none rounded-lg border px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500 disabled:opacity-60 ${inputBg}`}
+                  className={`flex-1 resize-none rounded-xl border px-3 py-2 text-sm outline-none transition-all duration-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 disabled:opacity-60 ${inputBg}`}
                 />
                 <button
                   type="button"
                   onClick={() => void handleSend()}
                   disabled={streaming || !input.trim()}
                   aria-label="메시지 전송"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-sm shadow-sky-500/20 transition-all duration-200 hover:scale-105 hover:shadow-md hover:shadow-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
                   {streaming ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
