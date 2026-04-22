@@ -83,6 +83,11 @@ import { AiOptimizeButton } from "./ai-optimize-button"
 import { AiWarningExplain } from "./ai-warning-explain"
 import VoiceInputButton from "./voice-input-button"
 import SessionExport from "./session-export"
+import BeforeAfterCompare from "./before-after-compare"
+import BenchmarkLeaderboard from "./benchmark-leaderboard"
+import Yg1VideoPanel from "./yg1-video-panel"
+import { AiAutoAgentPanel } from "./ai-auto-agent-panel"
+import { generateWorkInstructionPDF } from "./work-instruction-pdf"
 import BlueprintGallery from "./blueprint-gallery"
 import AnalogGauges from "./analog-gauges"
 import DashboardHeroDisplay from "./dashboard-hero-display"
@@ -288,6 +293,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [tutorialOpen, setTutorialOpen] = useState(false)
   const [showLessonCards, setShowLessonCards] = useState(true)
   const [showCheatSheet, setShowCheatSheet] = useState(false)
+  const [showVideoPanel, setShowVideoPanel] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showAutoAgent, setShowAutoAgent] = useState(false)
+  const [beforeAfterData, setBeforeAfterData] = useState<{ before: any; after: any; reasoning?: string } | null>(null)
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
   // 패널 single-toggle 헬퍼: 하나 켜면 나머지 자동 꺼지고 상단 스크롤
@@ -1291,6 +1300,37 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📚 용어사전 ↗
           </a>
+          <button onClick={() => setShowVideoPanel(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🎥 가공영상
+          </button>
+          <button onClick={() => setShowLeaderboard(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🏆 리더보드
+          </button>
+          <button onClick={() => setShowAutoAgent(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🤖 자율 AI
+          </button>
+          <button onClick={async () => {
+            try {
+              await generateWorkInstructionPDF({
+                state: {
+                  productCode, edpCode: productCode, isoGroup, subgroupKey,
+                  operation, coating, diameter, fluteCount,
+                  activeShape, cornerR, LOC, OAL, shankDia, stickoutMm,
+                  Vc: VcEff, fz: fzEff, ap, ae,
+                },
+                results: { n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, torque: advanced.torque, deflection: advanced.deflection, toolLifeMin, Ra: raUm },
+                warnings,
+                meta: { companyName: "YG-1", shareUrl: typeof window !== "undefined" ? window.location.href : undefined },
+              })
+              toast.success("📄 가공 지시서 PDF 다운로드")
+            } catch { toast.error("지시서 생성 실패") }
+          }}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100"}`}>
+            📄 지시서
+          </button>
           {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
       </div>
 
@@ -2305,6 +2345,75 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               }}
             />
           </div>
+        </div>
+      )}
+
+      {/* 🎥 YG-1 실가공 영상 */}
+      {showVideoPanel && (
+        <div data-visual-panel="video" className="scroll-mt-20">
+          <Yg1VideoPanel isoGroup={isoGroup} operation={operation} darkMode={darkMode} />
+        </div>
+      )}
+
+      {/* 🏆 벤치마크 리더보드 */}
+      {showLeaderboard && (
+        <div data-visual-panel="leaderboard" className="scroll-mt-20">
+          <BenchmarkLeaderboard
+            darkMode={darkMode}
+            currentState={{
+              isoGroup, operation, Vc: VcEff, fz: fzEff, ap, ae,
+              diameter, fluteCount,
+              MRR: result.MRR, toolLifeMin, Pc: result.Pc, Ra: raUm,
+            }}
+            onLoadEntry={(e) => {
+              setVc(e.Vc); setFz(e.fz); setAp(e.ap); setAe(e.ae)
+              setDiameter(e.diameter); setFluteCount(e.fluteCount)
+              setIsoGroup(e.isoGroup)
+              setOperation(e.operation)
+              toast.success(`🏆 ${e.nickname || "익명"} 조건 로드`)
+            }}
+          />
+        </div>
+      )}
+
+      {/* 🤖 AI 자율 에이전트 */}
+      {showAutoAgent && (
+        <div data-visual-panel="auto-agent" className="scroll-mt-20">
+          <AiAutoAgentPanel
+            darkMode={darkMode}
+            currentState={{
+              Vc, fz, ap, ae, diameter, fluteCount, activeShape,
+              isoGroup, subgroupKey, operation, coating,
+              workholding, stickoutMm, hardnessScale, hardnessValue,
+            }}
+            onApply={(opt) => {
+              setBeforeAfterData({
+                before: { Vc: VcEff, fz: fzEff, ap, ae, n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm },
+                after: opt,
+                reasoning: "AI 자율 에이전트가 여러 조건을 탐색한 결과 최고 점수 조합",
+              })
+              setVc(opt.Vc); setFz(opt.fz); setAp(opt.ap); setAe(opt.ae)
+              toast.success("🏆 자율 AI 최고 조건 적용")
+            }}
+          />
+        </div>
+      )}
+
+      {/* 📊 Before/After 비교 (AI 최적화 후 자동 표시) */}
+      {beforeAfterData && (
+        <div data-visual-panel="before-after" className="scroll-mt-20">
+          <BeforeAfterCompare
+            before={beforeAfterData.before}
+            after={beforeAfterData.after}
+            reasoning={beforeAfterData.reasoning}
+            darkMode={darkMode}
+            onRevert={() => {
+              const b = beforeAfterData.before
+              setVc(b.Vc); setFz(b.fz); setAp(b.ap); setAe(b.ae)
+              setBeforeAfterData(null)
+              toast.info("↺ 원래 조건 복원")
+            }}
+          />
         </div>
       )}
 
