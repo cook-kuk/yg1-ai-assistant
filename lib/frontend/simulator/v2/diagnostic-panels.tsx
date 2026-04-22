@@ -23,11 +23,11 @@ export function ChipColorDiagnostic() {
         <div key={r.label} className={`flex items-center gap-3 rounded-lg border px-2.5 py-1.5 ${levelClass[r.level as keyof typeof levelClass]}`}>
           <div className="w-6 h-6 rounded-full border border-gray-400 flex-shrink-0" style={{ backgroundColor: r.color }} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-gray-900">{r.label}</span>
-              <span className="text-[10px] font-mono text-gray-500">{r.temp}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="truncate text-xs font-semibold text-gray-900">{r.label}</span>
+              <span className="flex-shrink-0 whitespace-nowrap text-[10px] font-mono text-gray-500">{r.temp}</span>
             </div>
-            <div className="text-[10px] text-gray-700 mt-0.5">{r.judgment}</div>
+            <div className="text-[10px] text-gray-700 mt-0.5 break-words">{r.judgment}</div>
           </div>
         </div>
       ))}
@@ -58,10 +58,10 @@ export function SymptomMatrix() {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-gray-100 last:border-0">
-              <td className="py-1.5 pr-3 font-semibold text-rose-700">{r.symptom}</td>
-              <td className="py-1.5 pr-3 text-gray-600">{r.cause}</td>
-              <td className="py-1.5 text-emerald-700">{r.action}</td>
+            <tr key={i} className="border-b border-gray-100 last:border-0 align-top">
+              <td className="py-1.5 pr-3 font-semibold text-rose-700 break-words">{r.symptom}</td>
+              <td className="py-1.5 pr-3 text-gray-600 break-words">{r.cause}</td>
+              <td className="py-1.5 text-emerald-700 break-words">{r.action}</td>
             </tr>
           ))}
         </tbody>
@@ -92,9 +92,9 @@ export function CommonMistakes() {
               #{m.no}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-gray-900">{m.title}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5"><span className="font-semibold text-rose-600">왜:</span> {m.why}</div>
-              <div className="text-[10px] text-emerald-700 mt-0.5"><span className="font-semibold">조치:</span> {m.fix}</div>
+              <div className="text-xs font-bold text-gray-900 break-words">{m.title}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5 break-words"><span className="font-semibold text-rose-600">왜:</span> {m.why}</div>
+              <div className="text-[10px] text-emerald-700 mt-0.5 break-words"><span className="font-semibold">조치:</span> {m.fix}</div>
             </div>
           </div>
         </div>

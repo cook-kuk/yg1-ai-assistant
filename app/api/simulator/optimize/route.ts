@@ -26,7 +26,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 const SONNET_MODEL =
-  process.env.ANTHROPIC_SONNET_MODEL || "claude-sonnet-4-6"
+  process.env.ANTHROPIC_SONNET_MODEL || "claude-sonnet-4-20250514"
 
 type Goal = "productivity" | "tool-life" | "quality" | "cost"
 

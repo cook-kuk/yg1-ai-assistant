@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const messageStream = client.messages.stream({
-          model: process.env.ANTHROPIC_SONNET_MODEL ?? "claude-sonnet-4-6",
+          model: process.env.ANTHROPIC_SONNET_MODEL ?? "claude-sonnet-4-20250514",
           max_tokens: 2048,
           system: [
             {

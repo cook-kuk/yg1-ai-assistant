@@ -16,7 +16,7 @@
  *   event: final      data: {"bestParams":{...},"bestScore":0.95,"reasoning":"...","history":[...]}
  *   event: error      data: {"message":"..."}
  *
- * 모델: Claude Sonnet 4.6 (ANTHROPIC_AUTO_AGENT_MODEL → ANTHROPIC_SONNET_MODEL → "claude-sonnet-4-6")
+ * 모델: Claude Sonnet 4.6 (ANTHROPIC_AUTO_AGENT_MODEL → ANTHROPIC_SONNET_MODEL → "claude-sonnet-4-20250514")
  *
  * 참고: /app/api/simulator/coach/route.ts (SSE 패턴),
  *      /app/api/simulator/optimize/route.ts (JSON 추출·검증 패턴)
@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic"
 const AGENT_MODEL =
   process.env.ANTHROPIC_AUTO_AGENT_MODEL ||
   process.env.ANTHROPIC_SONNET_MODEL ||
-  "claude-sonnet-4-6"
+  "claude-sonnet-4-20250514"
 
 type Goal = "productivity" | "tool-life" | "quality" | "cost"
 

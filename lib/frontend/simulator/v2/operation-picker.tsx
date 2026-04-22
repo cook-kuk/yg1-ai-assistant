@@ -353,7 +353,7 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-4 items-stretch">
         {ops.map((op) => {
           const active = value === op.key
           const baseBg = darkMode ? "bg-slate-800/60" : "bg-white"
@@ -381,7 +381,7 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
               onClick={() => onChange(op.key)}
               aria-pressed={active}
               aria-label={`${op.title} — ${op.desc}`}
-              className={`relative flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all duration-150 ${border} ${
+              className={`relative flex h-full min-w-0 flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all duration-150 ${border} ${
                 active ? activeBg : `${baseBg} ${hoverBg}`
               }`}
             >
@@ -390,13 +390,13 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
                   <Check className="h-3 w-3" strokeWidth={3} />
                 </span>
               )}
-              <div className="flex items-center gap-2">
-                <span className="text-2xl leading-none" aria-hidden>
+              <div className="flex w-full items-center gap-2 min-w-0">
+                <span className="text-2xl leading-none flex-shrink-0" aria-hidden>
                   {op.icon}
                 </span>
-                <span className={`text-sm font-bold ${titleClass}`}>{op.title}</span>
+                <span className={`truncate text-sm font-bold ${titleClass}`}>{op.title}</span>
               </div>
-              <p className={`text-[11px] leading-snug ${descClass}`}>{op.desc}</p>
+              <p className={`text-[11px] leading-snug break-words ${descClass}`}>{op.desc}</p>
 
               <div
                 className={`w-full overflow-hidden rounded-md border ${
@@ -406,9 +406,9 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
                 {op.illustration(darkMode)}
               </div>
 
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+              <div className="mt-auto flex w-full flex-wrap items-center gap-1 pt-0.5">
                 <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                  className={`flex-shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                     active ? tagActive : tagIdle
                   }`}
                   title="권장 재질 (ISO 분류)"
@@ -416,7 +416,7 @@ export function OperationPicker({ value, onChange, darkMode = false }: Operation
                   {op.materials}
                 </span>
                 {op.recommend && (
-                  <span className={`text-[9px] font-medium ${recommendClass}`}>
+                  <span className={`break-words text-[9px] font-medium ${recommendClass}`}>
                     {op.recommend}
                   </span>
                 )}

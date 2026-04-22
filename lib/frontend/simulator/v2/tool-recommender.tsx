@@ -220,7 +220,7 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
       {open && (
         <div className="border-t border-indigo-200 dark:border-indigo-800 p-3 space-y-2.5">
           {/* 3 모드 버튼 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-stretch">
             {(Object.keys(MODE_META) as Mode[]).map((m) => {
               const mm = MODE_META[m]
               const Icon = mm.icon
@@ -233,19 +233,19 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
                   onClick={() => run(m)}
                   disabled={loading !== null || !hasMinimum}
                   title={!hasMinimum ? "재질(ISO)과 직경을 먼저 설정하세요" : undefined}
-                  className={`flex flex-col items-start gap-1 rounded-lg border-2 p-2.5 text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`flex h-full min-w-0 flex-col items-start gap-1 rounded-lg border-2 p-2.5 text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
                     active
                       ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/40 dark:border-indigo-400"
                       : "border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-800 hover:border-indigo-400 hover:shadow-sm"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-semibold">
-                    {isLoadingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-                    <span className="text-xs">
+                  <div className="flex w-full items-center gap-1.5 min-w-0 text-indigo-700 dark:text-indigo-300 font-semibold">
+                    {isLoadingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" /> : <Icon className="h-3.5 w-3.5 flex-shrink-0" />}
+                    <span className="truncate text-xs">
                       {mm.emoji} {mm.title}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                  <div className="break-words text-[10px] text-slate-500 dark:text-slate-400">
                     {isLoadingThis ? "추천 중..." : mm.subtitle}
                   </div>
                 </button>
@@ -353,7 +353,7 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
                     : `총 ${recs.length}개 매칭 (점수 ${recs[0].score}~${recs[recs.length - 1].score})`}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-stretch">
                 {recs.map((r, i) => {
                   // 금/은/동 카드 배경
                   const cardStyle =
@@ -368,21 +368,21 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
                   return (
                     <div
                       key={r.series}
-                      className={`rounded-lg border-2 p-2.5 transition hover:shadow-md ${cardStyle}`}
+                      className={`rounded-lg border-2 p-2.5 transition hover:shadow-md h-full min-w-0 ${cardStyle}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-2 min-w-0">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-base leading-none">{medal}</span>
-                            <span className="font-mono font-bold text-gray-900 dark:text-gray-100">
+                          <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                            <span className="text-base leading-none flex-shrink-0">{medal}</span>
+                            <span className="truncate font-mono font-bold text-gray-900 dark:text-gray-100" title={r.series}>
                               {r.series}
                             </span>
-                            <span className="text-[9px] font-mono bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                            <span className="flex-shrink-0 whitespace-nowrap text-[9px] font-mono bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
                               Score {r.score}
                             </span>
                           </div>
-                          <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5">
-                            <div>
+                          <div className="text-[10px] text-gray-600 dark:text-gray-400 space-y-0.5 min-w-0">
+                            <div className="truncate">
                               데이터 {r.count}건
                               {r.closestDiameter != null && (
                                 <>
@@ -392,19 +392,20 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
                               )}
                             </div>
                             {r.cuttingTypes.length > 0 && (
-                              <div className="truncate">형상: {r.cuttingTypes.slice(0, 2).join(", ")}</div>
+                              <div className="truncate" title={r.cuttingTypes.slice(0, 2).join(", ")}>형상: {r.cuttingTypes.slice(0, 2).join(", ")}</div>
                             )}
                             {r.sampleWorkpieces.length > 0 && (
-                              <div className="truncate text-gray-500 dark:text-gray-500">
+                              <div className="truncate text-gray-500 dark:text-gray-500" title={r.sampleWorkpieces.slice(0, 2).join(", ")}>
                                 소재: {r.sampleWorkpieces.slice(0, 2).join(", ")}
                               </div>
                             )}
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-1">
+                          <div className="mt-1 flex flex-wrap gap-1 min-w-0">
                             {r.matchReasons.slice(0, 3).map((reason, j) => (
                               <span
                                 key={j}
-                                className="text-[9px] font-mono bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded"
+                                className="max-w-full truncate text-[9px] font-mono bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded"
+                                title={reason}
                               >
                                 {reason}
                               </span>
@@ -413,7 +414,7 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
                         </div>
                         <button
                           onClick={() => onPick(r.series, r.closestDiameter)}
-                          className="flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 text-[10px] font-semibold flex-shrink-0 transition"
+                          className="flex items-center gap-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 text-[10px] font-semibold flex-shrink-0 whitespace-nowrap transition"
                         >
                           <Wrench className="h-3 w-3" /> 적용
                         </button>

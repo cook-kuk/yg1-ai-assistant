@@ -277,7 +277,7 @@ export function WelcomeModal({
 
         {/* 본문: 예시 카드 3개 */}
         <div className="px-6 py-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
             {examples.map((preset) => {
               const c = resolveColor(preset.color)
               const ringCls = darkMode ? c.ringDark : c.ring
@@ -291,13 +291,13 @@ export function WelcomeModal({
                   key={preset.id}
                   type="button"
                   onClick={() => handlePick(preset)}
-                  className={`group relative text-left rounded-xl border p-4 transition-all duration-200 ring-0 hover:ring-2 hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${borderCls} ${bgCls} ${ringCls} ${
+                  className={`group relative flex h-full min-w-0 flex-col text-left rounded-xl border p-4 transition-all duration-200 ring-0 hover:ring-2 hover:shadow-lg hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${borderCls} ${bgCls} ${ringCls} ${
                     darkMode ? "hover:bg-slate-800/80" : "hover:bg-white"
                   }`}
                 >
                   {preset.badge && (
                     <span
-                      className={`absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded ${badgeCls}`}
+                      className={`absolute top-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap ${badgeCls}`}
                     >
                       {preset.badge}
                     </span>
@@ -305,11 +305,11 @@ export function WelcomeModal({
                   <div className="text-3xl leading-none mb-2" aria-hidden="true">
                     {preset.icon}
                   </div>
-                  <div className={`text-sm font-bold ${textCls}`}>
+                  <div className={`truncate text-sm font-bold ${textCls}`} title={preset.title}>
                     {preset.title}
                   </div>
                   <div
-                    className={`text-xs mt-0.5 ${
+                    className={`text-xs mt-0.5 break-words ${
                       darkMode ? "text-slate-400" : "text-slate-600"
                     }`}
                   >
