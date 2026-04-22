@@ -93,6 +93,7 @@ import { CompetitorLiveCompare } from "./competitor-live-compare"
 
 // ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
+const InteractiveGcodeViewer = dynamic(() => import("./interactive-gcode-viewer"), { ssr: false })
 const LiveCuttingScene = dynamic(() => import("./live-cutting-scene"), { ssr: false })
 const VibrationOscilloscope = dynamic(() => import("./vibration-oscilloscope"), { ssr: false })
 const TemperatureHeatmap = dynamic(() => import("./temperature-heatmap"), { ssr: false })
@@ -2249,9 +2250,11 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                   />
                 </div>
               </div>
-              <pre className="bg-gray-900 text-green-400 text-[10px] font-mono p-2.5 rounded overflow-x-auto whitespace-pre">
-{generateGCode({ n: result.n, Vf: result.Vf, ap, ae, D: diameter, toolNo: 1, dialect: gcodeDialect, coolant: coolant as any })}
-              </pre>
+              <InteractiveGcodeViewer
+                gcode={generateGCode({ n: result.n, Vf: result.Vf, ap, ae, D: diameter, toolNo: 1, dialect: gcodeDialect, coolant: coolant as any })}
+                params={{ n: result.n, Vf: result.Vf, Vc: VcEff, fz: fzEff, ap, ae, D: diameter, dialect: gcodeDialect }}
+                darkMode={darkMode}
+              />
             </div>
           </div>
         )}
