@@ -4,10 +4,10 @@ test.describe("YG-1 Simulator v3 스모크", () => {
   test("페이지 로드 + 핵심 요소 렌더", async ({ page }) => {
     await page.goto("/simulator_v2")
     await expect(page).toHaveTitle(/YG-1/)
-    await expect(page.getByText("가공조건 시뮬레이터")).toBeVisible()
+    await expect(page.getByRole("heading", { name: "가공조건 시뮬레이터" })).toBeVisible()
     await expect(page.getByText("Director-Ready")).toBeVisible()
     await expect(page.getByText("Harvey MAP")).toBeVisible()
-    await expect(page.getByText("YG-1 Original")).toBeVisible()
+    await expect(page.getByText("🇰🇷 + YG-1 Original")).toBeVisible()
   })
 
   test("비주얼 토글 스트립 존재", async ({ page }) => {
@@ -16,6 +16,16 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(page.getByText("🔄 3D 엔드밀")).toBeVisible()
     await expect(page.getByText("📐 도면")).toBeVisible()
     await expect(page.getByText("💰 Break-Even")).toBeVisible()
+  })
+
+  test("비주얼 토글로 실시간 절삭 패널을 열면 스테이지에서 바로 렌더된다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    await page.getByRole("button", { name: /🎬 실시간 절삭/ }).click()
+
+    const livePanel = page.locator('[data-visual-panel="live"]')
+    await expect(livePanel).toBeVisible()
+    await expect(livePanel.getByText("🎬 실시간 절삭 시뮬레이션")).toBeVisible()
   })
 
   test("LIVE 상관관계 팝업 + 주요 파라미터 맵 고정", async ({ page }) => {

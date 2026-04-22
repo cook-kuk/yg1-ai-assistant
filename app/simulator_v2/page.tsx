@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Suspense, useState } from "react"
+import { startTransition, Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Calculator, ArrowLeftRight } from "lucide-react"
 import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulator-v2"
@@ -17,6 +17,36 @@ import { SimErrorBoundary } from "@/lib/frontend/simulator/v2/sim-error-boundary
 const CinematicBackdrop = dynamic(() => import("@/lib/frontend/simulator/v2/cinematic-backdrop"), { ssr: false })
 // CyberpunkHud 현재 비활성 (성능 부담). 필요 시 관리자 설정에서 활성화.
 // const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
+
+function DeferredBackdropMount() {
+  const [showBackdrop, setShowBackdrop] = useState(false)
+
+  useEffect(() => {
+    let timeoutId: number | null = null
+    let idleId: number | null = null
+    const mount = () => {
+      startTransition(() => setShowBackdrop(true))
+    }
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(() => mount(), { timeout: 1200 })
+    } else {
+      timeoutId = window.setTimeout(mount, 280)
+    }
+
+    return () => {
+      if (typeof window !== "undefined" && idleId != null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [])
+
+  if (!showBackdrop) return null
+  return <CinematicBackdrop intensity="low" theme="aurora" />
+}
 
 function EducationControlMount() {
   return (
@@ -39,7 +69,7 @@ function SimulatorV2Content() {
   return (
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
       {/* 🎬 시네마틱 배경 — low intensity로 성능 보호 */}
-      <CinematicBackdrop intensity="low" theme="aurora" />
+      <DeferredBackdropMount />
       {/* Header */}
       <div className="border-b bg-white/95">
         <div className="mx-auto max-w-6xl px-3 md:px-4 py-5">
