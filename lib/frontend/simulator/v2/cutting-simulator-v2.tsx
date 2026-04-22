@@ -1190,7 +1190,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       </div>
 
       {/* ══════ PARAMETERS ══════ */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="rounded-xl border border-gray-200 bg-white p-4" data-edu-section="parameters">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
             <BarChart3 className="h-4 w-4" /> PARAMETERS
@@ -1339,7 +1339,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       {/* ══════ 결과인자 ══════ */}
       <div ref={resultsAnchorRef} />
       <SectionHeader icon={<BarChart3 className="h-4 w-4" />} title="결과인자" subtitle="최종 가공 성능 지표" tone="emerald" />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-edu-section="recommendations">
         <ResultCard eduId="mrr" label="MRR" value={result.MRR.toLocaleString()} unit="cm³/min" sub={displayUnit !== "metric" ? `${(result.MRR * 0.06102).toFixed(1)} in³/min` : undefined} color="amber" />
         <ResultCard eduId="pc-power" label="Pc (파워)" value={result.Pc.toString()} unit="kW" sub={displayUnit !== "metric" ? `${UNITS.kwToHp(result.Pc).toFixed(2)} HP` : undefined} color="red" />
         <ResultCard eduId="torque" label="Torque T" value={advanced.torque.toString()} unit="N·m" sub={displayUnit !== "metric" ? `${UNITS.nmToInLb(advanced.torque).toFixed(1)} in·lb` : undefined} color="blue" />
