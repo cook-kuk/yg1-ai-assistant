@@ -21,6 +21,8 @@ import {
   type ComputeInput,
 } from "./impact-calc-engine"
 import { CalculationFlowPanel } from "./calculation-flow-panel"
+import { generateInsights } from "./insight-generator"
+import { InsightPanel } from "./insight-panel"
 import { LimitCheckPanel } from "./limit-check-panel"
 import { LiveKpiStrip } from "./live-kpi-strip"
 import { LockedToolBanner } from "./locked-tool-banner"
@@ -130,6 +132,7 @@ export const MachineImpactLab = memo(function MachineImpactLab({
     () => computeImpact({ ...lockedInput, ...BASELINE_CONFIG }),
     [lockedInput],
   )
+  const insights = useMemo(() => generateInsights(result, baseline), [result, baseline])
 
   const currentPresetKey = matchPresetKey(config)
 
@@ -174,6 +177,8 @@ export const MachineImpactLab = memo(function MachineImpactLab({
       </div>
 
       <LiveKpiStrip result={result} baseline={baseline} />
+
+      <InsightPanel insights={insights} />
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <LimitCheckPanel warnings={result.warnings} />
