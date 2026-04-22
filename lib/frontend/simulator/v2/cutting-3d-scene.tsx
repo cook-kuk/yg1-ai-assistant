@@ -161,6 +161,8 @@ export interface Cutting3DSceneProps {
   stockMaterial?: StockMaterialKind
   fluteCount?: 2 | 3 | 4 | 5 | 6
   coolant?: boolean
+  voxelStockSlot?: React.ReactNode
+  onToolTipChange?: (worldPosition: [number, number, number]) => void
 }
 
 // ─────────────────────────────────────────────
@@ -611,7 +613,9 @@ interface ToolMoverProps {
   stockW: number
   stockH: number
   ap: number
+  toolLength: number
   onProgress: (p01: number, worldPos: THREE.Vector3) => void
+  onToolTipChange?: (worldPosition: [number, number, number]) => void
   reducedMotion: boolean
 }
 
@@ -623,17 +627,31 @@ function ToolMover({
   stockW,
   stockH,
   ap,
+  toolLength,
   onProgress,
+  onToolTipChange,
   reducedMotion,
 }: ToolMoverProps) {
   const groupRef = useRef<THREE.Group>(null)
   const tRef = useRef(0)
+  const worldPosScratch = useRef(new THREE.Vector3())
+
+  const emitTip = (g: THREE.Group) => {
+    if (!onToolTipChange) return
+    g.updateMatrixWorld()
+    const v = worldPosScratch.current.setFromMatrixPosition(g.matrixWorld)
+    // Tip is offset below group origin by toolLength/2 (flute body center at 0,
+    // tip at -LOC/2 in local coords; group Y matches that in world space since
+    // no parent scaling/rotation is applied around it).
+    onToolTipChange([v.x, v.y - toolLength / 2, v.z])
+  }
 
   useFrame((_state, delta) => {
     if (!groupRef.current) return
     if (reducedMotion) {
       groupRef.current.position.set(-stockL / 2, stockH / 2 + 2, 0)
       onProgress(0, groupRef.current.position.clone())
+      emitTip(groupRef.current)
       return
     }
     const unitsPerSec = (Vf / 60) * FEED_UNITS_PER_MM * FEED_VISUAL_MULT
@@ -683,12 +701,14 @@ function ToolMover({
         y = stockH / 2 + 2 - stockH * DRILL_PEAK_DEPTH_RATIO * descent
         onProgress(descent, new THREE.Vector3(x, y, z))
         groupRef.current.position.set(x, y, z)
+        emitTip(groupRef.current)
         return
       }
     }
 
     groupRef.current.position.set(x, y, z)
     onProgress(p01, new THREE.Vector3(x, y, z))
+    emitTip(groupRef.current)
   })
 
   return <group ref={groupRef}>{children}</group>
@@ -1136,6 +1156,8 @@ function InnerScene(props: InnerSceneProps) {
     stockMaterial = "steel",
     fluteCount,
     coolant = false,
+    voxelStockSlot,
+    onToolTipChange,
   } = props
 
   const [progress, setProgress] = useState(0)
@@ -1217,18 +1239,20 @@ function InnerScene(props: InnerSceneProps) {
         </mesh>
       </group>
 
-      {/* 공작물 */}
-      <Stock
-        L={stockL}
-        W={stockW}
-        H={stockH}
-        color={stockColor}
-        grooveDepth={grooveDepth}
-        grooveWidth={grooveWidth}
-        grooveProgress01={progress}
-        operationType={operationType}
-        stockMaterial={stockMaterial}
-      />
+      {/* 공작물 — voxel slot이 mount되면 default box stock을 숨겨 z-fighting 방지 */}
+      {!voxelStockSlot && (
+        <Stock
+          L={stockL}
+          W={stockW}
+          H={stockH}
+          color={stockColor}
+          grooveDepth={grooveDepth}
+          grooveWidth={grooveWidth}
+          grooveProgress01={progress}
+          operationType={operationType}
+          stockMaterial={stockMaterial}
+        />
+      )}
 
       {/* 공구 + 이송 */}
       <ToolMover
@@ -1238,11 +1262,13 @@ function InnerScene(props: InnerSceneProps) {
         stockW={stockW}
         stockH={stockH}
         ap={grooveDepth}
+        toolLength={LOC}
         reducedMotion={reducedMotion}
         onProgress={(p, world) => {
           setProgress(p)
           tipPosRef.current.set(world.x, world.y - LOC / 2, world.z)
         }}
+        onToolTipChange={onToolTipChange}
       >
         <Endmill
           shape={shape}
@@ -1275,6 +1301,9 @@ function InnerScene(props: InnerSceneProps) {
 
       {/* 냉각유(coolant) 분사 스트림 */}
       <Coolant tipPosRef={tipPosRef} active={coolant} reducedMotion={reducedMotion} />
+
+      {/* 외부에서 삽입되는 voxel stock slot (예: <VoxelStock />). 기본 box stock 대신/옆에 마운트. */}
+      {voxelStockSlot}
 
       <CameraDolly active={!reducedMotion} />
     </>

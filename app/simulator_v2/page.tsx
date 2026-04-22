@@ -22,24 +22,24 @@ function DeferredBackdropMount() {
   const [showBackdrop, setShowBackdrop] = useState(false)
 
   useEffect(() => {
-    let timeoutId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     let idleId: number | null = null
     const mount = () => {
       startTransition(() => setShowBackdrop(true))
     }
 
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(() => mount(), { timeout: 1200 })
+      idleId = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number }).requestIdleCallback?.(mount, { timeout: 1200 }) ?? null
     } else {
-      timeoutId = window.setTimeout(mount, 280)
+      timeoutId = setTimeout(mount, 280)
     }
 
     return () => {
-      if (typeof window !== "undefined" && idleId != null && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleId)
+      if (idleId != null && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId)
       }
       if (timeoutId != null) {
-        window.clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
       }
     }
   }, [])

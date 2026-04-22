@@ -19,15 +19,24 @@ declare global {
   var __yg1RuntimeLogDirReady: Promise<string | undefined> | undefined
 }
 
-function getRuntimeLogPath(): string {
-  const configuredPath = process.env.RUNTIME_LOG_FILE?.trim()
-  if (configuredPath) {
-    return path.isAbsolute(configuredPath)
-      ? configuredPath
-      : path.join(process.cwd(), configuredPath)
+const DEFAULT_RUNTIME_LOG_DIR = path.join(process.cwd(), "logs")
+const DEFAULT_RUNTIME_LOG_PATH = path.join(DEFAULT_RUNTIME_LOG_DIR, "runtime.log")
+
+export function resolveRuntimeLogPath(configuredPath = process.env.RUNTIME_LOG_FILE?.trim()): string {
+  if (!configuredPath) {
+    return DEFAULT_RUNTIME_LOG_PATH
   }
 
-  return path.join(process.cwd(), "logs", "runtime.log")
+  if (path.isAbsolute(configuredPath)) {
+    return configuredPath
+  }
+
+  const safeFileName = path.basename(configuredPath)
+  return path.join(DEFAULT_RUNTIME_LOG_DIR, safeFileName || "runtime.log")
+}
+
+function getRuntimeLogPath(): string {
+  return resolveRuntimeLogPath()
 }
 
 function serializeError(error: unknown): Record<string, unknown> {

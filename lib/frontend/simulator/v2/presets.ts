@@ -23,15 +23,26 @@ export interface HolderPreset {
   key: string
   label: string
   rigidity: number // 0..100 — higher = stiffer
+  // ── Machine Impact Lab additions (all optional — existing callers unaffected)
+  /** Total Indicator Runout at the tool tip, in micrometers. Drives
+   * effective-feed derate: a shaky holder + a floppy tool makes some
+   * flutes bite deeper than others, cutting toolLife fast. */
+  tirMicron?: number
+  /** Max RPM the holder is rated for. Some Weldon / endmill-holder
+   * geometries can't spin as fast as the spindle permits. */
+  maxRpm?: number
+  /** Minimum advertised stickout before the tool loses enough of the
+   * clamp that rigidity drops off. Surfaced as a warning in the lab. */
+  minStickoutInch?: number
 }
 
 export const HOLDER_PRESETS: HolderPreset[] = [
-  { key: "er-collet", label: "ER 콜릿", rigidity: 55 },
-  { key: "end-mill-holder", label: "엔드밀 홀더 (측면나사)", rigidity: 65 },
-  { key: "shrink-fit", label: "Shrink Fit (열박음)", rigidity: 85 },
-  { key: "hydraulic", label: "Hydraulic 척", rigidity: 80 },
-  { key: "milling-chuck", label: "밀링 척 (Power/Heavy)", rigidity: 90 },
-  { key: "side-lock", label: "Side Lock (Weldon)", rigidity: 70 },
+  { key: "er-collet", label: "ER 콜릿", rigidity: 55, tirMicron: 15, maxRpm: 20000, minStickoutInch: 1.4 },
+  { key: "end-mill-holder", label: "엔드밀 홀더 (측면나사)", rigidity: 65, tirMicron: 20, maxRpm: 12000, minStickoutInch: 1.5 },
+  { key: "shrink-fit", label: "Shrink Fit (열박음)", rigidity: 85, tirMicron: 3, maxRpm: 40000, minStickoutInch: 0.8 },
+  { key: "hydraulic", label: "Hydraulic 척", rigidity: 80, tirMicron: 5, maxRpm: 28000, minStickoutInch: 1.0 },
+  { key: "milling-chuck", label: "밀링 척 (Power/Heavy)", rigidity: 90, tirMicron: 8, maxRpm: 15000, minStickoutInch: 1.2 },
+  { key: "side-lock", label: "Side Lock (Weldon)", rigidity: 70, tirMicron: 25, maxRpm: 10000, minStickoutInch: 1.5 },
 ]
 
 export const TOOL_MATERIALS = [

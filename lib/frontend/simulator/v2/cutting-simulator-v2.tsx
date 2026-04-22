@@ -1182,6 +1182,133 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     toolPath,
   ])
   const deferredStageVisualState = useDeferredValue(stageVisualState)
+  const aiControlState = useMemo(() => ({
+    Vc,
+    fz,
+    ap,
+    ae,
+    diameter,
+    fluteCount,
+    activeShape,
+    isoGroup,
+    subgroupKey,
+    operation,
+    coating,
+    workholding,
+    stickoutMm,
+    hardnessScale,
+    hardnessValue,
+  }), [
+    Vc,
+    activeShape,
+    ae,
+    ap,
+    coating,
+    diameter,
+    fluteCount,
+    fz,
+    hardnessScale,
+    hardnessValue,
+    isoGroup,
+    operation,
+    stickoutMm,
+    subgroupKey,
+    workholding,
+  ])
+  const deferredAiControlState = useDeferredValue(aiControlState)
+  const aiCoachState = useMemo(() => ({
+    productCode,
+    diameter,
+    fluteCount,
+    activeShape,
+    LOC,
+    OAL,
+    shankDia,
+    cornerR,
+    toolMaterial,
+    isoGroup,
+    subgroupKey,
+    condition,
+    hardnessScale,
+    hardnessValue,
+    operation,
+    toolPath,
+    spindleKey,
+    holderKey,
+    maxRpm,
+    maxKw,
+    maxIpm,
+    workholding,
+    coolant,
+    coating,
+    stickoutMm,
+    Vc,
+    fz,
+    ap,
+    ae,
+    speedPct,
+    feedPct,
+    climb,
+  }) as Record<string, unknown>, [
+    LOC,
+    OAL,
+    Vc,
+    activeShape,
+    ae,
+    ap,
+    climb,
+    coating,
+    condition,
+    coolant,
+    cornerR,
+    diameter,
+    feedPct,
+    fluteCount,
+    fz,
+    hardnessScale,
+    hardnessValue,
+    holderKey,
+    isoGroup,
+    maxIpm,
+    maxKw,
+    maxRpm,
+    operation,
+    productCode,
+    shankDia,
+    speedPct,
+    spindleKey,
+    stickoutMm,
+    subgroupKey,
+    toolMaterial,
+    toolPath,
+    workholding,
+  ])
+  const deferredAiCoachState = useDeferredValue(aiCoachState)
+  const aiCoachResults = useMemo(() => ({
+    n: result.n,
+    Vf: result.Vf,
+    MRR: result.MRR,
+    Pc: result.Pc,
+    Fc: advanced.Fc,
+    torque: advanced.torque,
+    deflection: advanced.deflection,
+    toolLife: toolLifeMin,
+    Ra: raUm,
+    chatterRisk: `${chatter.risk}% (${chatter.level.toUpperCase()})`,
+  }), [
+    advanced.Fc,
+    advanced.deflection,
+    advanced.torque,
+    chatter.level,
+    chatter.risk,
+    raUm,
+    result.MRR,
+    result.Pc,
+    result.Vf,
+    result.n,
+    toolLifeMin,
+  ])
+  const deferredAiCoachResults = useDeferredValue(aiCoachResults)
 
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
@@ -1633,11 +1760,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           warnings={warnings}
         />
         <AiOptimizeButton
-          currentState={{
-            Vc, fz, ap, ae, diameter, fluteCount, activeShape,
-            isoGroup, subgroupKey, operation, coating, workholding,
-            stickoutMm, hardnessScale, hardnessValue,
-          }}
+          currentState={deferredAiControlState}
           darkMode={darkMode}
           onApply={(opt) => {
             setVc(opt.Vc); setFz(opt.fz); setAp(opt.ap); setAe(opt.ae)
@@ -2092,11 +2215,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div data-visual-panel="auto-agent" className="scroll-mt-20">
               <AiAutoAgentPanel
                 darkMode={darkMode}
-                currentState={{
-                  Vc, fz, ap, ae, diameter, fluteCount, activeShape,
-                  isoGroup, subgroupKey, operation, coating,
-                  workholding, stickoutMm, hardnessScale, hardnessValue,
-                }}
+                currentState={deferredAiControlState}
                 onApply={(opt) => {
                   setBeforeAfterData({
                     before: { Vc: VcEff, fz: fzEff, ap, ae, n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm },
@@ -3061,18 +3180,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <div className="border-t border-indigo-200 dark:border-indigo-800 p-4 space-y-6">
             {/* AI 코치 */}
             <AiCoachPanel
-              state={{
-                productCode, diameter, fluteCount, activeShape, LOC, OAL, shankDia, cornerR, toolMaterial,
-                isoGroup, subgroupKey, condition, hardnessScale, hardnessValue,
-                operation, toolPath, spindleKey, holderKey, maxRpm, maxKw, maxIpm, workholding,
-                coolant, coating, stickoutMm, Vc, fz, ap, ae, speedPct, feedPct, climb,
-              } as Record<string, unknown>}
-              results={{
-                n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc,
-                Fc: advanced.Fc, torque: advanced.torque, deflection: advanced.deflection,
-                toolLife: toolLifeMin, Ra: raUm,
-                chatterRisk: `${chatter.risk}% (${chatter.level.toUpperCase()})`,
-              }}
+              state={deferredAiCoachState}
+              results={deferredAiCoachResults}
             />
 
             {/* Tool Life 3시나리오 비교 */}
