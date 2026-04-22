@@ -91,8 +91,11 @@ export function EducationProvider({ children }: { children: ReactNode }) {
   const setShowExamples = useCallback((v: boolean) => setSettings(s => ({ ...s, showExamples: v })), [])
   const setShowPitfalls = useCallback((v: boolean) => setSettings(s => ({ ...s, showPitfalls: v })), [])
 
+  // SSR / 첫 client render는 항상 DEFAULTS 를 노출 → hydration mismatch 원천 제거
+  const effective = hydrated ? settings : DEFAULTS
+
   const value: EducationContextValue = {
-    ...settings,
+    ...effective,
     toggleEnabled,
     setEnabled,
     setLevel,
