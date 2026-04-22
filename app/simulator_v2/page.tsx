@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { Suspense, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Calculator, ArrowLeftRight } from "lucide-react"
@@ -10,9 +11,11 @@ import { EducationControl } from "@/lib/frontend/simulator/v2/education-widgets"
 import { ManualDownloadButton } from "@/lib/frontend/simulator/v2/manual-download-button"
 import { ModeProvider } from "@/lib/frontend/simulator/v2/mode-context"
 import { ModeToggle } from "@/lib/frontend/simulator/v2/mode-toggle"
-import CinematicBackdrop from "@/lib/frontend/simulator/v2/cinematic-backdrop"
-import CyberpunkHud from "@/lib/frontend/simulator/v2/cyberpunk-hud"
 import { SimErrorBoundary } from "@/lib/frontend/simulator/v2/sim-error-boundary"
+
+// heavy 컴포넌트 lazy-load (framer-motion / canvas)
+const CinematicBackdrop = dynamic(() => import("@/lib/frontend/simulator/v2/cinematic-backdrop"), { ssr: false })
+const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
 
 function EducationControlMount() {
   return (

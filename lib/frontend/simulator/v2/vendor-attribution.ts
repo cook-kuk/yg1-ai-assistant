@@ -253,4 +253,166 @@ export const FEATURES: Record<string, FeatureAttribution> = {
       "Ctrl+K 통합 검색, 업계 공작기계 계산기 중 최초",
     yg1Original: true,
   },
+  "ai-chat": {
+    featureId: "ai-chat",
+    featureName: "AI 채팅 사이드바",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "Claude Sonnet 4.6 SSE + localStorage 50-turn 기록 + 시뮬 컨텍스트 주입. 업계 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
+  "auto-agent": {
+    featureId: "auto-agent",
+    featureName: "AI 자율 에이전트",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "6회 iteration 자율 실험 + 베이지안-like 탐색 + SSE 실시간 사고 과정 스트리밍. Harvey/Kennametal 개념 확장.",
+    yg1Original: true,
+  },
+  "ai-optimize": {
+    featureId: "ai-optimize",
+    featureName: "AI 1-click 최적화",
+    primarySource: "walter",
+    secondarySources: ["kennametal"],
+    howAriaDiffers:
+      "Walter GPS의 목표 기반 조정을 Claude Sonnet 4.6으로 자연어 이유 설명 추가.",
+    yg1Original: false,
+  },
+  "nl-query": {
+    featureId: "nl-query",
+    featureName: "AI 자연어 검색",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "'알루미늄 빠르게' 같은 한국어 → Claude Haiku로 JSON 프리셋 자동 변환. 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
+  "explain-warning": {
+    featureId: "explain-warning",
+    featureName: "AI 경고 해설",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "각 검증 경고에 대해 '왜 위험한가 / 왜 발생했나 / 해결법' AI 인터뷰식 설명. 업계 전무.",
+    yg1Original: true,
+  },
+  "3d-scene": {
+    featureId: "3d-scene",
+    featureName: "3D WebGL 가공 씬",
+    primarySource: "yg1-original",
+    secondarySources: ["kennametal"],
+    howAriaDiffers:
+      "three.js + R3F 기반 진짜 3D (공작물·공구·파티클·스파크·OrbitControls). Kennametal NOVO 3D 모델보다 실시간 가공 연출.",
+    yg1Original: true,
+  },
+  "operation-picker": {
+    featureId: "operation-picker",
+    featureName: "공정 선택기 8종",
+    primarySource: "iscar",
+    howAriaDiffers:
+      "ISCAR Matrix 2D 선택을 각 공정별 SVG 일러스트 + 피삭제 시각화로 확장.",
+    yg1Original: false,
+  },
+  "work-instruction": {
+    featureId: "work-instruction",
+    featureName: "가공 지시서 PDF",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "A4 4페이지 · 결재란 · QR · 안전 주의사항 자동 생성. 업계 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
+  "favorites": {
+    featureId: "favorites",
+    featureName: "즐겨찾기 북마크",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "localStorage 기반 태그·star·메모 지원 북마크. JSON import/export로 팀 공유.",
+    yg1Original: true,
+  },
+  "leaderboard": {
+    featureId: "leaderboard",
+    featureName: "벤치마크 리더보드",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "MRR / 수명 / 원가 3 카테고리 TOP 10 순위. 사용자 조건 비교. 업계 최초 '게이미피케이션'.",
+    yg1Original: true,
+  },
+  "session-export": {
+    featureId: "session-export",
+    featureName: "세션 내보내기 (Excel/JSON)",
+    primarySource: "walter",
+    howAriaDiffers:
+      "Walter GPS는 리포트만. ARIA는 조건·결과·스냅샷·경고를 4 시트 Excel로 export.",
+    yg1Original: false,
+  },
+  "gcode-download": {
+    featureId: "gcode-download",
+    featureName: "G-code 실파일 다운로드",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "Fanuc(.nc) / Heidenhain(.h) / Siemens(.mpf) 3 방언 실제 파일 다운로드. 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
+  "voice-input": {
+    featureId: "voice-input",
+    featureName: "음성 입력",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "Web Speech API + Claude Haiku → 한국어 음성 → 프리셋. CNC 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
+  "yg1-video": {
+    featureId: "yg1-video",
+    featureName: "YG-1 실가공 YouTube 영상",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "ISO 재질별 큐레이션된 실제 YG-1 가공 영상 임베드. 공구 선택과 연동.",
+    yg1Original: true,
+  },
+  "before-after": {
+    featureId: "before-after",
+    featureName: "Before/After 비교 대시보드",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "AI 최적화 전/후 10 지표 자동 비교 + 월 절감액 임팩트 배너. 영업 proposal 도구.",
+    yg1Original: true,
+  },
+  "analog-gauges": {
+    featureId: "analog-gauges",
+    featureName: "아날로그 계기판",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "자동차 계기판 스타일 4종 RPM/Vf/Pc/Life+Chatter. Spring 바늘 + CRT glow.",
+    yg1Original: true,
+  },
+  "hero-display": {
+    featureId: "hero-display",
+    featureName: "영웅 KPI 디스플레이",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "IMAX 스케일 4 KPI 카드 (그라디언트 텍스트 · 스캔라인 · 위험 시 shake).",
+    yg1Original: true,
+  },
+  "undo-redo": {
+    featureId: "undo-redo",
+    featureName: "Undo/Redo 히스토리",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "50개 히스토리 + 300ms 디바운스 + Ctrl+Z/Y. Harvey/Sandvik에 없음.",
+    yg1Original: true,
+  },
+  "wizard": {
+    featureId: "wizard",
+    featureName: "초보자 위저드 5단계",
+    primarySource: "iscar",
+    howAriaDiffers:
+      "ISCAR Matrix 개념을 5단계 대화형 질문으로 확장 + 추천 이유 자연어.",
+    yg1Original: false,
+  },
+  "tutorial": {
+    featureId: "tutorial",
+    featureName: "인터랙티브 튜토리얼",
+    primarySource: "yg1-original",
+    howAriaDiffers:
+      "9 step spotlight 투어 + data-tour selector. 업계 시뮬레이터 중 최초.",
+    yg1Original: true,
+  },
 }

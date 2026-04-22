@@ -1,5 +1,7 @@
 "use client"
 
+import { memo } from "react"
+
 interface EngagementCircleProps {
   ae: number
   D: number
@@ -7,7 +9,7 @@ interface EngagementCircleProps {
 }
 
 // Circular tool cross-section with engaged arc shaded
-export function EngagementCircle({ ae, D, className }: EngagementCircleProps) {
+export const EngagementCircle = memo(function EngagementCircle({ ae, D, className }: EngagementCircleProps) {
   const size = 120
   const cx = size / 2
   const cy = size / 2
@@ -37,4 +39,4 @@ export function EngagementCircle({ ae, D, className }: EngagementCircleProps) {
       <text x={cx} y={cy + 12} textAnchor="middle" fontSize={9} fill="#6b7280">ae/D {pct}%</text>
     </svg>
   )
-}
+})

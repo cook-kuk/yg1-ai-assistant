@@ -50,6 +50,27 @@ export type FeatureExplainerId =
   | "corner-feed"
   | "formula-panel"
   | "learning-mode"
+  // ── v3 신규 기능 (20개) ───────────────────────────────────────────
+  | "ai-chat"
+  | "ai-query-bar"
+  | "ai-optimize"
+  | "ai-auto-agent"
+  | "ai-warning-explain"
+  | "voice-input"
+  | "session-export"
+  | "gcode-download"
+  | "work-instruction"
+  | "favorites"
+  | "leaderboard"
+  | "yg1-video"
+  | "before-after"
+  | "analog-gauges"
+  | "hero-display"
+  | "3d-scene"
+  | "operation-picker"
+  | "wizard"
+  | "tutorial"
+  | "undo-redo"
 
 export interface ExplainerContent {
   icon: string
@@ -71,7 +92,7 @@ export interface FeatureExplainerProps {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SSOT — 27개 기능 설명 데이터
+// SSOT — 47개 기능 설명 데이터 (v3 기존 27 + 신규 20)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const EXPLAINERS: Record<FeatureExplainerId, ExplainerContent> = {
@@ -464,6 +485,367 @@ export const EXPLAINERS: Record<FeatureExplainerId, ExplainerContent> = {
     ],
     vendor: "YG-1 Original",
   },
+
+  // ─── v3 신규 기능 (20개) ─────────────────────────────────────────────
+
+  "ai-chat": {
+    icon: "💬",
+    title: "AI 채팅 사이드바",
+    what:
+      "Claude Sonnet 4.6 기반 multi-turn 대화형 AI 어시스턴트. 현재 시뮬 상태(Vc/fz/ap/재질/공구)를 컨텍스트로 받아 '이 조건에서 공구 수명은?' 같은 질문에 답변합니다.",
+    why:
+      "코치 버튼은 일회성 조언. 채팅은 후속 질문이 가능해 깊이 있는 문제 해결이 됩니다.",
+    howToUse: [
+      "우측 FAB 💬 클릭으로 사이드바 열기",
+      "메시지 입력 후 Enter 전송 / Shift+Enter 줄바꿈",
+      "대화 기록 최대 50턴 유지 (로컬스토리지)",
+      "💾 저장 · 🔄 초기화 버튼 사용",
+      "SSE 스트리밍으로 실시간 응답 출력",
+    ],
+    tips: ["현재 Vc·fz·재질 자동 첨부 → 매번 재설명 불필요"],
+    warnings: ["AI 응답은 참고용. 실제 가공 전 카탈로그 교차검증 필수"],
+    vendor: "YG-1 Original · Claude Sonnet 4.6 SSE",
+  },
+
+  "ai-query-bar": {
+    icon: "🔎",
+    title: "AI 자연어 쿼리 바",
+    what:
+      "'알루미늄 황삭 빠르게' 같이 자연어로 한 줄 입력 시 Claude Haiku가 파싱해 재질·가공·Vc/fz/ap 프리셋을 자동 적용. 슬라이더 10개 조정을 한 번의 문장으로.",
+    why:
+      "신규 사용자가 카탈로그 용어를 모를 때 자연어가 최고의 UX. '3분 → 30초' 진입 장벽 붕괴.",
+    howToUse: [
+      "상단 검색 바에 자연어 입력 (예: 'SUS304 정삭 안전하게')",
+      "Enter → Claude Haiku 파싱 → 프리셋 자동 로드",
+      "결과가 맘에 안 들면 슬라이더로 미세 조정",
+      "최근 쿼리 5건 자동 저장 → 드롭다운으로 재사용",
+    ],
+    tips: ["'공격적/보수적/안전하게/빠르게' 같은 톤 키워드 인식"],
+    vendor: "YG-1 Original · Claude Haiku 파서",
+  },
+
+  "ai-optimize": {
+    icon: "🎯",
+    title: "AI 원클릭 최적화",
+    what:
+      "현재 조건에서 '1-pass 최적' 목표 함수(MRR - λ·Chatter - μ·WearRate)를 Claude가 gradient 방향으로 추정해 단일 권장 조건을 1초 내 제안.",
+    why:
+      "자율 에이전트는 6회 반복으로 20초 걸림. Optimize는 즉시 '지금 이 조건에서 한 방향만 추천' → 빠른 A/B.",
+    howToUse: [
+      "🎯 최적화 버튼 클릭",
+      "현재 vs 제안 Before/After 비교 팝업",
+      "[적용] 또는 [취소] 선택",
+      "적용 후 Undo(Ctrl+Z)로 되돌리기 가능",
+    ],
+    tips: ["반복 최적은 '자율 AI', 단발성은 이 버튼 사용"],
+    vendor: "YG-1 Original · Claude Sonnet",
+  },
+
+  "ai-auto-agent": {
+    icon: "🤖",
+    title: "AI 자율 에이전트",
+    what:
+      "목표(생산성/수명/품질/비용) 입력 시 AI가 자동으로 6회 반복 실험해 최고 조건 탐색. 각 iteration의 점수를 실시간 시각화하며, 베이지안-like 탐색으로 최적점에 수렴.",
+    why:
+      "사람이 슬라이더를 하나씩 조정하기 귀찮을 때, AI가 자동 탐색으로 최적점에 도달. '맡겨두면 5분 내 최고 조건' 확보.",
+    howToUse: [
+      "🤖 자율 AI 버튼 클릭",
+      "목표 선택 (생산성/수명/품질/비용)",
+      "실행 → SSE 스트리밍으로 iteration 1~6 진행 표시",
+      "🏆 최고 조건 [적용] 버튼",
+      "📊 Before/After 차트 자동 표시",
+    ],
+    tips: ["6 iteration × ~3초 = 약 20초 소요", "중간에 [정지] 가능"],
+    warnings: ["네트워크 끊김 시 중단 → 마지막 최고점까지 저장"],
+    vendor: "YG-1 Original · SSE 기반 반복 실험",
+  },
+
+  "ai-warning-explain": {
+    icon: "💡",
+    title: "AI 경고 해설",
+    what:
+      "Warnings HUD에 뜨는 경고(예: 'Pc 초과', 'Chatter 위험')를 클릭하면 Claude가 '왜 발생했고, 어떻게 해결하는지' 한국어 3문장으로 즉시 설명.",
+    why:
+      "빨간 경고만 봐서는 초보자가 원인을 모름. AI 해설로 '아 ap가 2.5D라 Pc 초과구나' 바로 이해.",
+    howToUse: [
+      "경고 카드 우측 💡 버튼 클릭",
+      "SSE 스트리밍으로 3문장 해설 출력",
+      "제안된 수정값 [적용] 원클릭",
+      "같은 경고는 캐시로 즉시 재표시",
+    ],
+    tips: ["경고 설명에 Sandvik/Harvey 공식 근거 포함"],
+    vendor: "YG-1 Original · Claude Haiku",
+  },
+
+  "voice-input": {
+    icon: "🎤",
+    title: "음성 입력",
+    what:
+      "마이크에 '알루미늄 빠르게' 같이 말하면 Web Speech API가 받아쓰기 → Claude Haiku가 자연어 파싱 → 자동 프리셋 생성. 손 쓰기 곤란한 현장에서 사용.",
+    why:
+      "현장에서 손이 더러울 때, 키보드 대신 음성으로. 작업자 친화적 UX.",
+    howToUse: [
+      "🎤 버튼 클릭 → 브라우저 마이크 권한 허용",
+      "'인코넬 정삭 안전하게' 등 자연어로 발화",
+      "자동 받아쓰기 → Claude 파싱 → 프리셋 적용",
+      "📝 인식된 텍스트 수정 후 재전송 가능",
+    ],
+    warnings: [
+      "HTTPS 환경 필요 (현재 HTTP에서는 Chrome 제한)",
+      "브라우저별 Web Speech API 지원 상이 (Safari 일부 미지원)",
+      "주변 소음 -30dB 이하 권장",
+    ],
+    vendor: "Web Speech API + Claude Haiku",
+  },
+
+  "session-export": {
+    icon: "📦",
+    title: "세션 내보내기/불러오기",
+    what:
+      "현재 시뮬 상태 전체(파라미터 + 스냅샷 + 즐겨찾기 + 대화 기록)를 단일 JSON 파일로 export/import. 팀원과 가공 조건 공유 또는 백업용.",
+    why:
+      "PC 바꿔도, 다른 팀원과 작업해도 조건 그대로. 로컬스토리지 의존 탈피.",
+    howToUse: [
+      "⬇ Export 버튼 → session-YYYYMMDD.json 다운로드",
+      "⬆ Import 버튼 → JSON 파일 선택 → 전체 복원",
+      "부분 import 옵션 (스냅샷만 / 즐겨찾기만 등)",
+      "버전 호환성 자동 체크 → 구버전 자동 마이그레이션",
+    ],
+    warnings: ["Import 시 기존 세션 덮어쓰기 전 확인 프롬프트 뜸"],
+    vendor: "YG-1 Original",
+  },
+
+  "gcode-download": {
+    icon: "💾",
+    title: "G-code 실파일 다운로드",
+    what:
+      "현재 조건(RPM·Vf·ap·ae·공구경로)으로 Fanuc(.nc) / Heidenhain(.h) / Siemens(.mpf) 3 컨트롤러 호환 G-code 파일을 자동 생성. 헤더에 공구 번호·쿨런트·WCS 포함.",
+    why:
+      "시뮬 화면에서 머신에 바로 전송 가능 → 별도 CAM 없이 테스트 절삭. '시뮬 → 실가공' 사이 장벽 제거.",
+    howToUse: [
+      "💾 다운로드 드롭다운 클릭",
+      "컨트롤러 선택 (Fanuc/Heidenhain/Siemens)",
+      "자동 다운로드 (post-processor 없이)",
+      "파일 앞부분 헤더 주석으로 설정값 명시",
+    ],
+    warnings: [
+      "실제 가공 전 반드시 dry run으로 검증",
+      "stock 크기 · WCS(G54 등) · 공구 번호 머신 설정 확인",
+      "충돌 검사(machine simulation) 별도 필수",
+    ],
+    vendor: "YG-1 Original",
+  },
+
+  "work-instruction": {
+    icon: "📝",
+    title: "작업지시서 자동 생성",
+    what:
+      "현재 조건을 A4 한 장 분량 작업지시서(PDF)로 출력. 공구·재질·설정값·공정 단계·안전 주의사항·QR 코드까지 포함. 작업장 비치용.",
+    why:
+      "Shop floor 카드(A6)는 요약이고, 작업지시서는 정식 문서. ISO 9001 품질 추적에 그대로 사용 가능.",
+    howToUse: [
+      "📝 작업지시서 버튼 클릭",
+      "작업자명 · 일자 · 공정번호 입력",
+      "PDF 자동 생성 → 프린트 or 이메일 전송",
+      "QR 스캔 → 원본 시뮬 조건 복원",
+      "회사 로고 · 서명란 자동 삽입",
+    ],
+    tips: ["경고가 있으면 지시서 상단에 빨간 박스 자동 추가"],
+    vendor: "YG-1 Original",
+  },
+
+  favorites: {
+    icon: "⭐",
+    title: "즐겨찾기 북마크",
+    what:
+      "자주 쓰는 가공 조건을 이름·태그·메모와 함께 저장. 로컬스토리지 기반으로 브라우저 닫아도 유지. 100개까지 저장 가능.",
+    why:
+      "매번 슬라이더 처음부터 맞추기 불편. 팀에서 검증된 조건을 개인 라이브러리로 쌓아둠.",
+    howToUse: [
+      "⭐ 즐겨찾기 패널 토글",
+      "[+ 추가] → 이름 · 태그 · 메모 입력",
+      "✓ 클릭하면 조건 전체 복원",
+      "⭐ star 토글로 최상단 고정",
+      "JSON import/export로 팀 공유 가능",
+    ],
+    tips: ["태그로 필터 가능 (예: #알루미늄 #황삭)"],
+    vendor: "YG-1 Original",
+  },
+
+  leaderboard: {
+    icon: "🏅",
+    title: "리더보드 (팀 베스트)",
+    what:
+      "팀원들이 등록한 가공 조건을 MRR·수명·비용별 순위로 표시. YG-1 Original 정책 필터(안전 조건만)로 자동 정렬.",
+    why:
+      "'김대리가 SUS304에서 뽑은 MRR이 15cm³/min이네' 암묵지 공유 → 형식지로. 팀 협업의 핵심.",
+    howToUse: [
+      "🏅 리더보드 탭 클릭",
+      "재질별 · 가공별 필터",
+      "1~10위 조건 카드 + 등록자 · 등록일 표시",
+      "✓ 클릭하면 해당 조건 복원",
+      "🚩 신고 기능으로 부적절 조건 제거",
+    ],
+    tips: ["안전 검증을 통과한 조건만 등재"],
+    vendor: "YG-1 Original",
+  },
+
+  "yg1-video": {
+    icon: "🎥",
+    title: "YG-1 레퍼런스 영상",
+    what:
+      "현재 선택한 공구/재질 조합에 매칭되는 YG-1 공식 유튜브 가공 영상을 자동 임베드. 실제 절삭 영상 + 칩·표면조도 참고.",
+    why:
+      "시뮬 그래픽은 추상적. 실제 YG-1 테스트 영상으로 '아 이 fz에서 칩이 이렇게 생기는구나' 확인.",
+    howToUse: [
+      "🎥 영상 탭 클릭",
+      "재질+공구 조합 → 매칭 영상 자동 로드",
+      "인라인 재생 (외부 유튜브 이동 불필요)",
+      "타임스탬프로 주요 장면 바로 점프",
+    ],
+    warnings: ["영상은 참고용. 기계·환경에 따라 결과 상이"],
+    vendor: "YG-1 Original · YouTube embed",
+  },
+
+  "before-after": {
+    icon: "↔",
+    title: "Before/After 비교 패널",
+    what:
+      "AI 최적화·자율 에이전트 실행 후 적용 전(Before) vs 적용 후(After)를 4대 KPI(MRR/수명/Pc/Ra) 바 차트로 시각화. Δ% 뱃지로 개선율 강조.",
+    why:
+      "'뭐가 얼마나 좋아졌나' 즉시 보여야 AI 신뢰. 숫자 3개 나열로는 직관 부족.",
+    howToUse: [
+      "AI 기능 실행 시 자동 팝업",
+      "Before(회색) vs After(녹색) 바 차트",
+      "Δ +42% 같은 개선율 배지",
+      "[적용] / [되돌리기] 원클릭",
+    ],
+    tips: ["Ctrl+Z로 After → Before 즉시 되돌리기"],
+    vendor: "YG-1 Original",
+  },
+
+  "analog-gauges": {
+    icon: "⏲",
+    title: "아날로그 다이얼 게이지",
+    what:
+      "RPM · Vf · Pc · Torque를 자동차 계기판 스타일 원형 아날로그 게이지로 표시. 빨강/노랑/녹색 영역 + 바늘 애니메이션.",
+    why:
+      "디지털 숫자는 '변화 방향'이 안 보임. 아날로그 바늘은 '올라가는 중/내려가는 중' 즉시 인지.",
+    howToUse: [
+      "대시보드 상단 4개 게이지 자동 표시",
+      "녹색=안전 / 노랑=주의 / 빨강=위험 영역",
+      "바늘은 1초 smooth ease-out 애니메이션",
+      "게이지 클릭 시 해당 지표 상세 패널 열림",
+    ],
+    tips: ["Pc가 빨강 진입 직전 노란 깜빡임 경고"],
+    vendor: "YG-1 Original",
+  },
+
+  "hero-display": {
+    icon: "✨",
+    title: "Hero 대시보드 헤드라인",
+    what:
+      "상단 히어로 영역에 현재 조건의 핵심 3수치(MRR · 공구수명 · 시간당비용)를 초대형 폰트 + gradient로 표시. 'Tesla 대시보드' 느낌.",
+    why:
+      "작은 숫자 10개보다 큰 숫자 3개가 의사결정에 효과적. 연구소장·임원 미팅에서 주목도 ↑.",
+    howToUse: [
+      "페이지 로드 시 자동 표시",
+      "슬라이더 변경 즉시 숫자 애니메이션 업데이트",
+      "숫자 클릭 시 해당 지표 계산식 팝업",
+      "darkMode에서 neon glow 효과",
+    ],
+    vendor: "YG-1 Original",
+  },
+
+  "3d-scene": {
+    icon: "🎮",
+    title: "진짜 3D WebGL 씬",
+    what:
+      "three.js + react-three-fiber(R3F) 기반 실제 WebGL 3D 가공 시뮬레이션. 공작물·엔드밀·칩 파티클·스파크가 실시간 움직이며, 마우스로 회전·줌이 가능합니다.",
+    why:
+      "Harvey MAP은 2D 단면뿐. 진짜 3D로 보면 ap/ae 공간감이 생기고, 연구소장 시연에서 압도적 차별화.",
+    howToUse: [
+      "🎮 3D 씬 탭 클릭",
+      "드래그: 카메라 궤도 회전 (OrbitControls)",
+      "휠: 줌 인/아웃",
+      "더블클릭: 초기 각도 리셋",
+      "공정 선택기에서 공정 타입(슬롯/포켓/페이싱) 변경",
+    ],
+    tips: ["Vc 올리면 스파크 파티클 밀도 증가", "채터 발생 시 공구 떨림 시각화"],
+    warnings: ["저사양 GPU는 FPS 저하 가능 (30fps 이하면 2D 씬 권장)"],
+    vendor: "three.js + @react-three/fiber · YG-1 Original (구현)",
+  },
+
+  "operation-picker": {
+    icon: "🛠",
+    title: "공정 선택기",
+    what:
+      "슬롯 가공 / 포켓 가공 / 페이싱 / 프로파일링 / 드릴링 / 헬리컬 램프 등 8가지 공정을 카드 UI로 선택. 공정별 권장 ae/ap 자동 적용.",
+    why:
+      "공정마다 최적 strategy가 다름. '슬롯은 ae=D, 페이싱은 ae=0.7D' 같은 규칙을 자동화.",
+    howToUse: [
+      "🛠 공정 카드 8개 중 하나 선택",
+      "공정별 아이콘 + 이미지 + 권장 범위 표시",
+      "선택 시 ae/ap/entry 전략 자동 설정",
+      "3D 씬의 공작물 모양도 자동 변경",
+    ],
+    tips: ["헬리컬 램프 선택 시 진입 각도 슬라이더 추가 노출"],
+    vendor: "YG-1 Original",
+  },
+
+  wizard: {
+    icon: "🧙",
+    title: "설정 마법사 (3단계)",
+    what:
+      "'재질 선택 → 공정 선택 → 공구 선택' 3단계 step-by-step 마법사. 각 단계마다 추천 카드와 경고가 자동 제시되어 초보자도 10초 내 완료.",
+    why:
+      "슬라이더 한 번에 다 보이면 신규 사용자 이탈. 3단계로 쪼개 '이번엔 이것만 결정' 인지 부담 최소.",
+    howToUse: [
+      "🧙 마법사 시작 버튼",
+      "STEP 1: 재질 카드 (ISO P/M/K/N/S/H)",
+      "STEP 2: 공정 선택",
+      "STEP 3: 공구 추천 리스트에서 선택",
+      "완료 → 풀 시뮬레이터 자동 진입",
+    ],
+    tips: ["마법사 완료 후에도 슬라이더로 재조정 가능"],
+    vendor: "YG-1 Original",
+  },
+
+  tutorial: {
+    icon: "🎬",
+    title: "인터랙티브 튜토리얼",
+    what:
+      "12단계 손잡고 하는 튜토리얼. 슬라이더를 실제로 움직여봐야 다음 스텝 진행. 체크리스트 달성률 시각화.",
+    why:
+      "영상/문서는 금방 잊음. 직접 손으로 움직여본 경험은 장기 기억. Duolingo 방식.",
+    howToUse: [
+      "🎬 튜토리얼 시작 버튼",
+      "STEP 1~12 순차 진행 (각 30초)",
+      "'Vc 200으로 올리세요' 같은 구체 task",
+      "달성 시 ✓ 체크 + 진행률 바 업데이트",
+      "완료 시 수료 배지 지급",
+    ],
+    tips: ["중간 이탈 시 자동 재개 기능 (로컬스토리지 저장)"],
+    vendor: "YG-1 Original",
+  },
+
+  "undo-redo": {
+    icon: "↶",
+    title: "Undo/Redo 히스토리",
+    what:
+      "모든 파라미터 변경·AI 적용·프리셋 로드를 50단계 history로 저장. Ctrl+Z/Ctrl+Shift+Z로 자유 이동. 각 단계에 timestamp + 변경 요약.",
+    why:
+      "실수로 값 바꾼 뒤 '원래 뭐였지?' 패닉. 50단계까지 무손실 복원으로 안심하고 실험.",
+    howToUse: [
+      "Ctrl+Z: 이전 상태로",
+      "Ctrl+Shift+Z (또는 Ctrl+Y): 다시 앞으로",
+      "↶ 히스토리 패널 클릭 → 임의 시점 점프",
+      "각 단계에 'Vc 180→200 변경' 같은 요약 표시",
+    ],
+    tips: ["AI 자율 에이전트 6 iteration도 개별 undo 가능"],
+    warnings: ["페이지 새로고침 시 history 초기화"],
+    vendor: "YG-1 Original",
+  },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -546,12 +928,19 @@ function sectionCls(
   }
 }
 
+function isNovelVendor(vendor: string | undefined): boolean {
+  if (!vendor) return false
+  const v = vendor.toLowerCase()
+  return v.includes("yg-1 original") || v.includes("novel")
+}
+
 function vendorBadgeCls(vendor: string, darkMode: boolean): string {
-  const isOriginal = /YG-1\s*Original/i.test(vendor)
-  if (isOriginal) {
+  const isNovel = isNovelVendor(vendor)
+  if (isNovel) {
+    // ✨ Novel 강화 — emerald → teal gradient + glow ring
     return darkMode
-      ? "bg-emerald-950/60 text-emerald-200 border-emerald-700"
-      : "bg-emerald-50 text-emerald-800 border-emerald-300"
+      ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-emerald-400 shadow-md shadow-emerald-500/30 ring-1 ring-emerald-400/60"
+      : "bg-gradient-to-r from-emerald-400 to-teal-500 text-white border-emerald-300 shadow-md shadow-emerald-400/30 ring-1 ring-emerald-300"
   }
   return darkMode
     ? "bg-slate-800 text-slate-200 border-slate-600"
@@ -686,12 +1075,25 @@ function ExplainerBody({
           ))}
           {content.vendor && (
             <span
-              className={`ml-auto inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border ${vendorBadgeCls(
+              className={`ml-auto inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${vendorBadgeCls(
                 content.vendor,
                 darkMode,
               )}`}
+              title={
+                isNovelVendor(content.vendor)
+                  ? "✨ YG-1 Original — 경쟁사에 없는 독창 기능"
+                  : `출처: ${content.vendor}`
+              }
             >
-              {content.vendor}
+              {isNovelVendor(content.vendor) && (
+                <span
+                  className="font-bold tracking-tight"
+                  aria-label="Novel 기능"
+                >
+                  ✨ NOVEL
+                </span>
+              )}
+              <span>{content.vendor}</span>
             </span>
           )}
         </div>

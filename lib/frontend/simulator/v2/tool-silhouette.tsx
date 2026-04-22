@@ -1,5 +1,7 @@
 "use client"
 
+import { memo } from "react"
+
 interface ToolSilhouetteProps {
   shape: "square" | "ball" | "radius" | "chamfer"
   D: number      // cutting diameter mm
@@ -11,7 +13,7 @@ interface ToolSilhouetteProps {
 }
 
 // SVG silhouette of an endmill — vertical orientation, shank at top, cutting edge at bottom
-export function ToolSilhouette({ shape, D, LOC, OAL, shank, CR, className }: ToolSilhouetteProps) {
+export const ToolSilhouette = memo(function ToolSilhouette({ shape, D, LOC, OAL, shank, CR, className }: ToolSilhouetteProps) {
   const W = 160
   const H = 220
   const marginY = 15
@@ -72,4 +74,4 @@ export function ToolSilhouette({ shape, D, LOC, OAL, shank, CR, className }: Too
       <text x={W - 4} y={topY + 8} textAnchor="end" fontSize={7} fill="#6b7280">OAL {OAL.toFixed(0)}</text>
     </svg>
   )
-}
+})

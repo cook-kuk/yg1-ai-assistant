@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
   Search, Gauge, Zap, Shield, BarChart3, RefreshCw, Lock, Unlock,
@@ -48,55 +49,35 @@ import { EngagementCircle } from "./engagement-circle"
 import { ADOCRDOCAdjuster } from "./adoc-rdoc-adjuster"
 import { ToolPathDiagram } from "./tool-path-diagrams"
 import { stateToQuery, queryToState, type SerializableState, type SnapshotSummary } from "./state-serde"
-import BreakEvenChart from "./break-even-chart"
 import { generateShopfloorCardPDF } from "./shopfloor-card"
 import { useSimulatorShortcuts, SHORTCUT_HINTS, SHORTCUT_CATEGORIES } from "./use-simulator-shortcuts"
 import { useUndoRedo, type HistoryState } from "./use-undo-redo"
-import WelcomeModal, { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
-import CommandPalette from "./command-palette"
+// welcome-modal: 컴포넌트는 dynamic, 상수/타입은 정적 유지
+import { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
 import FloatingWarnings from "./floating-warnings"
 import { WarningDot, type ParamKey } from "./warning-indicator-dot"
-import AdvancedMetricsPanel from "./advanced-metrics-panel"
 import {
   estimateHeat, estimateRunoutEffect, decomposeHelixForce,
   monteCarloToolLife, estimateBueRisk, classifyChipMorphology,
 } from "../advanced-metrics"
 import { VendorTag } from "./vendor-tags"
 import { useSimulatorMode } from "./mode-context"
-import WearGaugePanel from "./wear-gauge-panel"
 import { AnimatedNumber, CountUp } from "./animated-number"
-import Endmill3DPreview from "./endmill-3d-preview"
 import { ConfettiBurst, SparkleOnUpdate } from "./micro-interactions"
-import LiveCuttingScene from "./live-cutting-scene"
-import ToolBlueprint from "./tool-blueprint"
-import ToolPathScene from "./tool-path-scene"
-import VibrationOscilloscope from "./vibration-oscilloscope"
-import TemperatureHeatmap from "./temperature-heatmap"
-import ForceVectorDiagram from "./force-vector-diagram"
 import { copyText } from "./clipboard-util"
-import BeginnerWizard from "./beginner-wizard"
-import InteractiveTutorial from "./interactive-tutorial"
 import BeginnerLessonCards from "./beginner-lesson-cards"
-import CheatSheetPanel from "./cheat-sheet-panel"
 import FeatureExplainer from "./feature-explainer"
 import { AiQueryBar } from "./ai-query-bar"
 import { AiOptimizeButton } from "./ai-optimize-button"
 import { AiWarningExplain } from "./ai-warning-explain"
 import VoiceInputButton from "./voice-input-button"
 import SessionExport from "./session-export"
-import BeforeAfterCompare from "./before-after-compare"
-import BenchmarkLeaderboard from "./benchmark-leaderboard"
-import Yg1VideoPanel from "./yg1-video-panel"
 import { AiAutoAgentPanel } from "./ai-auto-agent-panel"
 import { generateWorkInstructionPDF } from "./work-instruction-pdf"
 import { AiChatSidebar } from "./ai-chat-sidebar"
-import FavoritesPanel from "./favorites-panel"
 import GCodeDownloadButton from "./gcode-download-button"
-import OperationPicker, { type OperationType } from "./operation-picker"
-import Cutting3DScene from "./cutting-3d-scene"
-import BlueprintGallery from "./blueprint-gallery"
-import AnalogGauges from "./analog-gauges"
-import DashboardHeroDisplay from "./dashboard-hero-display"
+// operation-picker: 컴포넌트는 dynamic, 타입은 정적 유지
+import { type OperationType } from "./operation-picker"
 import HolographicFrame from "./holographic-frame"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
@@ -105,12 +86,38 @@ import { ToolPathInfoModal } from "./tool-path-info-modal"
 import { CornerFeedPanelV2 } from "./corner-panel-v2"
 import { WorkholdingSlider } from "./workholding-slider"
 import { AiCoachPanel } from "./ai-coach-panel"
-import { HeatmapPanel } from "./heatmap-panel"
-import { MachiningAnimation } from "./machining-animation"
 import { ToolLifeScenario } from "./tool-life-scenario"
 import { MultiToolCompare } from "./multi-tool-compare"
 import { LearningMode } from "./learning-mode"
 import { CompetitorLiveCompare } from "./competitor-live-compare"
+
+// ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
+const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
+const LiveCuttingScene = dynamic(() => import("./live-cutting-scene"), { ssr: false })
+const VibrationOscilloscope = dynamic(() => import("./vibration-oscilloscope"), { ssr: false })
+const TemperatureHeatmap = dynamic(() => import("./temperature-heatmap"), { ssr: false })
+const ForceVectorDiagram = dynamic(() => import("./force-vector-diagram"), { ssr: false })
+const AnalogGauges = dynamic(() => import("./analog-gauges"), { ssr: false })
+const Endmill3DPreview = dynamic(() => import("./endmill-3d-preview"), { ssr: false })
+const ToolBlueprint = dynamic(() => import("./tool-blueprint"), { ssr: false })
+const BlueprintGallery = dynamic(() => import("./blueprint-gallery"), { ssr: false })
+const ToolPathScene = dynamic(() => import("./tool-path-scene"), { ssr: false })
+const MachiningAnimation = dynamic(() => import("./machining-animation").then(m => ({ default: m.MachiningAnimation })), { ssr: false })
+const HeatmapPanel = dynamic(() => import("./heatmap-panel").then(m => ({ default: m.HeatmapPanel })), { ssr: false })
+const WelcomeModal = dynamic(() => import("./welcome-modal"), { ssr: false })
+const CommandPalette = dynamic(() => import("./command-palette"), { ssr: false })
+const BeginnerWizard = dynamic(() => import("./beginner-wizard"), { ssr: false })
+const InteractiveTutorial = dynamic(() => import("./interactive-tutorial"), { ssr: false })
+const CheatSheetPanel = dynamic(() => import("./cheat-sheet-panel"), { ssr: false })
+const AdvancedMetricsPanel = dynamic(() => import("./advanced-metrics-panel"), { ssr: false })
+const BreakEvenChart = dynamic(() => import("./break-even-chart"), { ssr: false })
+const WearGaugePanel = dynamic(() => import("./wear-gauge-panel"), { ssr: false })
+const DashboardHeroDisplay = dynamic(() => import("./dashboard-hero-display"), { ssr: false })
+const BenchmarkLeaderboard = dynamic(() => import("./benchmark-leaderboard"), { ssr: false })
+const Yg1VideoPanel = dynamic(() => import("./yg1-video-panel"), { ssr: false })
+const BeforeAfterCompare = dynamic(() => import("./before-after-compare"), { ssr: false })
+const FavoritesPanel = dynamic(() => import("./favorites-panel"), { ssr: false })
+const OperationPicker = dynamic(() => import("./operation-picker"), { ssr: false })
 import {
   SPINDLE_PRESETS, HOLDER_PRESETS, TOOL_MATERIALS, TOOL_PATHS, MATERIAL_SUBGROUPS, convertHardness,
   COOLANTS, COATINGS, TOOL_GROUPS, OPERATION_DEFAULTS, STRATEGY_OPTIONS,
@@ -2938,7 +2945,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
 // ══════════ Helper components ══════════
 
-function SectionHeader({ icon, title, subtitle, tone }: { icon: React.ReactNode; title: string; subtitle: string; tone: "blue" | "violet" | "emerald" }) {
+const SectionHeader = memo(function SectionHeader({ icon, title, subtitle, tone }: { icon: React.ReactNode; title: string; subtitle: string; tone: "blue" | "violet" | "emerald" }) {
   const toneMap: Record<string, string> = {
     blue: "from-blue-600 to-blue-500", violet: "from-violet-600 to-violet-500", emerald: "from-emerald-600 to-emerald-500",
   }
@@ -2952,9 +2959,9 @@ function SectionHeader({ icon, title, subtitle, tone }: { icon: React.ReactNode;
       <div className="flex-1 h-px bg-gray-200" />
     </div>
   )
-}
+})
 
-function CardShell({ title, icon, onReset, children, eduId, eduSection }: { title: string; icon: React.ReactNode; onReset: () => void; children: React.ReactNode; eduId?: string; eduSection?: string }) {
+const CardShell = memo(function CardShell({ title, icon, onReset, children, eduId, eduSection }: { title: string; icon: React.ReactNode; onReset: () => void; children: React.ReactNode; eduId?: string; eduSection?: string }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-2 flex flex-col" data-edu-section={eduSection}>
       <div className="flex items-center justify-between">
@@ -2969,9 +2976,9 @@ function CardShell({ title, icon, onReset, children, eduId, eduSection }: { titl
       {children}
     </div>
   )
-}
+})
 
-function DimRow({ label, value, onChange, min, max, step, unit }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; step: number; unit: DisplayUnit }) {
+const DimRow = memo(function DimRow({ label, value, onChange, min, max, step, unit }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; step: number; unit: DisplayUnit }) {
   return (
     <div className="flex items-center gap-1.5">
       <label className="text-[10px] text-gray-500 w-10 flex-shrink-0">{label}</label>
@@ -2991,9 +2998,9 @@ function DimRow({ label, value, onChange, min, max, step, unit }: { label: strin
       )}
     </div>
   )
-}
+})
 
-function MiniSelect({ label, value, onChange, options, eduId }: { label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }>; eduId?: string }) {
+const MiniSelect = memo(function MiniSelect({ label, value, onChange, options, eduId }: { label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }>; eduId?: string }) {
   return (
     <div>
       <label className="text-[10px] text-gray-500 flex items-center gap-1">
@@ -3006,9 +3013,9 @@ function MiniSelect({ label, value, onChange, options, eduId }: { label: string;
       </select>
     </div>
   )
-}
+})
 
-function NumInputSmall({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+const NumInputSmall = memo(function NumInputSmall({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div>
       <label className="text-[9px] text-gray-500">{label}</label>
@@ -3016,7 +3023,7 @@ function NumInputSmall({ label, value, onChange }: { label: string; value: numbe
         className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs font-mono focus:border-blue-400 focus:outline-none" />
     </div>
   )
-}
+})
 
 interface PctSliderProps {
   label: string; unit: string; value: number; pct: number; pctLabel?: string
@@ -3030,7 +3037,7 @@ interface PctSliderProps {
   darkMode?: boolean
 }
 
-function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId, warnings, paramKey, darkMode }: PctSliderProps) {
+const PctSlider = memo(function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId, warnings, paramKey, darkMode }: PctSliderProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-0.5">
@@ -3061,9 +3068,9 @@ function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, de
       </div>
     </div>
   )
-}
+})
 
-function PercentTuner({ label, pct, onChange, positiveLabel, negativeLabel, effective }: { label: string; pct: number; onChange: (n: number) => void; positiveLabel: string; negativeLabel: string; effective: string }) {
+const PercentTuner = memo(function PercentTuner({ label, pct, onChange, positiveLabel, negativeLabel, effective }: { label: string; pct: number; onChange: (n: number) => void; positiveLabel: string; negativeLabel: string; effective: string }) {
   const barLeft = Math.max(0, pct) > 0 ? 50 : 50 + (pct / 20) * 50
   const barWidth = Math.abs(pct) / 20 * 50
   return (
@@ -3091,18 +3098,18 @@ function PercentTuner({ label, pct, onChange, positiveLabel, negativeLabel, effe
       <div className="text-[10px] font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded truncate">{effective}</div>
     </div>
   )
-}
+})
 
-function StarterCard({ icon, title, desc, onClick }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
+const StarterCard = memo(function StarterCard({ icon, title, desc, onClick }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="text-left rounded-lg border border-blue-200 bg-white px-3.5 py-3 hover:border-blue-400 hover:shadow-sm transition-all">
       <div className="flex items-center gap-1.5 mb-1 text-blue-700">{icon}<span className="text-xs font-bold">{title}</span></div>
       <div className="text-[11px] text-gray-600">{desc}</div>
     </button>
   )
-}
+})
 
-function MetricCard({ label, value, unit, accent, sub, eduId, animated, decimals = 0 }: { label: string; value: string | number; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string; eduId?: string; animated?: boolean; decimals?: number }) {
+const MetricCard = memo(function MetricCard({ label, value, unit, accent, sub, eduId, animated, decimals = 0 }: { label: string; value: string | number; unit: string; accent: "neutral" | "warning" | "volatile"; sub?: string; eduId?: string; animated?: boolean; decimals?: number }) {
   const accentClass = accent === "warning" ? "border-amber-300 bg-amber-50/50 dark:bg-amber-900/20 dark:border-amber-700" : accent === "volatile" ? "border-violet-300 bg-violet-50/50 dark:bg-violet-900/20 dark:border-violet-700" : "border-gray-200 bg-white dark:bg-slate-900 dark:border-slate-700"
   const numValue = typeof value === "number" ? value : parseFloat(String(value).replace(/,/g, "")) || 0
   return (
@@ -3122,9 +3129,9 @@ function MetricCard({ label, value, unit, accent, sub, eduId, animated, decimals
       {sub && <div className="text-[9px] text-violet-700 dark:text-violet-300 mt-0.5 font-mono">{sub}</div>}
     </div>
   )
-}
+})
 
-function ResultCard({ label, value, unit, color, sub, eduId }: { label: string; value: string; unit: string; color: string; sub?: string; eduId?: string }) {
+const ResultCard = memo(function ResultCard({ label, value, unit, color, sub, eduId }: { label: string; value: string; unit: string; color: string; sub?: string; eduId?: string }) {
   const colorMap: Record<string, string> = {
     blue: "from-blue-500 to-blue-600", green: "from-emerald-500 to-emerald-600",
     amber: "from-amber-500 to-amber-600", red: "from-red-500 to-red-600",
@@ -3140,30 +3147,30 @@ function ResultCard({ label, value, unit, color, sub, eduId }: { label: string; 
       {sub && <div className="text-[10px] opacity-60 mt-0.5 font-mono">{sub}</div>}
     </div>
   )
-}
+})
 
-function ToolSpecRow({ k, v }: { k: string; v: string }) {
+const ToolSpecRow = memo(function ToolSpecRow({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex gap-1.5">
       <span className="text-gray-500 w-[85px] flex-shrink-0">{k}:</span>
       <span className="font-mono text-gray-800 flex-1 min-w-0 truncate">{v}</span>
     </div>
   )
-}
+})
 
-function ToolbarDivider({ darkMode }: { darkMode?: boolean }) {
+const ToolbarDivider = memo(function ToolbarDivider({ darkMode }: { darkMode?: boolean }) {
   return <span className={`inline-block h-6 w-px mx-0.5 ${darkMode ? "bg-slate-700" : "bg-slate-200"}`} aria-hidden="true" />
-}
+})
 
-function CorrChip({ label, value, active }: { label: string; value: string; active: boolean }) {
+const CorrChip = memo(function CorrChip({ label, value, active }: { label: string; value: string; active: boolean }) {
   return (
     <span className={`rounded px-2 py-0.5 font-mono ${active ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-500"}`}>
       <span className="font-semibold">{label}</span>: {value}
     </span>
   )
-}
+})
 
-function RvYRow({ label, rec, your, unit, decimals }: { label: string; rec: number; your: number; unit: string; decimals: number }) {
+const RvYRow = memo(function RvYRow({ label, rec, your, unit, decimals }: { label: string; rec: number; your: number; unit: string; decimals: number }) {
   const delta = rec !== 0 ? ((your - rec) / rec) * 100 : 0
   const close = Math.abs(delta) < 5
   const deviated = Math.abs(delta) > 15
@@ -3185,9 +3192,9 @@ function RvYRow({ label, rec, your, unit, decimals }: { label: string; rec: numb
       </div>
     </div>
   )
-}
+})
 
-function WarningRow({ w }: { w: SimWarning }) {
+const WarningRow = memo(function WarningRow({ w }: { w: SimWarning }) {
   const iconMap = { error: AlertCircle, warn: AlertTriangle, info: Info }
   const Icon = iconMap[w.level]
   const colorMap = {
@@ -3200,4 +3207,4 @@ function WarningRow({ w }: { w: SimWarning }) {
       <Icon className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" /><span>{w.message}</span>
     </li>
   )
-}
+})

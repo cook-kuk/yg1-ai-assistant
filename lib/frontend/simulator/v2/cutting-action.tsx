@@ -1,5 +1,7 @@
 "use client"
 
+import { memo } from "react"
+
 // Harvey 스타일: 공구가 일감(블록) 안에서 절삭 중인 모습 SVG
 // engagement 영역을 녹색으로 하이라이트
 
@@ -13,7 +15,7 @@ interface CuttingActionProps {
   className?: string
 }
 
-export function CuttingAction({ shape, D, LOC, ap, ae, toolPath, className }: CuttingActionProps) {
+export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae, toolPath, className }: CuttingActionProps) {
   const W = 200
   const H = 260
   const scale = 40 / Math.max(D, 1)
@@ -116,4 +118,4 @@ export function CuttingAction({ shape, D, LOC, ap, ae, toolPath, className }: Cu
       <text x={toolCx} y={toolTop - 10} textAnchor="middle" fontSize={10} fill="#2563eb">↻ n</text>
     </svg>
   )
-}
+})

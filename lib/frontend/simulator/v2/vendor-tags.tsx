@@ -48,9 +48,8 @@ const VARIANT_CLASS: Record<TagVariant, string> = {
 
 function tagColorClass(isOriginal: boolean, darkMode?: boolean): string {
   if (isOriginal) {
-    return darkMode
-      ? "bg-emerald-950/40 text-emerald-200 border-emerald-700 hover:bg-emerald-900/60"
-      : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+    // 🆕 NOVEL 배지 — 강렬한 emerald→teal 그라디언트 + 흰색 볼드
+    return "bg-gradient-to-r from-emerald-400 to-teal-500 text-white border-emerald-500 font-bold shadow-sm hover:from-emerald-500 hover:to-teal-600 hover:shadow-md"
   }
   return darkMode
     ? "bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700"
@@ -58,7 +57,7 @@ function tagColorClass(isOriginal: boolean, darkMode?: boolean): string {
 }
 
 function tagLabel(feature: FeatureAttribution, vendor: VendorInfo): string {
-  if (feature.yg1Original) return `${vendor.country.split(" ")[0]} YG-1 Original`
+  if (feature.yg1Original) return `NOVEL · YG-1 Original`
   return `${vendor.country.split(" ")[0]} ${vendor.name}-inspired`
 }
 
@@ -69,10 +68,20 @@ export function VendorTag({
   darkMode,
 }: VendorTagProps) {
   const [open, setOpen] = useState(false)
+  const [initialPulse, setInitialPulse] = useState(true)
+  const [hovering, setHovering] = useState(false)
   const feature = FEATURES[featureId]
+
+  // 처음 3초만 animate-pulse — feature 존재 여부와 무관하게 훅 순서 고정
+  useEffect(() => {
+    const t = window.setTimeout(() => setInitialPulse(false), 3000)
+    return () => window.clearTimeout(t)
+  }, [])
+
   if (!feature) return null
   const vendor = VENDORS[feature.primarySource]
   const isOriginal = feature.yg1Original
+  const shouldPulse = isOriginal && (initialPulse || hovering)
 
   return (
     <>
@@ -82,13 +91,23 @@ export function VendorTag({
           e.stopPropagation()
           setOpen(true)
         }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         className={[
           VARIANT_CLASS[variant],
           SIZE_CLASS[size],
           tagColorClass(isOriginal, darkMode),
-        ].join(" ")}
-        title={`${feature.featureName} — ${vendor.name} 영감`}
+          shouldPulse ? "animate-pulse" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        title={
+          isOriginal
+            ? `${feature.featureName} — YG-1 Original (업계 최초)`
+            : `${feature.featureName} — ${vendor.name} 영감`
+        }
       >
+        {isOriginal && <span aria-hidden>🆕</span>}
         <span>{tagLabel(feature, vendor)}</span>
         {isOriginal && <Star className="h-3 w-3 fill-current" aria-hidden />}
       </button>
