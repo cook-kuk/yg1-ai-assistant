@@ -51,6 +51,7 @@ import { stateToQuery, queryToState, type SerializableState, type SnapshotSummar
 import BreakEvenChart from "./break-even-chart"
 import { generateShopfloorCardPDF } from "./shopfloor-card"
 import { useSimulatorShortcuts, SHORTCUT_HINTS, SHORTCUT_CATEGORIES } from "./use-simulator-shortcuts"
+import { useUndoRedo, type HistoryState } from "./use-undo-redo"
 import WelcomeModal, { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
 import CommandPalette from "./command-palette"
 import FloatingWarnings from "./floating-warnings"
@@ -299,6 +300,28 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [beforeAfterData, setBeforeAfterData] = useState<{ before: any; after: any; reasoning?: string } | null>(null)
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
+  // ═══ Undo/Redo 히스토리 ═══
+  const history = useUndoRedo(50)
+  const applyingHistoryRef = useRef(false)
+  const applyHistoryState = useCallback((s: HistoryState | null) => {
+    if (!s) return
+    applyingHistoryRef.current = true
+    setVc(s.Vc); setFz(s.fz); setAp(s.ap); setAe(s.ae)
+    setDiameter(s.diameter); setFluteCount(s.fluteCount)
+    setActiveShape(s.activeShape as Exclude<EndmillShape, "all">)
+    setIsoGroup(s.isoGroup); setSubgroupKey(s.subgroupKey)
+    setOperation(s.operation); setCoating(s.coating)
+    // 다음 tick 이후 해제 (state 업데이트 완료 후)
+    setTimeout(() => { applyingHistoryRef.current = false }, 50)
+  }, [])
+  const handleUndo = useCallback(() => {
+    const s = history.undo()
+    if (s) { applyHistoryState(s); toast.info("↶ 이전 조건") }
+  }, [history, applyHistoryState])
+  const handleRedo = useCallback(() => {
+    const s = history.redo()
+    if (s) { applyHistoryState(s); toast.info("↷ 다음 조건") }
+  }, [history, applyHistoryState])
   // 패널 single-toggle 헬퍼: 하나 켜면 나머지 자동 꺼지고 상단 스크롤
   const activatePanel = useCallback((panelKey: string | null) => {
     // 모든 비주얼 패널 닫기
@@ -969,7 +992,19 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     onOpenHelp: () => setShortcutsHelpOpen(true),
     onOpenCommand: () => setCommandPaletteOpen(true),
     onPrint: downloadShopfloorCard,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
   })
+
+  // Undo/Redo 히스토리 push — 핵심 파라미터 변경 시 (applying 중이 아닐 때)
+  useEffect(() => {
+    if (applyingHistoryRef.current) return
+    history.push({
+      Vc, fz, ap, ae, diameter, fluteCount, activeShape,
+      isoGroup, subgroupKey, operation, coating,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Vc, fz, ap, ae, diameter, fluteCount, activeShape, isoGroup, subgroupKey, operation, coating])
 
   // 첫 방문 시 ⌨·🔍 glow 자동 해제 (8초)
   useEffect(() => {
@@ -1282,6 +1317,17 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             ➡ 힘 벡터
           </button>
+          <ToolbarDivider darkMode={darkMode} />
+          <button onClick={handleUndo} disabled={!history.canUndo} title="Undo (Ctrl+Z)"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${history.canUndo ? (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50") : "opacity-30 cursor-not-allowed bg-white text-slate-400"}`}>
+            ↶
+          </button>
+          <button onClick={handleRedo} disabled={!history.canRedo} title="Redo (Ctrl+Y)"
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${history.canRedo ? (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50") : "opacity-30 cursor-not-allowed bg-white text-slate-400"}`}>
+            ↷
+          </button>
+          <span className={`text-[10px] font-mono ${darkMode ? "text-slate-500" : "text-slate-400"}`}>{history.historyCount}</span>
+
           <ToolbarDivider darkMode={darkMode} />
           <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider px-1">🎓 학습</span>
           <button onClick={() => setWizardOpen(true)}
