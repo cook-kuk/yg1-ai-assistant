@@ -37,13 +37,14 @@ const FEED_VISUAL_MULTIPLIER = 0.25 // 실 Vf 대비 시각 감속
 const ROTATION_VISUAL_MULTIPLIER = 0.08
 
 // 칩 스폰 빈도 제한 (flute × rpm/60 Hz 너무 높으면 눈에 안 보임)
-const CHIP_SPAWN_HZ_MAX = 40
+// UI 성능 최적화를 위해 파티클 상한 하향
+const CHIP_SPAWN_HZ_MAX = 30
 const CHIP_LIFETIME_MS = 1000
-const MAX_CHIPS = 120
+const MAX_CHIPS = 80
 
 // 스파크
 const SPARK_LIFETIME_MS = 450
-const MAX_SPARKS = 80
+const MAX_SPARKS = 50
 const SPARK_VC_THRESHOLD = 250
 const SPARK_VC_RED = 400
 

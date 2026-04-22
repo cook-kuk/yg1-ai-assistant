@@ -17,7 +17,7 @@ const DEFAULT_H = 180
 const GRID_DIVISIONS_X = 10           // 수직 time 축 division 수
 const GRID_DIVISIONS_Y = 5            // 수평 dB line 수 (center 제외 위아래 합)
 const TIME_WINDOW_MS = 100            // 화면에 보이는 총 시간(ms)
-const SAMPLES_PER_DIV = 32            // 1 division 당 sample 수 → 총 샘플 = GRID_DIVISIONS_X × SAMPLES_PER_DIV
+const SAMPLES_PER_DIV = 20            // 1 division 당 sample 수 → 총 샘플 = GRID_DIVISIONS_X × SAMPLES_PER_DIV (UI 성능 최적화)
 
 // Waveform 진폭 매핑 (chatterRisk 0~100 → amplitude 0~1)
 const AMP_LOW_MIN = 0.10

@@ -10,14 +10,14 @@ import { useEffect, useMemo, useRef } from "react"
 // ─────────────────────────────────────────────
 // 로컬 SSOT (하드코딩 대신 상수로 집약)
 // ─────────────────────────────────────────────
-const TARGET_FPS = 50
+const TARGET_FPS = 30
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS
 
-// 파티클 밀도 (intensity 별)
+// 파티클 밀도 (intensity 별) — UI 성능 최적화 위해 하향 조정
 const PARTICLE_DENSITY: Record<Intensity, number> = {
-  low: 80,
-  medium: 140,
-  high: 200,
+  low: 50,
+  medium: 90,
+  high: 130,
 }
 
 // blob opacity (intensity 별)
@@ -242,7 +242,7 @@ export default function CinematicBackdrop({
         style={{ background: baseBg }}
       />
 
-      {/* Layer 1: animated gradient blobs */}
+      {/* Layer 1: animated gradient blobs — 3→2 로 하향 (UI 성능 최적화) */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-20 overflow-hidden">
         <div
           className="cf-backdrop-blob cf-backdrop-blob-a"
@@ -255,13 +255,6 @@ export default function CinematicBackdrop({
           className="cf-backdrop-blob cf-backdrop-blob-b"
           style={{
             background: palette.blobs[1],
-            opacity: blobAlpha,
-          }}
-        />
-        <div
-          className="cf-backdrop-blob cf-backdrop-blob-c"
-          style={{
-            background: palette.blobs[2],
             opacity: blobAlpha,
           }}
         />
