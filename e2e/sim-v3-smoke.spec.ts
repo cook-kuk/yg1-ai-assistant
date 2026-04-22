@@ -1,11 +1,36 @@
 import { test, expect } from "@playwright/test"
 
 test.describe("YG-1 Simulator v3 스모크", () => {
+  // Seed the first-visit localStorage flag before any navigation so the
+  // ARIA tour welcome modal (1500ms auto-open on /simulator_v2) never
+  // intercepts the click targets these smoke tests rely on.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem("aria-tour-completed", "skipped")
+      } catch {
+        // localStorage may be unavailable in some contexts — ignore.
+      }
+    })
+  })
+
   test("페이지 로드 + 핵심 요소 렌더", async ({ page }) => {
+    const hydrationErrors: string[] = []
+    page.on("console", msg => {
+      const text = msg.text()
+      if (
+        text.includes("A tree hydrated but some attributes of the server rendered HTML didn't match the client properties") ||
+        text.includes("Switched to client rendering because the server rendering errored")
+      ) {
+        hydrationErrors.push(text)
+      }
+    })
+
     await page.goto("/simulator_v2")
     await expect(page).toHaveTitle(/YG-1/)
     await expect(await page.content()).not.toContain("findWarningsForParam is not defined")
     await expect(await page.content()).not.toContain("ReferenceError:")
+    expect(hydrationErrors).toEqual([])
     await expect(page.getByRole("heading", { name: "가공조건 시뮬레이터" })).toBeVisible()
     await expect(page.getByText("Director-Ready")).toBeVisible()
     await expect(page.getByText("Harvey MAP")).toBeVisible()
@@ -148,9 +173,12 @@ test.describe("YG-1 Simulator v3 스모크", () => {
 
   test("모드 토글 (초보→전문가→교육)", async ({ page }) => {
     await page.goto("/simulator_v2")
-    await page.getByRole("button", { name: /전문가/ }).click()
-    await page.getByRole("button", { name: /교육/ }).click()
-    await page.getByRole("button", { name: /초보/ }).click()
+    // Anchor on the icon+label combo from ModeToggle so we don't collide
+    // with "교육 모드 설정" (aria-label) or "📚 용어사전 ↗" (glossary link)
+    // which also contain "교육" / emoji matches under looser regexes.
+    await page.getByRole("button", { name: /^👔 전문가$/ }).click()
+    await page.getByRole("button", { name: /^📚 교육$/ }).click()
+    await page.getByRole("button", { name: /^🎓 초보$/ }).click()
   })
 
   test("용어사전 페이지", async ({ page }) => {
@@ -160,7 +188,10 @@ test.describe("YG-1 Simulator v3 스모크", () => {
 
   test("파라미터 슬라이더 존재", async ({ page }) => {
     await page.goto("/simulator_v2")
-    await expect(page.getByText("Stick Out L")).toBeVisible()
+    // MiniGaugeControl renders the stickout slider with label "Stick"
+    // (not "Stick Out L"). Match the first to avoid clashing with
+    // "Stickout" CorrChips elsewhere on the page.
+    await expect(page.getByText("Stick", { exact: true }).first()).toBeVisible()
     await expect(page.getByText("Vc (절삭속도)")).toBeVisible()
     await expect(page.getByText("fz (날당이송)")).toBeVisible()
   })
