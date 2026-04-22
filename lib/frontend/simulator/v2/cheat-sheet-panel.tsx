@@ -556,7 +556,7 @@ function MistakesTab({ darkMode }: { darkMode: boolean }) {
               type="button"
               onClick={() => setOpenIdx(prev => (prev === i ? null : i))}
               aria-expanded={isOpen}
-              className="flex w-full items-start gap-2 px-3 py-2 text-left text-[12px] leading-snug"
+              className="flex w-full items-start gap-2 px-3 py-2 text-left text-[12px] leading-snug min-w-0"
             >
               <span
                 className={`mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
@@ -567,12 +567,12 @@ function MistakesTab({ darkMode }: { darkMode: boolean }) {
               >
                 {i + 1}
               </span>
-              <span className="flex-1">{m.label}</span>
-              <span className="ml-1 text-[10px] opacity-60">{isOpen ? "▾" : "▸"}</span>
+              <span className="flex-1 min-w-0 break-words">{m.label}</span>
+              <span className="ml-1 text-[10px] opacity-60 flex-shrink-0">{isOpen ? "▾" : "▸"}</span>
             </button>
             {isOpen && (
               <div
-                className={`border-t px-3 py-2 text-[11px] leading-relaxed ${
+                className={`border-t px-3 py-2 text-[11px] leading-relaxed break-words ${
                   darkMode
                     ? "border-rose-800/70 text-rose-100"
                     : "border-rose-200 text-rose-700"

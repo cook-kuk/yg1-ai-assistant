@@ -656,7 +656,7 @@ function StepMaterial({
         ISO 분류 기준으로 고르시면 됩니다. 잘 모르시면 재질 이름으로 힌트를 드려요.
       </p>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-stretch">
         {MATERIALS.map((m) => {
           const isSelected = selected === m.key
           return (
@@ -670,7 +670,7 @@ function StepMaterial({
               onBlur={() => onHover(null)}
               aria-pressed={isSelected}
               aria-label={`ISO ${m.key} ${m.title} 선택 — ${m.description}`}
-              className={`group relative text-left rounded-xl p-3 transition-all duration-200 focus:outline-none ${
+              className={`group relative h-full text-left rounded-xl p-3 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${m.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
                   : darkMode
@@ -678,13 +678,13 @@ function StepMaterial({
                     : "bg-white ring-1 ring-slate-200 hover:ring-slate-400 hover:shadow-md"
               }`}
             >
-              <div className="flex items-start gap-2">
-                <div className="text-2xl leading-none" aria-hidden="true">
+              <div className="flex items-start gap-2 min-w-0">
+                <div className="text-2xl leading-none flex-shrink-0" aria-hidden="true">
                   {m.emoji}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div
-                    className={`text-sm font-bold ${
+                    className={`truncate text-sm font-bold ${
                       isSelected
                         ? "text-white"
                         : darkMode
@@ -696,7 +696,7 @@ function StepMaterial({
                     {m.title}
                   </div>
                   <div
-                    className={`text-[11px] mt-0.5 ${
+                    className={`text-[11px] mt-0.5 break-words ${
                       isSelected
                         ? "text-white/90"
                         : darkMode
@@ -763,7 +763,7 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
         가공 목적에 따라 이송·절입량이 달라져요.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
         {OPERATIONS.map((o) => {
           const isSelected = selected === o.key
           return (
@@ -773,7 +773,7 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
               onClick={() => onSelect(o.key)}
               aria-pressed={isSelected}
               aria-label={`${o.title} 선택 — ${o.hint}`}
-              className={`text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
+              className={`h-full text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${o.gradient} text-white shadow-lg ring-2 ring-white scale-[1.01]`
                   : darkMode
@@ -781,13 +781,13 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
                     : "bg-white ring-1 ring-slate-200 hover:ring-slate-400 hover:shadow-md"
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="text-3xl leading-none" aria-hidden="true">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="text-3xl leading-none flex-shrink-0" aria-hidden="true">
                   {o.emoji}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div
-                    className={`text-sm font-bold ${
+                    className={`truncate text-sm font-bold ${
                       isSelected
                         ? "text-white"
                         : darkMode
@@ -801,7 +801,7 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
                     </span>
                   </div>
                   <div
-                    className={`text-xs mt-0.5 ${
+                    className={`text-xs mt-0.5 break-words ${
                       isSelected
                         ? "text-white/90"
                         : darkMode
@@ -999,7 +999,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
         하나만 고르시면 돼요. 나머지는 자동으로 균형을 맞춰드려요.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
         {PRIORITIES.map((p) => {
           const isSelected = selected === p.key
           return (
@@ -1009,7 +1009,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
               onClick={() => onSelect(p.key)}
               aria-pressed={isSelected}
               aria-label={`${p.title} 우선 — ${p.description}`}
-              className={`text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
+              className={`flex h-full flex-col text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${p.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
                   : darkMode
@@ -1021,7 +1021,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
                 {p.emoji}
               </div>
               <div
-                className={`text-sm font-bold ${
+                className={`truncate text-sm font-bold ${
                   isSelected
                     ? "text-white"
                     : darkMode
@@ -1032,7 +1032,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
                 {p.title}
               </div>
               <div
-                className={`text-xs mt-0.5 ${
+                className={`text-xs mt-0.5 break-words ${
                   isSelected
                     ? "text-white/90"
                     : darkMode
@@ -1043,7 +1043,7 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
                 {p.description}
               </div>
               <div
-                className={`text-[11px] mt-2 font-mono ${
+                className={`text-[11px] mt-2 font-mono break-words ${
                   isSelected
                     ? "text-white/80"
                     : darkMode
@@ -1200,21 +1200,22 @@ function SummaryItem({
 }) {
   return (
     <div
-      className={`rounded-lg px-2 py-1.5 ${
+      className={`min-w-0 rounded-lg px-2 py-1.5 ${
         darkMode ? "bg-slate-900/60" : "bg-white"
       }`}
     >
       <div
-        className={`text-[10px] font-semibold uppercase tracking-wider ${
+        className={`truncate text-[10px] font-semibold uppercase tracking-wider ${
           darkMode ? "text-slate-500" : "text-slate-600"
         }`}
       >
         {label}
       </div>
       <div
-        className={`text-sm font-medium ${
+        className={`truncate text-sm font-medium ${
           darkMode ? "text-slate-100" : "text-slate-900"
         }`}
+        title={value}
       >
         {value}
       </div>
