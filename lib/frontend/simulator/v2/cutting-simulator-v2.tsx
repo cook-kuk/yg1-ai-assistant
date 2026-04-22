@@ -89,6 +89,11 @@ import BenchmarkLeaderboard from "./benchmark-leaderboard"
 import Yg1VideoPanel from "./yg1-video-panel"
 import { AiAutoAgentPanel } from "./ai-auto-agent-panel"
 import { generateWorkInstructionPDF } from "./work-instruction-pdf"
+import { AiChatSidebar } from "./ai-chat-sidebar"
+import FavoritesPanel from "./favorites-panel"
+import GCodeDownloadButton from "./gcode-download-button"
+import OperationPicker, { type OperationType } from "./operation-picker"
+import Cutting3DScene from "./cutting-3d-scene"
 import BlueprintGallery from "./blueprint-gallery"
 import AnalogGauges from "./analog-gauges"
 import DashboardHeroDisplay from "./dashboard-hero-display"
@@ -298,6 +303,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [showAutoAgent, setShowAutoAgent] = useState(false)
   const [beforeAfterData, setBeforeAfterData] = useState<{ before: any; after: any; reasoning?: string } | null>(null)
+  const [showFavorites, setShowFavorites] = useState(false)
+  const [show3DScene, setShow3DScene] = useState(false)
+  const [operationType, setOperationType] = useState<OperationType>("endmill-general")
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
   // ═══ Undo/Redo 히스토리 ═══
@@ -1354,6 +1362,14 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🏆 리더보드
           </button>
+          <button onClick={() => setShowFavorites(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFavorites ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            ⭐ 즐겨찾기
+          </button>
+          <button onClick={() => setShow3DScene(v => !v)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+            🎮 3D 씬
+          </button>
           <button onClick={() => setShowAutoAgent(v => !v)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🤖 자율 AI
@@ -2201,6 +2217,11 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     if (ok) toast.success("GCode 복사됨")
                     else toast.error("복사 실패")
                   }} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white">Copy</button>
+                  <GCodeDownloadButton
+                    state={{ productCode: productCode || "yg1-tool", diameter, fluteCount, Vc: VcEff, fz: fzEff, ap, ae, isoGroup, operation, coating, stockL, stockW, stockH }}
+                    results={{ n: result.n, Vf: result.Vf }}
+                    darkMode={darkMode}
+                  />
                 </div>
               </div>
               <pre className="bg-gray-900 text-green-400 text-[10px] font-mono p-2.5 rounded overflow-x-auto whitespace-pre">
@@ -2275,6 +2296,65 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
         </div>
       )}
+
+      {/* 🎮 진짜 3D WebGL 가공 씬 (react-three-fiber) */}
+      {show3DScene && (
+        <div data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
+          <OperationPicker value={operationType} onChange={setOperationType} darkMode={darkMode} />
+          <HolographicFrame accent="violet" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
+            <div className="p-2">
+              <Cutting3DScene
+                operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
+                shape={activeShape}
+                diameter={diameter}
+                flutes={fluteCount}
+                LOC={LOC}
+                OAL={OAL}
+                rpm={result.n}
+                Vf={result.Vf}
+                ap={ap}
+                ae={ae}
+                stockL={stockL}
+                stockW={stockW}
+                stockH={stockH}
+                coating={coating}
+                darkMode={darkMode}
+                height={480}
+              />
+            </div>
+          </HolographicFrame>
+        </div>
+      )}
+
+      {/* ⭐ 즐겨찾기 패널 */}
+      {showFavorites && (
+        <div data-visual-panel="favorites" className="scroll-mt-20">
+          <FavoritesPanel
+            darkMode={darkMode}
+            currentState={{
+              isoGroup, subgroupKey, operation, coating,
+              Vc: VcEff, fz: fzEff, ap, ae,
+              diameter, fluteCount, activeShape,
+            }}
+            onApply={(entry) => {
+              setIsoGroup(entry.isoGroup)
+              setSubgroupKey(entry.subgroupKey)
+              setOperation(entry.operation)
+              setCoating(entry.coating)
+              setVc(entry.Vc); setFz(entry.fz); setAp(entry.ap); setAe(entry.ae)
+              setDiameter(entry.diameter); setFluteCount(entry.fluteCount)
+              setActiveShape(entry.activeShape as Exclude<EndmillShape, "all">)
+              toast.success(`⭐ "${entry.name}" 적용`)
+            }}
+          />
+        </div>
+      )}
+
+      {/* 💬 AI 채팅 사이드바 (persistent FAB) */}
+      <AiChatSidebar
+        darkMode={darkMode}
+        context={{ Vc: VcEff, fz: fzEff, ap, ae, diameter, fluteCount, isoGroup, operation, coating, rpm: result.n, MRR: result.MRR, Pc: result.Pc, toolLifeMin }}
+      />
 
       {/* 🎉 Confetti Burst 전역 (스냅샷 저장 시 트리거) */}
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
