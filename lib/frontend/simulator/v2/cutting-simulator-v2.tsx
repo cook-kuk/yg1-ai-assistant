@@ -52,6 +52,7 @@ import { ToolPathDiagram } from "./tool-path-diagrams"
 import { stateToQuery, queryToState, type SerializableState, type SnapshotSummary } from "./state-serde"
 import { generateShopfloorCardPDF } from "./shopfloor-card"
 import { useSimulatorShortcuts, SHORTCUT_HINTS, SHORTCUT_CATEGORIES } from "./use-simulator-shortcuts"
+import { KeyboardShortcuts as KeyboardShortcutsV2, ShortcutHelpOverlay as ShortcutHelpOverlayV2, type ShortcutBinding as ShortcutBindingV2 } from "./keyboard-shortcuts"
 import { useUndoRedo, type HistoryState } from "./use-undo-redo"
 // welcome-modal: 컴포넌트는 dynamic, 상수/타입은 정적 유지
 import { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
@@ -85,6 +86,8 @@ import { generateGCode } from "./gcode-gen"
 import { ProvenancePanel } from "./provenance-panel"
 import { ToolPathInfoModal } from "./tool-path-info-modal"
 import { CornerFeedPanelV2 } from "./corner-panel-v2"
+import { ToolSequencePanel, DEFAULT_TOOL_SEQUENCE, type ToolSequenceStep } from "./tool-sequence"
+import { PresetScenarios, type Scenario as PresetScenario } from "./preset-scenarios"
 import { WorkholdingSlider } from "./workholding-slider"
 import { AiCoachPanel } from "./ai-coach-panel"
 import { ToolLifeScenario } from "./tool-life-scenario"
@@ -93,6 +96,8 @@ import { LearningMode } from "./learning-mode"
 import { CompetitorLiveCompare } from "./competitor-live-compare"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import SoundEngine from "./sound-engine"
+// Phase-D — 공구 궤적 녹화/재생 (replay timeline)
+import { ReplayTimeline, REPLAY_SPEEDS, type ReplayTimelineHandle } from "./replay-timeline"
 
 // ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
@@ -115,6 +120,8 @@ type VoxelStockTrackedProps = {
   fz?: number
   cornerRadius?: number
   showRaOverlay?: boolean
+  // Live carved-mesh geometry handoff (for 3D export). Fires each rebuild.
+  onGeometryUpdate?: (geom: BufferGeometry) => void
 }
 // Phase-B 신규 — 툴 경로 ghost trail + 자동 sweep driver.
 //   ToolPathTrail: <Line> (drei) 기반. bufferGeometry 는 drei 가 관리.
@@ -158,6 +165,7 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
         fz,
         cornerRadius,
         showRaOverlay,
+        onGeometryUpdate,
       }: VoxelStockTrackedProps) => {
         const stableTool = useRef<[number, number, number]>([
           toolRef.current[0],
@@ -185,12 +193,26 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
               fz={fz}
               cornerRadius={cornerRadius}
               showRaOverlay={showRaOverlay}
+              onGeometryUpdate={onGeometryUpdate}
             />
           </group>
         )
       }
       return { default: Wrapper }
     }),
+  { ssr: false },
+)
+// MeshExport — STL/GLB downloader for the live voxel stock. Lazy because the
+// three.js exporters aren't needed unless the user clicks the button.
+const MeshExport = dynamic(
+  () => import("./mesh-export").then(m => ({ default: m.MeshExport })),
+  { ssr: false },
+)
+// VideoRecorder — canvas.captureStream() based WebM recorder. Lazy because
+// MediaRecorder is only needed once the user clicks record, and it must be
+// SSR-disabled (browser-only globals).
+const VideoRecorder = dynamic(
+  () => import("./video-recorder").then(m => ({ default: m.VideoRecorder })),
   { ssr: false },
 )
 const InteractiveGcodeViewer = dynamic(() => import("./interactive-gcode-viewer"), { ssr: false })
@@ -221,6 +243,8 @@ const EnergySankeyChart = dynamic(() => import("./energy-sankey-chart"), { ssr: 
 const VoiceWarning = dynamic(() => import("./voice-warning"), { ssr: false })
 const SurfaceTopography3D = dynamic(() => import("./surface-topography-3d"), { ssr: false })
 const TimeLapseSim = dynamic(() => import("./time-lapse-sim"), { ssr: false })
+const CamGcode3DPath = dynamic(() => import("./cam-gcode-3d-path"), { ssr: false })
+const CadPreview = dynamic(() => import("./cad-preview"), { ssr: false })
 const WearGaugePanel = dynamic(() => import("./wear-gauge-panel"), { ssr: false })
 const DashboardHeroDisplay = dynamic(() => import("./dashboard-hero-display"), { ssr: false })
 const BenchmarkLeaderboard = dynamic(() => import("./benchmark-leaderboard"), { ssr: false })
@@ -429,7 +453,11 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showVoiceWarning, setShowVoiceWarning] = useState(false)
   const [showSurfaceTopo, setShowSurfaceTopo] = useState(false)
   const [showTimeLapse, setShowTimeLapse] = useState(false)
+  const [showCamPath, setShowCamPath] = useState(false)
+  const [showCadPreview, setShowCadPreview] = useState(false)
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
+  // v2 단축키 도움말 — <ShortcutHelpOverlay> 전용 (카테고리 모달과 독립).
+  const [v2ShortcutsOverlayOpen, setV2ShortcutsOverlayOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
   const [recentSavedSlot, setRecentSavedSlot] = useState<"A" | "B" | "C" | "D" | null>(null)
@@ -510,6 +538,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       setShowStabilityLobe(false); setShowCostWaterfall(false); setShowWearProg(false)
       setShowChipMorph(false); setShowAcousticEmission(false); setShowEnergySankey(false)
       setShowVoiceWarning(false); setShowSurfaceTopo(false); setShowTimeLapse(false)
+      setShowCamPath(false); setShowCadPreview(false)
       if (typeof setShow3DScene === "function") setShow3DScene(false)
       if (typeof setShowVideoPanel === "function") setShowVideoPanel(false)
       if (typeof setShowLeaderboard === "function") setShowLeaderboard(false)
@@ -547,6 +576,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         else if (panelKey === "voice-warning") setShowVoiceWarning(true)
         else if (panelKey === "surface-topo") setShowSurfaceTopo(true)
         else if (panelKey === "time-lapse") setShowTimeLapse(true)
+        else if (panelKey === "cam-path") setShowCamPath(true)
+        else if (panelKey === "cad-preview") setShowCadPreview(true)
       })
     })
     // 3) 맨 위로 스크롤 — 헤더 오프셋 보정하여 패널이 화면 최상단에 위치
@@ -588,6 +619,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [diagnosticOpen, setDiagnosticOpen] = useState(false)
   const [strategy, setStrategy] = useState<string>("")
 
+  // 🎬 시나리오 프리셋 — 상단 collapsible 섹션. 초기 open 으로 두어 첫 방문자에게 노출.
+  const [presetPanelOpen, setPresetPanelOpen] = useState(true)
+
   // Phase-A 신규 통합 상태 — 도면 업로드 / 실시간 voxel 절삭 애니메이션
   const [drawingPanelOpen, setDrawingPanelOpen] = useState(false)
   const [importedGeometry, setImportedGeometry] = useState<{
@@ -613,6 +647,20 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const toolTipRef = useRef<[number, number, number]>([0, 0, 0])
   const [toolTipDisplay, setToolTipDisplay] = useState<[number, number, number]>([0, 0, 0])
 
+  // Live carved-mesh geometry handoff for 3D export (STL / GLB).
+  // VoxelStockTracked fires `onGeometryUpdate` whenever the voxel-stock mesh
+  // rebuilds (throttled ≤ 30Hz); we stash the freshest BufferGeometry here so
+  // the MeshExport button can read it at click time. Non-owning — the voxel
+  // component retains ownership and will dispose on its next rebuild.
+  const currentVoxelGeometryRef = useRef<BufferGeometry | null>(null)
+
+  // Reference to the WebGL <canvas> element that r3f mounts inside
+  // Cutting3DScene. Populated via Cutting3DScene's optional `canvasRef` prop
+  // (written from an `useEffect(() => gl.domElement)` inside r3f). The
+  // VideoRecorder reads this ref at click time to call
+  // `canvas.captureStream(30)` without an imperative handle.
+  const videoCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
   // Phase-B — 툴 경로 ghost trail + 자동 sweep 모드.
   //   toolPathPositions: 최근 공구 팁 월드 좌표 히스토리 (최대 200 샘플, 10Hz 주기로 append).
   //   showToolPathTrail: 경로 표시 토글. voxel 애니메이션 켤 때 자동으로 true 로 승격.
@@ -626,6 +674,36 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [autoSweepPattern, setAutoSweepPattern] = useState<"zigzag" | "spiral">("zigzag")
   // Chatter/vibration overlay — intensity 를 받아 chip + outline + shake 연동.
   const [chatterLevel, setChatterLevel] = useState(0)
+
+  // Phase-D — 공구 궤적 녹화/재생. replayPlayback=true 일 때 ReplayTimeline 의
+  // onFrame 이 toolTipRef 를 override 해 저장된 경로를 그대로 replay 한다.
+  const [replayRecording, setReplayRecording] = useState(false)
+  const [replayPlayback, setReplayPlayback] = useState(false)
+  const [replaySpeed, setReplaySpeed] = useState<number>(1)
+  const replayTimelineRef = useRef<ReplayTimelineHandle | null>(null)
+
+  // ─── Multi-tool sequence (roughing → semi → finish) ─────────────────────
+  // `toolSequence` stores the user-editable list of steps. `activeSeqIndex`
+  // points to the currently executing step (-1 when idle). `seqRunning`
+  // toggles the transport. When running, a useEffect below overrides the
+  // main simulator's diameter/flutes/ap/fz/autoSweep state with the active
+  // step's values. Manual user values are preserved across the override via
+  // `preSeqSnapshotRef` and restored on stop/pause.
+  const [toolSequence, setToolSequence] = useState<ToolSequenceStep[]>(DEFAULT_TOOL_SEQUENCE)
+  const [activeSeqIndex, setActiveSeqIndex] = useState(-1)
+  const [seqRunning, setSeqRunning] = useState(false)
+  const [seqPanelOpen, setSeqPanelOpen] = useState(false)
+  // Snapshot captured on the RISING edge of seqRunning — restored when the
+  // sequence pauses or stops. Stored in a ref so state setters during restore
+  // do not trigger a snapshot roundtrip.
+  const preSeqSnapshotRef = useRef<{
+    diameter: number
+    fluteCount: number
+    ap: number
+    fz: number
+    autoSweepEnabled: boolean
+    autoSweepPattern: "zigzag" | "spiral"
+  } | null>(null)
 
   // STEP 4·5·6 통합 상태
   const [toolPathModalOpen, setToolPathModalOpen] = useState(false)
@@ -674,6 +752,69 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       setAutoSweepEnabled(false)
     }
   }, [voxelAnimationEnabled])
+
+  // ─── Tool-sequence: snapshot / restore manual user values ───────────────
+  // Rising edge of seqRunning captures the current manual values; falling
+  // edge restores them so diameter/flutes/ap/fz/autoSweep return to what the
+  // user had before the sequence took over.
+  useEffect(() => {
+    if (seqRunning) {
+      if (!preSeqSnapshotRef.current) {
+        preSeqSnapshotRef.current = {
+          diameter,
+          fluteCount,
+          ap,
+          fz,
+          autoSweepEnabled,
+          autoSweepPattern,
+        }
+      }
+    } else {
+      const snap = preSeqSnapshotRef.current
+      if (snap) {
+        setDiameter(snap.diameter)
+        setFluteCount(snap.fluteCount)
+        setAp(snap.ap)
+        setFz(snap.fz)
+        setAutoSweepEnabled(snap.autoSweepEnabled)
+        setAutoSweepPattern(snap.autoSweepPattern)
+        preSeqSnapshotRef.current = null
+      }
+    }
+    // Only listen on seqRunning edges — source values are read at edge time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seqRunning])
+
+  // ─── Tool-sequence: apply active step's values while running ────────────
+  useEffect(() => {
+    if (!seqRunning || activeSeqIndex < 0 || activeSeqIndex >= toolSequence.length) return
+    const step = toolSequence[activeSeqIndex]
+    setDiameter(step.diameter)
+    setFluteCount(step.flutes)
+    setAp(step.ap)
+    setFz(step.fz)
+    setAutoSweepEnabled(true)
+    setAutoSweepPattern(step.pattern)
+  }, [seqRunning, activeSeqIndex, toolSequence])
+
+  // ─── Tool-sequence: advance timer ────────────────────────────────────────
+  // One setTimeout per active step. When a step completes we bump the index;
+  // when we run off the end we clear state and the snapshot-restore effect
+  // above puts the manual values back.
+  useEffect(() => {
+    if (!seqRunning || activeSeqIndex < 0 || activeSeqIndex >= toolSequence.length) return
+    const step = toolSequence[activeSeqIndex]
+    const ms = Math.max(1, step.durationSec) * 1000
+    const timerId = window.setTimeout(() => {
+      if (activeSeqIndex + 1 >= toolSequence.length) {
+        setSeqRunning(false)
+        setActiveSeqIndex(-1)
+      } else {
+        setActiveSeqIndex(activeSeqIndex + 1)
+      }
+    }, ms)
+    return () => window.clearTimeout(timerId)
+  }, [seqRunning, activeSeqIndex, toolSequence])
 
   // Apply spindle preset
   useEffect(() => {
@@ -1764,12 +1905,129 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   const showStarter = !everInteracted && !catalogData && !productCode.trim()
 
+  // 🎬 시나리오 프리셋 적용 — stock 치수 / material (iso+subgroup) / toolSequence /
+  // autoSweepPattern 을 일괄 주입. seqRunning 은 건드리지 않아 사용자가 ▶ 로 수동 시작.
+  const applyScenario = useCallback((scenario: PresetScenario) => {
+    const [sl, sw, sh] = scenario.stockDimensions
+    setStockL(sl)
+    setStockW(sw)
+    setStockH(sh)
+    switch (scenario.material) {
+      case "aluminum":
+        setIsoGroup("N")
+        setSubgroupKey("aluminum-wrought")
+        break
+      case "titanium":
+        setIsoGroup("S")
+        setSubgroupKey("titanium")
+        break
+      case "copper":
+        setIsoGroup("N")
+        setSubgroupKey("copper-alloys")
+        break
+      case "steel":
+      default:
+        setIsoGroup("P")
+        setSubgroupKey("")
+        break
+    }
+    setToolSequence(scenario.toolSequence as ToolSequenceStep[])
+    setAutoSweepPattern(scenario.autoSweepPattern)
+    setSeqPanelOpen(true)
+    setVoxelAnimationEnabled(true)
+    toast.success(`✅ 시나리오 적용: ${scenario.icon} ${scenario.label}`)
+  }, [])
+
   const rootClass = darkMode
     ? "space-y-5 print:space-y-3 bg-slate-900 text-slate-100 -mx-4 px-4 py-3 rounded-lg"
     : "space-y-5 print:space-y-3"
 
+  // ───── v2 키보드 단축키 바인딩 ─────
+  // 상태 setter 가 부재한 토글(e.g. 독립 chatter 토글)은 graceful 하게 skip.
+  const v2Bindings = useMemo<ShortcutBindingV2[]>(() => {
+    const list: ShortcutBindingV2[] = []
+    // Help overlay
+    list.push({ key: "?", description: "단축키 도움말 열기", handler: () => setV2ShortcutsOverlayOpen(true) })
+    list.push({ key: "h", description: "단축키 도움말 열기", handler: () => setV2ShortcutsOverlayOpen(true) })
+    // Escape — 도움말이 열린 경우에만 닫기 (없으면 noop)
+    list.push({
+      key: "Escape",
+      description: "도움말 닫기",
+      handler: () => {
+        if (v2ShortcutsOverlayOpen) setV2ShortcutsOverlayOpen(false)
+      },
+    })
+    // Space — replay 재생/일시정지, replay 없으면 auto-sweep 토글
+    list.push({
+      key: " ",
+      description: "재생/일시정지 (리플레이) · 없으면 Auto Sweep 토글",
+      handler: () => {
+        const hasReplay = (replayTimelineRef.current?.getDuration() ?? 0) > 0
+        if (hasReplay) {
+          setReplayPlayback(v => !v)
+        } else {
+          setAutoSweepEnabled(v => !v)
+        }
+      },
+    })
+    // ArrowLeft/Right — seek. 현재 재생 위치를 직접 노출하지 않으므로
+    // -1s → 처음, +1s → 끝으로 대체 (boundary seek).
+    list.push({
+      key: "ArrowLeft",
+      description: "리플레이 -1s (처음으로)",
+      handler: () => {
+        const h = replayTimelineRef.current
+        if (!h || h.getDuration() <= 0) return
+        h.seekTo(0)
+      },
+    })
+    list.push({
+      key: "ArrowRight",
+      description: "리플레이 +1s (끝으로)",
+      handler: () => {
+        const h = replayTimelineRef.current
+        if (!h) return
+        const dur = h.getDuration()
+        if (dur <= 0) return
+        h.seekTo(dur)
+      },
+    })
+    // Visualization toggles — setter 가 있을 때만 등록
+    if (typeof setVoxelAnimationEnabled === "function") {
+      list.push({ key: "v", description: "Voxel 애니메이션 토글", handler: () => setVoxelAnimationEnabled(v => !v) })
+    }
+    if (typeof setSliceEnabled === "function") {
+      list.push({ key: "s", description: "단면(Slice) 뷰 토글", handler: () => setSliceEnabled(v => !v) })
+    }
+    if (typeof setAutoSweepEnabled === "function") {
+      list.push({ key: "a", description: "Auto Sweep 토글", handler: () => setAutoSweepEnabled(v => !v) })
+    }
+    if (typeof setShowToolPathTrail === "function") {
+      list.push({ key: "p", description: "공구 경로 Trail 토글", handler: () => setShowToolPathTrail(v => !v) })
+    }
+    if (typeof setShowForceVectors === "function") {
+      list.push({ key: "f", description: "Force 벡터 토글", handler: () => setShowForceVectors(v => !v) })
+    }
+    // 'c' (chatter viz) — 독립 토글 없음 (chatter 는 항상 계산/표시). skip.
+    if (typeof setReplayRecording === "function") {
+      list.push({
+        key: "r",
+        description: "리플레이 녹화 시작/중지",
+        handler: () => setReplayRecording(v => !v),
+      })
+    }
+    return list
+  }, [v2ShortcutsOverlayOpen])
+
   return (
     <div ref={reportAreaRef} className={rootClass}>
+      {/* ⌨ v2 keyboard shortcuts — 헤드리스 listener + help overlay */}
+      <KeyboardShortcutsV2 bindings={v2Bindings} />
+      <ShortcutHelpOverlayV2
+        bindings={v2Bindings.map(b => ({ key: b.key, description: b.description }))}
+        open={v2ShortcutsOverlayOpen}
+        onClose={() => setV2ShortcutsOverlayOpen(false)}
+      />
       {/* 🔊 Web Audio 사운드 엔진 — headless, rpm/flute/fz 파생 */}
       <SoundEngine enabled={soundEnabled} rpm={result.n} fluteCount={fluteCount} fz={fz} />
       {/* ───── Top bar ───── */}
@@ -1898,6 +2156,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`relative flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"} ${discoverGlow ? "ring-2 ring-indigo-400/70 animate-pulse" : ""}`}>
             ⌨
           </button>
+          {/* ⌨️ v2 키보드 단축키 — 모바일 대안 (별도 overlay) */}
+          <button onClick={() => setV2ShortcutsOverlayOpen(true)} title="v2 단축키 · h 또는 ?"
+            aria-label="v2 키보드 단축키 열기"
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+            ⌨️
+          </button>
           <button onClick={() => setSoundEnabled(v => !v)} title={soundEnabled ? "사운드 끄기" : "사운드 켜기 (스핀들 · 칩 임팩트)"}
             className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${soundEnabled ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
             🔊 사운드
@@ -1995,6 +2259,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         showVoiceWarning={showVoiceWarning}
         showSurfaceTopo={showSurfaceTopo}
         showTimeLapse={showTimeLapse}
+        showCamPath={showCamPath}
+        showCadPreview={showCadPreview}
         showToolPath={showToolPath}
         showVibration={showVibration}
         showTempHeatmap={showTempHeatmap}
@@ -2069,6 +2335,32 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </>
       )}
 
+      {/* 🎬 시나리오 프리셋 — 상단 collapsible. 클릭 시 stock / material / 공구 시퀀스 / autoSweep 일괄 적용. */}
+      <div
+        data-testid="preset-scenarios-panel"
+        className="rounded-xl border border-fuchsia-200 bg-gradient-to-br from-fuchsia-50/70 via-white to-violet-50/50 p-3 shadow-sm print:hidden"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setPresetPanelOpen(v => !v)}
+            className="flex items-center gap-2 rounded-full border border-fuchsia-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-fuchsia-700 hover:bg-fuchsia-50"
+            aria-expanded={presetPanelOpen}
+          >
+            <span>🎬 시나리오 프리셋</span>
+            <span className="text-[10px] text-fuchsia-500">{presetPanelOpen ? "접기" : "펼치기"}</span>
+          </button>
+          <span className="text-[10px] text-slate-500">
+            클릭 시 stock · 재질 · 공구 시퀀스 일괄 적용 (재생은 ▶ 로 수동)
+          </span>
+        </div>
+        {presetPanelOpen && (
+          <div className="mt-3">
+            <PresetScenarios onApply={applyScenario} />
+          </div>
+        )}
+      </div>
+
       {/* Phase-A — 도면 업로드 + 실시간 절삭 애니메이션 토글 (sim 레이아웃 상단) */}
       <div
         data-testid="phase-a-panel"
@@ -2078,7 +2370,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <button
             type="button"
             onClick={() => setDrawingPanelOpen(v => !v)}
-            className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+            className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-indigo-700 hover:bg-indigo-50"
             aria-expanded={drawingPanelOpen}
           >
             <span>📐 도면 업로드</span>
@@ -2096,12 +2388,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 setImportedGeometry(null)
                 toast.success("도면 제거 — 기본 박스 stock 으로 복귀")
               }}
-              className="flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+              className="flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-rose-700 hover:bg-rose-50"
             >
               <span>📐 도면 제거</span>
             </button>
           )}
-          <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
+          <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
             <span>🔧 실시간 절삭 애니메이션</span>
             <input
               type="checkbox"
@@ -2121,7 +2413,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             </span>
           </label>
           {voxelAnimationEnabled && (
-            <label className="flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 cursor-pointer select-none hover:bg-emerald-50">
+            <label className="flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-emerald-700 cursor-pointer select-none hover:bg-emerald-50">
               <span>📊 표면 거칠기(Ra) 보기</span>
               <input
                 type="checkbox"
@@ -2165,7 +2457,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             )
           })()}
           {voxelAnimationEnabled && (
-            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
+            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
               <span>🌀 툴 경로 표시</span>
               <input
                 type="checkbox"
@@ -2179,7 +2471,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             </label>
           )}
           {voxelAnimationEnabled && (
-            <label className="flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 cursor-pointer select-none hover:bg-rose-50">
+            <label className="flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-rose-700 cursor-pointer select-none hover:bg-rose-50">
               <span>💪 절삭력 벡터</span>
               <input
                 type="checkbox"
@@ -2193,7 +2485,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             </label>
           )}
           {voxelAnimationEnabled && (
-            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
+            <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
               <span>⚡ 자동 스윕</span>
               <input
                 type="checkbox"
@@ -2216,7 +2508,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               </span>
             </label>
           )}
-          <label className="flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold text-sky-700 cursor-pointer select-none hover:bg-sky-50">
+          <label className="flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-sky-700 cursor-pointer select-none hover:bg-sky-50">
             <span>🔪 단면 보기</span>
             <input
               type="checkbox"
@@ -2228,6 +2520,16 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               {sliceEnabled ? "ON" : "OFF"}
             </span>
           </label>
+          {voxelAnimationEnabled && (
+            <MeshExport
+              getGeometry={() => currentVoxelGeometryRef.current}
+              meshName="carved-stock"
+            />
+          )}
+          <VideoRecorder
+            canvasRef={videoCanvasRef}
+            fileName="cutting-simulator-recording"
+          />
         </div>
 
         {drawingPanelOpen && (
@@ -2335,6 +2637,131 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             </div>
           )
         })()}
+
+        {/* Phase-D — 공구 궤적 녹화/재생 (replay timeline) */}
+        {voxelAnimationEnabled && (
+          <div
+            data-testid="replay-panel"
+            className="mt-3 rounded-lg border border-indigo-100 bg-white/70 px-3 py-2"
+          >
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="font-semibold text-indigo-800">📼 리플레이</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplayPlayback(false)
+                  setReplayRecording(true)
+                }}
+                disabled={replayRecording}
+                className="rounded-full border border-red-200 bg-white px-2.5 py-1 font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 min-h-11 sm:min-h-9"
+              >
+                🔴 녹화 시작
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplayRecording(false)}
+                disabled={!replayRecording}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 min-h-11 sm:min-h-9"
+              >
+                ⏹ 녹화 중지
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplayRecording(false)
+                  setReplayPlayback(true)
+                }}
+                disabled={replayPlayback || (replayTimelineRef.current?.getDuration() ?? 0) <= 0}
+                className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 min-h-11 sm:min-h-9"
+              >
+                ▶ 재생
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplayPlayback(false)}
+                disabled={!replayPlayback}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 min-h-11 sm:min-h-9"
+              >
+                ⏸ 정지
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplayPlayback(false)
+                  setReplayRecording(false)
+                  replayTimelineRef.current?.clear()
+                }}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 hover:bg-slate-50 min-h-11 sm:min-h-9"
+              >
+                🗑 지우기
+              </button>
+              <label className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700">
+                속도
+                <select
+                  value={replaySpeed}
+                  onChange={e => setReplaySpeed(parseFloat(e.target.value))}
+                  className="rounded border border-indigo-200 bg-white px-1 py-0.5 font-mono text-[10px] text-indigo-700 focus:outline-none"
+                >
+                  {REPLAY_SPEEDS.map(s => (
+                    <option key={s} value={s}>{s}x</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <ReplayTimeline
+              ref={replayTimelineRef}
+              recording={replayRecording}
+              playback={replayPlayback}
+              speed={replaySpeed}
+              currentToolPosition={toolTipDisplay}
+              onFrame={pos => {
+                // playback 중에만 toolTipRef 를 override — 저장된 경로를 그대로 재생.
+                if (replayPlayback) toolTipRef.current = [pos[0], pos[1], pos[2]]
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── 공구 순서 (roughing → semi → finish) ─────────────────────────── */}
+      <div
+        data-testid="tool-sequence-panel"
+        className="rounded-xl border border-indigo-200 bg-white/90 p-3 shadow-sm"
+      >
+        <button
+          type="button"
+          onClick={() => setSeqPanelOpen(v => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+          aria-expanded={seqPanelOpen}
+        >
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-800">🔧 공구 순서</div>
+            <div className="text-[10px] text-indigo-600">
+              roughing → semi-finish → finish 다단 공구 실행 — 각 단계가 활성 공구로 자동 전환됩니다.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-[9px] text-indigo-700">
+              {toolSequence.length} step
+              {seqRunning && activeSeqIndex >= 0 ? ` · ▶ ${toolSequence[activeSeqIndex]?.label ?? ""}` : ""}
+            </span>
+            <span className="rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+              {seqPanelOpen ? "접기" : "펼치기"}
+            </span>
+          </div>
+        </button>
+        {seqPanelOpen && (
+          <div className="mt-3">
+            <ToolSequencePanel
+              sequence={toolSequence}
+              onSequenceChange={setToolSequence}
+              activeIndex={activeSeqIndex}
+              onActiveIndexChange={setActiveSeqIndex}
+              isRunning={seqRunning}
+              onRunStateChange={setSeqRunning}
+            />
+          </div>
+        )}
       </div>
 
       <div
@@ -2395,7 +2822,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
       </div>
 
-      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || showChipMorph || showAcousticEmission || showEnergySankey || showVoiceWarning || showSurfaceTopo || showTimeLapse || beforeAfterData) && (
+      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || showChipMorph || showAcousticEmission || showEnergySankey || showVoiceWarning || showSurfaceTopo || showTimeLapse || showCamPath || showCadPreview || beforeAfterData) && (
         <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-cyan-50/60 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -2405,7 +2832,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <button
               type="button"
               onClick={() => activatePanel(null)}
-              className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50"
+              className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold min-h-11 sm:min-h-9 text-violet-700 hover:bg-violet-50"
             >
               모두 닫기
             </button>
@@ -2440,6 +2867,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     sliceAxis={sliceAxis}
                     sliceOffset={sliceOffset}
                     wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
+                    canvasRef={videoCanvasRef}
                     onToolTipChange={(p) => { toolTipRef.current = p }}
                     voxelStockSlot={voxelAnimationEnabled ? (
                       <>
@@ -2453,6 +2881,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                           fz={fz}
                           cornerRadius={cornerR}
                           showRaOverlay={showRaOverlay}
+                          onGeometryUpdate={geom => { currentVoxelGeometryRef.current = geom }}
                         />
                         {showToolPathTrail && (
                           <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
@@ -2925,6 +3354,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                 toolLifeMin={toolLifeMin}
                 darkMode={darkMode}
               />
+            </div>
+          )}
+
+          {showCamPath && (
+            <div data-visual-panel="cam-path" className="scroll-mt-20" key={`cam-path-${panelInstance}`}>
+              <CamGcode3DPath darkMode={darkMode} />
+            </div>
+          )}
+
+          {showCadPreview && (
+            <div data-visual-panel="cad-preview" className="scroll-mt-20" key={`cad-preview-${panelInstance}`}>
+              <CadPreview darkMode={darkMode} />
             </div>
           )}
         </div>
@@ -4388,6 +4829,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                     width={320}
                     height={220}
                     viewMode="side"
+                    compact
                   />
                 </div>
               ) : (
@@ -4416,6 +4858,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                     width={320}
                     height={220}
                     viewMode="top"
+                    compact
                   />
                 </div>
               ) : (
@@ -4473,6 +4916,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                 width={360}
                 height={240}
                 viewMode="side"
+                compact
               />
             </div>
           ) : (
@@ -4554,6 +4998,8 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
   showVoiceWarning,
   showSurfaceTopo,
   showTimeLapse,
+  showCamPath,
+  showCadPreview,
   showToolPath,
   showVibration,
   showTempHeatmap,
@@ -4595,6 +5041,8 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
   showVoiceWarning: boolean
   showSurfaceTopo: boolean
   showTimeLapse: boolean
+  showCamPath: boolean
+  showCadPreview: boolean
   showToolPath: boolean
   showVibration: boolean
   showTempHeatmap: boolean
@@ -4622,44 +5070,46 @@ const VisualToggleStrip = memo(function VisualToggleStrip({
   return (
     <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
       <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
-      <button onClick={() => activatePanel(showLiveScene ? null : "live")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>🎬 실시간 절삭</button>
-      <button onClick={() => activatePanel(show3DPreview ? null : "3d")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : baseButtonClass}`}>🔄 3D 엔드밀</button>
-      <button onClick={() => activatePanel(showBlueprint ? null : "blueprint")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : baseButtonClass}`}>📐 도면</button>
-      <button onClick={onOpenBlueprintGallery} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🖼 갤러리(6)</button>
-      <button onClick={() => activatePanel(showAnalogGauges ? null : "gauges")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🎛 게이지</button>
-      <button onClick={onToggleHeroDisplay} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : baseButtonClass}`}>✨ 영웅 KPI</button>
-      <button onClick={() => activatePanel(showWearGauge ? null : "wear")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🔧 마모 게이지</button>
-      <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🔬 고급 지표</button>
-      <button onClick={() => activatePanel(showBreakEven ? null : "break-even")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : baseButtonClass}`}>💰 Break-Even</button>
-      <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")} title="Stability Lobe · 채터 안정 영역" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>📈 채터 안정</button>
-      <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")} title="Cost Waterfall · 원가 분해" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🧾 원가 분해</button>
-      <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")} title="Wear Progression · 공구 마모 진행" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearProg ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🛠 마모 진행</button>
-      <button onClick={() => activatePanel(showChipMorph ? null : "chip-morph")} title="Chip Morphology 3D · 칩 형상" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showChipMorph ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🌀 칩 형상</button>
-      <button onClick={() => activatePanel(showAcousticEmission ? null : "acoustic")} title="Acoustic Emission · 절삭음 시뮬" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAcousticEmission ? "bg-pink-500 text-white shadow-sm" : baseButtonClass}`}>🔊 절삭음</button>
-      <button onClick={() => activatePanel(showEnergySankey ? null : "energy-sankey")} title="Energy Sankey · 에너지 분배" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showEnergySankey ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>⚡ 에너지</button>
-      <button onClick={() => activatePanel(showSurfaceTopo ? null : "surface-topo")} title="Surface Topography 3D · 표면 지형" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showSurfaceTopo ? "bg-cyan-500 text-white shadow-sm" : baseButtonClass}`}>🏔 표면</button>
-      <button onClick={() => activatePanel(showTimeLapse ? null : "time-lapse")} title="Time-lapse 30s · 가공 요약" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTimeLapse ? "bg-teal-500 text-white shadow-sm" : baseButtonClass}`}>🎞 타임랩스</button>
-      <button onClick={() => activatePanel(showVoiceWarning ? null : "voice-warning")} title="Voice Warning · 음성 경고" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVoiceWarning ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>📣 음성</button>
-      <button onClick={() => activatePanel(showToolPath ? null : "tool-path")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : baseButtonClass}`}>🗺 툴패스</button>
-      <button onClick={() => activatePanel(showVibration ? null : "vibration")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>📡 진동</button>
-      <button onClick={() => activatePanel(showTempHeatmap ? null : "temp")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>🌡 온도</button>
-      <button onClick={() => activatePanel(showForceVec ? null : "force")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>➡ 힘 벡터</button>
+      <button onClick={() => activatePanel(showLiveScene ? null : "live")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>🎬 실시간 절삭</button>
+      <button onClick={() => activatePanel(show3DPreview ? null : "3d")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : baseButtonClass}`}>🔄 3D 엔드밀</button>
+      <button onClick={() => activatePanel(showBlueprint ? null : "blueprint")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : baseButtonClass}`}>📐 도면</button>
+      <button onClick={onOpenBlueprintGallery} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${baseButtonClass}`}>🖼 갤러리(6)</button>
+      <button onClick={() => activatePanel(showAnalogGauges ? null : "gauges")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🎛 게이지</button>
+      <button onClick={onToggleHeroDisplay} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : baseButtonClass}`}>✨ 영웅 KPI</button>
+      <button onClick={() => activatePanel(showWearGauge ? null : "wear")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🔧 마모 게이지</button>
+      <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🔬 고급 지표</button>
+      <button onClick={() => activatePanel(showBreakEven ? null : "break-even")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : baseButtonClass}`}>💰 Break-Even</button>
+      <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")} title="Stability Lobe · 채터 안정 영역" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>📈 채터 안정</button>
+      <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")} title="Cost Waterfall · 원가 분해" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🧾 원가 분해</button>
+      <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")} title="Wear Progression · 공구 마모 진행" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showWearProg ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🛠 마모 진행</button>
+      <button onClick={() => activatePanel(showChipMorph ? null : "chip-morph")} title="Chip Morphology 3D · 칩 형상" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showChipMorph ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🌀 칩 형상</button>
+      <button onClick={() => activatePanel(showAcousticEmission ? null : "acoustic")} title="Acoustic Emission · 절삭음 시뮬" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showAcousticEmission ? "bg-pink-500 text-white shadow-sm" : baseButtonClass}`}>🔊 절삭음</button>
+      <button onClick={() => activatePanel(showEnergySankey ? null : "energy-sankey")} title="Energy Sankey · 에너지 분배" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showEnergySankey ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>⚡ 에너지</button>
+      <button onClick={() => activatePanel(showSurfaceTopo ? null : "surface-topo")} title="Surface Topography 3D · 표면 지형" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showSurfaceTopo ? "bg-cyan-500 text-white shadow-sm" : baseButtonClass}`}>🏔 표면</button>
+      <button onClick={() => activatePanel(showTimeLapse ? null : "time-lapse")} title="Time-lapse 30s · 가공 요약" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showTimeLapse ? "bg-teal-500 text-white shadow-sm" : baseButtonClass}`}>🎞 타임랩스</button>
+      <button onClick={() => activatePanel(showCamPath ? null : "cam-path")} title="CAM G-code → 3D Path" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCamPath ? "bg-emerald-600 text-white shadow-sm" : baseButtonClass}`}>🗂 G-code 3D</button>
+      <button onClick={() => activatePanel(showCadPreview ? null : "cad-preview")} title="CAD Preview · STL 업로드" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCadPreview ? "bg-indigo-600 text-white shadow-sm" : baseButtonClass}`}>🧊 CAD</button>
+      <button onClick={() => activatePanel(showVoiceWarning ? null : "voice-warning")} title="Voice Warning · 음성 경고" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showVoiceWarning ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>📣 음성</button>
+      <button onClick={() => activatePanel(showToolPath ? null : "tool-path")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showToolPath ? "bg-sky-500 text-white shadow-sm" : baseButtonClass}`}>🗺 툴패스</button>
+      <button onClick={() => activatePanel(showVibration ? null : "vibration")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>📡 진동</button>
+      <button onClick={() => activatePanel(showTempHeatmap ? null : "temp")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>🌡 온도</button>
+      <button onClick={() => activatePanel(showForceVec ? null : "force")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>➡ 힘 벡터</button>
       <ToolbarDivider darkMode={darkMode} />
-      <button onClick={onUndo} disabled={!historyCanUndo} title="Undo (Ctrl+Z)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${historyCanUndo ? baseButtonClass : historyDisabledClass}`}>↶</button>
-      <button onClick={onRedo} disabled={!historyCanRedo} title="Redo (Ctrl+Y)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${historyCanRedo ? baseButtonClass : historyDisabledClass}`}>↷</button>
+      <button onClick={onUndo} disabled={!historyCanUndo} title="Undo (Ctrl+Z)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${historyCanUndo ? baseButtonClass : historyDisabledClass}`}>↶</button>
+      <button onClick={onRedo} disabled={!historyCanRedo} title="Redo (Ctrl+Y)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${historyCanRedo ? baseButtonClass : historyDisabledClass}`}>↷</button>
       <span className={`text-[10px] font-mono ${darkMode ? "text-slate-500" : "text-slate-400"}`}>{historyCount}</span>
       <ToolbarDivider darkMode={darkMode} />
       <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider px-1">🎓 학습</span>
-      <button onClick={onOpenWizard} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🧙 위저드</button>
-      <button onClick={onOpenTutorial} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🎯 투어</button>
-      <button onClick={() => activatePanel(showCheatSheet ? null : "cheat")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : baseButtonClass}`}>📋 치트시트</button>
-      <a href="/simulator_v2/glossary" target="_blank" rel="noreferrer" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>📚 용어사전 ↗</a>
-      <button onClick={() => activatePanel(showVideoPanel ? null : "video")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : baseButtonClass}`}>🎥 가공영상</button>
-      <button onClick={() => activatePanel(showLeaderboard ? null : "leaderboard")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🏆 리더보드</button>
-      <button onClick={() => activatePanel(showFavorites ? null : "favorites")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFavorites ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>⭐ 즐겨찾기</button>
-      <button onClick={() => activatePanel(show3DScene ? null : "3d-scene")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : baseButtonClass}`}>🎮 3D 씬</button>
-      <button onClick={() => activatePanel(showAutoAgent ? null : "auto-agent")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>🤖 자율 AI</button>
-      <button onClick={onDownloadWorkInstruction} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100"}`}>📄 지시서</button>
+      <button onClick={onOpenWizard} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${baseButtonClass}`}>🧙 위저드</button>
+      <button onClick={onOpenTutorial} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${baseButtonClass}`}>🎯 투어</button>
+      <button onClick={() => activatePanel(showCheatSheet ? null : "cheat")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : baseButtonClass}`}>📋 치트시트</button>
+      <a href="/simulator_v2/glossary" target="_blank" rel="noreferrer" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${baseButtonClass}`}>📚 용어사전 ↗</a>
+      <button onClick={() => activatePanel(showVideoPanel ? null : "video")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : baseButtonClass}`}>🎥 가공영상</button>
+      <button onClick={() => activatePanel(showLeaderboard ? null : "leaderboard")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🏆 리더보드</button>
+      <button onClick={() => activatePanel(showFavorites ? null : "favorites")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showFavorites ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>⭐ 즐겨찾기</button>
+      <button onClick={() => activatePanel(show3DScene ? null : "3d-scene")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : baseButtonClass}`}>🎮 3D 씬</button>
+      <button onClick={() => activatePanel(showAutoAgent ? null : "auto-agent")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>🤖 자율 AI</button>
+      <button onClick={onDownloadWorkInstruction} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all min-h-11 sm:min-h-9 ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100"}`}>📄 지시서</button>
       {showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
     </div>
   )
