@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic"
 import { startTransition, Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Calculator, ArrowLeftRight } from "lucide-react"
+import { Calculator, ArrowLeftRight, FlaskConical } from "lucide-react"
 import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulator-v2"
 import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
 import { EducationProvider } from "@/lib/frontend/simulator/v2/education-context"
@@ -15,6 +15,11 @@ import { SimErrorBoundary } from "@/lib/frontend/simulator/v2/sim-error-boundary
 
 // heavy 컴포넌트 lazy-load (framer-motion / canvas)
 const CinematicBackdrop = dynamic(() => import("@/lib/frontend/simulator/v2/cinematic-backdrop"), { ssr: false })
+// Machine Impact Lab — 시나리오 테이블 7개 동시 계산이라 별도 청크로 분리.
+const MachineImpactLab = dynamic(
+  () => import("@/lib/frontend/simulator/v2/machine-impact/machine-impact-lab").then(m => ({ default: m.MachineImpactLab })),
+  { ssr: false, loading: () => <div className="flex items-center justify-center py-12 text-sm text-gray-400">🔬 Machine Impact Lab 로딩중...</div> },
+)
 // CyberpunkHud 현재 비활성 (성능 부담). 필요 시 관리자 설정에서 활성화.
 // const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
 
@@ -60,7 +65,7 @@ function EducationControlMount() {
 
 function SimulatorV2Content() {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<"simulator" | "competitor">("simulator")
+  const [tab, setTab] = useState<"simulator" | "competitor" | "machine-impact">("simulator")
 
   const product = searchParams.get("product") ?? undefined
   const material = searchParams.get("material") ?? undefined
@@ -124,6 +129,17 @@ function SimulatorV2Content() {
               <ArrowLeftRight className="h-4 w-4" />
               경쟁사 대체 추천
             </button>
+            <button
+              onClick={() => setTab("machine-impact")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === "machine-impact"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <FlaskConical className="h-4 w-4" />
+              Machine Impact Lab
+            </button>
           </div>
         </div>
       </div>
@@ -136,8 +152,10 @@ function SimulatorV2Content() {
             initialMaterial={material}
             initialOperation={operation}
           />
-        ) : (
+        ) : tab === "competitor" ? (
           <CompetitorTab />
+        ) : (
+          <MachineImpactLab />
         )}
       </div>
     </div>
