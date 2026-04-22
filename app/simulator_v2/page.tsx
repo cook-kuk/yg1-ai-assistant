@@ -7,10 +7,12 @@ import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulato
 import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
 import { EducationProvider } from "@/lib/frontend/simulator/v2/education-context"
 import { EducationControl } from "@/lib/frontend/simulator/v2/education-widgets"
+import { ManualDownloadButton } from "@/lib/frontend/simulator/v2/manual-download-button"
 
 function EducationControlMount() {
   return (
-    <div className="ml-auto">
+    <div className="ml-auto flex items-center gap-2">
+      <ManualDownloadButton />
       <EducationControl />
     </div>
   )
