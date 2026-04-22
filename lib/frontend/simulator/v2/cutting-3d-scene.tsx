@@ -43,6 +43,8 @@ const CAMERA_POS_END: [number, number, number] = [80, 60, 100]
 const CAMERA_FOV = 28
 const CAMERA_DOLLY_SEC = 3.0
 const DPR_RANGE: [number, number] = [1, 2]
+// Mobile: save GPU — cap DPR lower so the canvas rasterizes fewer pixels.
+const DPR_RANGE_MOBILE: [number, number] = [1, 1.25]
 
 const FOG_NEAR = 100
 const FOG_FAR = 400
@@ -72,6 +74,8 @@ const FEED_VISUAL_MULT = 0.08
 
 // 칩 파티클 — 200 live cap, ballistic + tumbling + bounce
 const MAX_CHIPS = 200
+// Mobile: hard cap to 80 to reduce GPU/CPU load on phone browsers.
+const MAX_CHIPS_MOBILE = 80
 const CHIP_LIFETIME_SEC = 1.6
 const CHIP_SPAWN_HZ_MAX = 160
 const CHIP_GRAVITY = -9.8            // world units/s² (1 unit ≈ 1 mm, scene scale factor applied below)
@@ -179,6 +183,13 @@ export interface Cutting3DSceneProps {
    * overheat glow at high wear). Default 0.
    */
   wearLevel?: number
+  /**
+   * Optional parent-owned ref that receives the underlying `<canvas>` element
+   * once r3f has mounted its WebGL renderer. Consumers (e.g., VideoRecorder)
+   * can then call `canvas.captureStream()` without the scene having to expose
+   * any imperative handle. Write-only from this component's perspective.
+   */
+  canvasRef?: React.RefObject<HTMLCanvasElement | null>
 }
 
 // ─────────────────────────────────────────────
@@ -1338,8 +1349,22 @@ function InnerScene(props: InnerSceneProps) {
     sliceAxis = "z",
     sliceOffset = 0,
     wearLevel = 0,
+    canvasRef,
   } = props
   const { gl } = useThree()
+
+  // Expose the underlying WebGL canvas to the parent on mount so features like
+  // <VideoRecorder> can call `canvas.captureStream()`. Write-only: we clear the
+  // ref on unmount so the parent never holds onto a disposed DOM node.
+  useEffect(() => {
+    if (!canvasRef) return
+    canvasRef.current = gl.domElement
+    return () => {
+      if (canvasRef.current === gl.domElement) {
+        canvasRef.current = null
+      }
+    }
+  }, [canvasRef, gl])
 
   // Build a stable THREE.Plane whose normal corresponds to the requested axis.
   // `constant` is taken as the user-supplied offset in world mm (0 = through origin).
@@ -1399,8 +1424,13 @@ function InnerScene(props: InnerSceneProps) {
   const gridMajor = darkMode ? GRID_MAJOR_DARK : GRID_MAJOR_LIGHT
   const gridMinor = darkMode ? GRID_MINOR_DARK : GRID_MINOR_LIGHT
 
-  // 모바일/reducedMotion일 때 파티클 축소
-  const chipBudget = reducedMotion || isMobile ? Math.floor(MAX_CHIPS * 0.5) : MAX_CHIPS
+  // 모바일/reducedMotion일 때 파티클 축소 — mobile hard-caps to MAX_CHIPS_MOBILE (80)
+  // per the mobile-optimization spec; reducedMotion keeps the 50 % desktop fallback.
+  const chipBudget = isMobile
+    ? MAX_CHIPS_MOBILE
+    : reducedMotion
+      ? Math.floor(MAX_CHIPS * 0.5)
+      : MAX_CHIPS
   const sparkBudget = reducedMotion || isMobile ? Math.floor(MAX_SPARKS * 0.5) : MAX_SPARKS
 
   return (
@@ -1833,12 +1863,17 @@ export default function Cutting3DScene(props: Cutting3DSceneProps) {
   // Environment: 모바일에서는 가벼운 버전 위해 skip 가능 (성능), reducedMotion도 skip
   const enableEnvironment = !isMobile && !reducedMotion
 
+  // Mobile tuning: 60vh canvas (vs desktop fixed px from `height` prop) so the
+  // 3D scene never overflows phone viewports. DPR capped at 1.25 to save GPU.
+  const canvasHeight: string | number = isMobile ? "60vh" : height
+  const canvasDpr = isMobile ? DPR_RANGE_MOBILE : DPR_RANGE
+
   return (
     <div
       style={{
         position: "relative",
         width: "100%",
-        height,
+        height: canvasHeight,
         borderRadius: 12,
         overflow: "hidden",
         background: darkMode ? BG_DARK : BG_LIGHT,
@@ -1847,7 +1882,7 @@ export default function Cutting3DScene(props: Cutting3DSceneProps) {
     >
       <Canvas
         shadows
-        dpr={DPR_RANGE}
+        dpr={canvasDpr}
         camera={{ position: CAMERA_POS_END, fov: CAMERA_FOV }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         performance={{ min: 0.5 }}
