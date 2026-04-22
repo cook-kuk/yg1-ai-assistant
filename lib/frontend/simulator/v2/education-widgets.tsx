@@ -351,7 +351,10 @@ export function EduTheater() {
 export function EducationControl() {
   const edu = useEducation()
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (!open) return
@@ -362,19 +365,23 @@ export function EducationControl() {
     return () => document.removeEventListener("mousedown", onClick)
   }, [open])
 
+  // SSR/초기 렌더는 항상 OFF 상태로 그린다 → hydration mismatch 방지
+  const isEnabledForRender = mounted && edu.enabled
+
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} suppressHydrationWarning>
       <button type="button" onClick={() => setOpen(o => !o)}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-          edu.enabled
+          isEnabledForRender
             ? "border-amber-400 bg-amber-50 text-amber-800"
             : "border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
         }`}
         aria-label="교육 모드 설정"
         aria-expanded={open}
+        suppressHydrationWarning
       >
         <BookOpen className="h-3.5 w-3.5" />
-        🎓 교육 모드 {edu.enabled ? "ON" : "OFF"}
+        🎓 교육 모드 {isEnabledForRender ? "ON" : "OFF"}
         <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       {open && (

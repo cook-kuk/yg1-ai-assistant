@@ -72,6 +72,7 @@ import ToolPathScene from "./tool-path-scene"
 import VibrationOscilloscope from "./vibration-oscilloscope"
 import TemperatureHeatmap from "./temperature-heatmap"
 import ForceVectorDiagram from "./force-vector-diagram"
+import { copyText } from "./clipboard-util"
 import { generateGCode } from "./gcode-gen"
 // STEP 4·5·6 신규 컴포넌트
 import { ProvenancePanel } from "./provenance-panel"
@@ -845,12 +846,9 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   // Share current URL
   const shareUrl = async () => {
     if (typeof window === "undefined") return
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      toast.success("링크 복사됨")
-    } catch {
-      toast.error("복사 실패 — 주소창에서 직접 복사")
-    }
+    const ok = await copyText(window.location.href)
+    if (ok) toast.success("링크 복사됨")
+    else toast.error("복사 실패 — 주소창에서 직접 복사")
   }
 
   // Snapshot for A/B compare
@@ -1927,11 +1925,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     <button key={d} onClick={() => setGcodeDialect(d)}
                       className={`text-[9px] px-1.5 py-0.5 rounded ${gcodeDialect === d ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>{d}</button>
                   ))}
-                  <button onClick={() => {
-                    void navigator.clipboard.writeText(generateGCode({
+                  <button onClick={async () => {
+                    const ok = await copyText(generateGCode({
                       n: result.n, Vf: result.Vf, ap, ae, D: diameter, toolNo: 1, dialect: gcodeDialect, coolant: coolant as any,
                     }))
-                    toast.success("GCode 복사됨")
+                    if (ok) toast.success("GCode 복사됨")
+                    else toast.error("복사 실패")
                   }} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-600 text-white">Copy</button>
                 </div>
               </div>
