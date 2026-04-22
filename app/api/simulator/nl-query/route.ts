@@ -15,6 +15,8 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import * as Sentry from "@sentry/nextjs"
+import { logApiRequest, logApiError, logApiLatency } from "@/lib/logger/sim-logger"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -87,6 +89,9 @@ function extractJson(text: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const started = Date.now()
+  logApiRequest("/api/simulator/nl-query", "POST")
+  try {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return NextResponse.json(
@@ -126,6 +131,7 @@ export async function POST(req: NextRequest) {
       .join("")
       .trim()
   } catch (err) {
+    try { Sentry.captureException(err) } catch {}
     const msg =
       err instanceof Anthropic.APIError
         ? `Anthropic ${err.status ?? ""}: ${err.message}`
@@ -170,5 +176,10 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  logApiLatency("/api/simulator/nl-query", Date.now() - started)
   return NextResponse.json(parsed)
+  } catch (err) {
+    logApiError("/api/simulator/nl-query", err)
+    throw err
+  }
 }

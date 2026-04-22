@@ -321,6 +321,7 @@ export function WelcomeModal({
                     className={`mt-3 flex items-center gap-2 text-[11px] font-mono ${
                       darkMode ? "text-slate-300" : "text-slate-700"
                     }`}
+                    aria-label={`추천 조건 Vc ${preset.params.Vc}, 이송 fz ${preset.params.fz}`}
                   >
                     <span
                       className={`px-1.5 py-0.5 rounded ${
@@ -352,13 +353,13 @@ export function WelcomeModal({
 
         {/* 푸터 */}
         <div
-          className={`px-6 py-3 flex items-center justify-between text-xs border-t ${
+          className={`px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs border-t ${
             darkMode
               ? "border-slate-700 bg-slate-900/60 text-slate-400"
               : "border-slate-200 bg-slate-50 text-slate-600"
           }`}
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span aria-hidden="true">💡</span>
             <span>
               나중에 <Keyboard className="inline w-3.5 h-3.5 mx-0.5 align-text-bottom" />{" "}

@@ -343,7 +343,7 @@ export default function FavoritesPanel({
   const subtleCls = darkMode ? "text-slate-400" : "text-slate-500"
   const inputCls = darkMode
     ? "w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-[12px] text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
-    : "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-[12px] text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none"
+    : "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-[12px] text-slate-800 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
   const btnPrimary = darkMode
     ? "inline-flex items-center gap-1 rounded-md border border-amber-600 bg-amber-700/40 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-700/60"
     : "inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-200"
@@ -371,7 +371,7 @@ export default function FavoritesPanel({
           {entries.length}
         </span>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={handleImportClick}
@@ -401,6 +401,7 @@ export default function FavoritesPanel({
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
+            aria-label="북마크 JSON 파일 가져오기"
             className="hidden"
             onChange={handleImportFile}
           />
@@ -415,6 +416,7 @@ export default function FavoritesPanel({
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="🔍 이름, 메모, 태그 검색…"
+            aria-label="북마크 검색 (이름, 메모, 태그)"
             className={inputCls}
           />
           {allTags.length > 0 && (
@@ -582,7 +584,7 @@ function FavoriteCard({
           <ConditionSummary entry={entry} darkMode={darkMode} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <button
             type="button"
             onClick={onApply}
@@ -604,8 +606,9 @@ function FavoriteCard({
                 : "rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10.5px] font-medium text-slate-600 hover:bg-slate-100"
             }
             title="이름·메모·태그 편집"
+            aria-label={`${entry.name} 편집`}
           >
-            ✏
+            <span aria-hidden>✏</span>
           </button>
           <button
             type="button"
@@ -616,8 +619,9 @@ function FavoriteCard({
                 : "rounded-md border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10.5px] font-medium text-rose-700 hover:bg-rose-100"
             }
             title="북마크 삭제"
+            aria-label={`${entry.name} 삭제`}
           >
-            🗑
+            <span aria-hidden>🗑</span>
           </button>
         </div>
       </div>
@@ -643,7 +647,7 @@ function FavoriteCard({
       {/* 3행: note */}
       {entry.note && (
         <p
-          className={`text-xs leading-snug ${
+          className={`text-xs leading-snug break-words ${
             darkMode ? "text-slate-400" : "text-slate-500"
           }`}
         >
@@ -671,17 +675,17 @@ function ConditionSummary({
   const metaCls = darkMode ? "text-slate-400" : "text-slate-500"
 
   return (
-    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10.5px]">
-      <span className={metaCls}>
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10.5px] min-w-0">
+      <span className={`${metaCls} truncate max-w-full`}>
         {entry.isoGroup || "?"}
         {entry.operation ? ` · ${entry.operation}` : ""}
         {entry.coating ? ` · ${entry.coating}` : ""}
       </span>
-      <span className={chipCls}>Vc {entry.Vc.toFixed(0)}</span>
-      <span className={chipCls}>fz {entry.fz.toFixed(3)}</span>
-      <span className={chipCls}>ap {entry.ap.toFixed(2)}</span>
-      <span className={chipCls}>ae {entry.ae.toFixed(2)}</span>
-      <span className={chipCls}>
+      <span className={`${chipCls} whitespace-nowrap`}>Vc {entry.Vc.toFixed(0)}</span>
+      <span className={`${chipCls} whitespace-nowrap`}>fz {entry.fz.toFixed(3)}</span>
+      <span className={`${chipCls} whitespace-nowrap`}>ap {entry.ap.toFixed(2)}</span>
+      <span className={`${chipCls} whitespace-nowrap`}>ae {entry.ae.toFixed(2)}</span>
+      <span className={`${chipCls} whitespace-nowrap`}>
         ⌀{entry.diameter.toFixed(1)}/{entry.fluteCount}F
       </span>
     </div>
@@ -756,7 +760,7 @@ function FavoriteModal({
     : "text-[11px] font-semibold text-slate-600"
   const inputCls = darkMode
     ? "w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-[12px] text-slate-100 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
-    : "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[12px] text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:outline-none"
+    : "w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[12px] text-slate-800 placeholder-slate-500 focus:border-amber-500 focus:outline-none"
   const metaCls = darkMode ? "text-slate-400" : "text-slate-500"
 
   const preview = initial ?? { ...currentState }
@@ -767,7 +771,7 @@ function FavoriteModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={mode === "edit" ? "북마크 편집" : "북마크 추가"}
+      aria-labelledby="yg1-fav-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={onCancel}
     >
@@ -775,7 +779,10 @@ function FavoriteModal({
         className={`w-full max-w-md rounded-xl border p-4 shadow-2xl ${panelCls} yg1-fav-slide-in`}
         onClick={e => e.stopPropagation()}
       >
-        <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <h4
+          id="yg1-fav-modal-title"
+          className="mb-3 flex items-center gap-2 text-sm font-semibold"
+        >
           <span aria-hidden>{mode === "edit" ? "✏" : "⭐"}</span>
           {mode === "edit" ? "북마크 편집" : "현재 조건을 북마크로 저장"}
         </h4>

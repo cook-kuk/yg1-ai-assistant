@@ -325,6 +325,9 @@ function NicknameModal({ open, onClose, onConfirm, darkMode }: NicknameModalProp
             className={`w-full max-w-sm rounded-xl border shadow-2xl ${
               darkMode ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"
             }`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="yg1-bench-nick-title"
             initial={{ opacity: 0, scale: 0.95, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
@@ -336,6 +339,7 @@ function NicknameModal({ open, onClose, onConfirm, darkMode }: NicknameModalProp
               }`}
             >
               <h3
+                id="yg1-bench-nick-title"
                 className={`text-sm font-semibold ${darkMode ? "text-slate-100" : "text-slate-900"}`}
               >
                 이 조건 등록
@@ -353,6 +357,7 @@ function NicknameModal({ open, onClose, onConfirm, darkMode }: NicknameModalProp
             </div>
             <div className="px-4 py-4 space-y-3">
               <label
+                htmlFor="yg1-bench-nick-input"
                 className={`block text-xs font-medium ${
                   darkMode ? "text-slate-300" : "text-slate-700"
                 }`}
@@ -360,6 +365,7 @@ function NicknameModal({ open, onClose, onConfirm, darkMode }: NicknameModalProp
                 닉네임 (선택)
               </label>
               <input
+                id="yg1-bench-nick-input"
                 ref={inputRef}
                 type="text"
                 value={value}
@@ -372,7 +378,7 @@ function NicknameModal({ open, onClose, onConfirm, darkMode }: NicknameModalProp
                 className={`w-full px-3 py-2 rounded-md border text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                   darkMode
                     ? "bg-slate-800 border-slate-600 text-slate-100 placeholder-slate-500"
-                    : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
+                    : "bg-white border-slate-300 text-slate-900 placeholder-slate-500"
                 }`}
               />
               <p className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
@@ -718,7 +724,10 @@ export function BenchmarkLeaderboard({
 
                     {/* Condition mini */}
                     <div className="flex-1 min-w-0">
-                      <div className={`text-xs ${subFg} truncate`}>
+                      <div
+                        className={`text-xs ${subFg} truncate`}
+                        title={`Vc ${fmtNum(r.entry.Vc, 0)} · fz ${fmtNum(r.entry.fz, 3)} · ap ${fmtNum(r.entry.ap, 2)} · ae ${fmtNum(r.entry.ae, 2)} · Ø${fmtNum(r.entry.diameter, 1)}/${r.entry.fluteCount}F`}
+                      >
                         <span className="font-medium">
                           Vc {fmtNum(r.entry.Vc, 0)}
                         </span>
@@ -733,7 +742,7 @@ export function BenchmarkLeaderboard({
                           Ø{fmtNum(r.entry.diameter, 1)}/{r.entry.fluteCount}F
                         </span>
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <span
                           className={`text-[11px] px-1.5 py-0.5 rounded ${chipBg} truncate max-w-[50%]`}
                           title={r.entry.nickname || "익명"}
@@ -754,11 +763,11 @@ export function BenchmarkLeaderboard({
                     </div>
 
                     {/* Metric value */}
-                    <div className="flex-none text-right">
-                      <div className={`font-mono text-sm font-semibold ${activeTone.text}`}>
+                    <div className="flex-none text-right max-w-[40%]">
+                      <div className={`truncate font-mono text-sm font-semibold ${activeTone.text}`} title={meta.format(value)}>
                         {meta.format(value)}
                       </div>
-                      <div className={`text-[10px] ${subFg}`}>{meta.unit}</div>
+                      <div className={`truncate text-[10px] ${subFg}`}>{meta.unit}</div>
                     </div>
 
                     {/* NEW! badge */}
@@ -825,6 +834,7 @@ export function BenchmarkLeaderboard({
             ref={fileInputRef}
             type="file"
             accept="application/json,.json"
+            aria-label="리더보드 JSON 파일 가져오기"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]

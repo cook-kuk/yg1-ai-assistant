@@ -7,6 +7,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Pino worker (thread-stream) + pdfjs-dist/canvas 등 서버 전용 패키지는 번들에서 제외
+  serverExternalPackages: [
+    "pino",
+    "pino-pretty",
+    "thread-stream",
+    "pdfjs-dist",
+    "canvas",
+    "@sentry/nextjs",
+  ],
   // v3 성능 감사 (2026-04-22, docs/V3_PERFORMANCE_AUDIT.md) 반영
   experimental: {
     // barrel import 를 모듈 단위로 풀어 트리쉐이킹 강화

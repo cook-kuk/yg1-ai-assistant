@@ -19,6 +19,8 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import * as Sentry from "@sentry/nextjs"
+import { logApiRequest, logApiError, logApiLatency } from "@/lib/logger/sim-logger"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -216,6 +218,9 @@ function validateResult(
 }
 
 export async function POST(req: NextRequest) {
+  const started = Date.now()
+  logApiRequest("/api/simulator/optimize", "POST")
+  try {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return NextResponse.json(
@@ -295,8 +300,10 @@ export async function POST(req: NextRequest) {
     // current는 서버에서 실제 state 값으로 덮어써서 신뢰성 보장
     result.current = current
 
+    logApiLatency("/api/simulator/optimize", Date.now() - started)
     return NextResponse.json(result)
   } catch (err) {
+    try { Sentry.captureException(err) } catch {}
     const msg =
       err instanceof Anthropic.APIError
         ? `Anthropic ${err.status ?? ""}: ${err.message}`
@@ -304,5 +311,9 @@ export async function POST(req: NextRequest) {
           ? err.message
           : String(err)
     return NextResponse.json({ error: msg }, { status: 500 })
+  }
+  } catch (err) {
+    logApiError("/api/simulator/optimize", err)
+    throw err
   }
 }

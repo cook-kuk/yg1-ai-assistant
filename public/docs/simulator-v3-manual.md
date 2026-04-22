@@ -295,3 +295,61 @@ RPM = 3.82 × 1568 / 0.5 = 11981
 Sandvik Coromant Manufacturing Handbook · Harvey Performance Machining Advisor Pro · Helical Solutions Technical Data · Kennametal NOVO · ASM Metals Handbook Vol.1/2/16 · F.W. Taylor "On the Art of Cutting Metals" (1907) · Altintas Manufacturing Automation (2012) · Trent & Wright Metal Cutting (2000) · Shaw Metal Cutting Principles (2005) · Astakhov Tribology of Metal Cutting (2006) · ISO 513:2012 · ISO 3685 · ISO 6743-7 · DIN 69893 · JIS B 6339 · ANSI B5.50
 
 *v3.0 릴리스 2026-04-22 · YG-1 ARIA*
+
+## ─────────────────────────────────────────────
+## 2026-04-22 업데이트 · 신규 50+ 기능
+## ─────────────────────────────────────────────
+
+### 🤖 AI 기능 6종
+- **AI 코치**: 현재 조건 Sandvik/Harvey 표준으로 진단·조언 (한국어 스트리밍)
+- **AI 검색바**: "알루미늄 빠르게" 자연어 → 자동 프리셋 (Ctrl+K도 사용)
+- **🎤 음성 입력**: 마이크에 말하면 AI가 자동 분석
+- **1-click 최적화**: 목표(생산성/수명/품질/비용) 선택 → AI 최적 조건 제안
+- **자율 에이전트**: 6회 자동 반복 실험 → 최고 조건 발견
+- **AI 채팅**: 우측 FAB 💬 · multi-turn 대화 · 50턴 기록
+
+### 🎨 비주얼 시뮬레이션 15종
+- **🎮 3D 씬 (WebGL)**: three.js 기반 실제 회전·드래그·줌 가능 가공 시뮬
+- **📐 YG-1 기술 도면 + 갤러리**: 6종 엔드밀 도면 선택 → 조건 자동 적용
+- **🎬 실시간 절삭**: 칩·스파크·진동 파티클 애니메이션
+- **🗺 가공 경로**: zigzag/spiral/trochoidal/adaptive
+- **📡 진동 오실로스코프**: RPM 기반 CRT 스타일 파형
+- **🌡 온도 히트맵**: Blok 모델 기반 열 분포
+- **➡ 절삭력 벡터**: Ft/Fr/Fa 실시간 3D 화살표
+- **🎛 아날로그 게이지**: 자동차 계기판 스타일
+- **✨ 영웅 KPI 디스플레이**: 거대 RPM/MRR/Pc/수명 카드
+
+### 🎓 학습 도구 7개
+- **📚 용어사전**: 112 entry 검색 (/simulator_v2/glossary)
+- **🧙 초보자 위저드**: 5 단계 질문 → 프리셋
+- **🎯 튜토리얼**: 9 단계 spotlight 투어
+- **💡 오늘의 팁**: 15개 레슨 자동 로테이션
+- **📋 치트시트**: 재질·코팅·실수 TOP 10 매트릭스
+- **📖 FeatureExplainer 47개**: 모든 기능 "자세히" 접이식
+- **🎥 YG-1 영상**: 재질별 YouTube 큐레이션
+
+### 💾 출력·공유
+- **📄 가공 지시서 PDF**: A4 4p + 결재란 + QR
+- **📋 작업장 카드 PDF**: A6 1장 핵심 5 지표 + QR
+- **💾 G-code 실파일**: Fanuc/Heidenhain/Siemens
+- **📦 세션 Export**: JSON/Excel (4 시트)
+- **⭐ 즐겨찾기**: 로컬스토리지 북마크
+- **🏆 리더보드**: 3 카테고리 TOP 10
+- **📊 Before/After**: AI 최적화 전후 비교
+
+### ⚙ 조작법
+- **단축키**: ⌨ 버튼 또는 `?` 키
+- **Undo/Redo**: Ctrl+Z / Ctrl+Y (50개 히스토리)
+- **스냅샷**: Ctrl+S (A) / Ctrl+Shift+S (B)
+- **명령 팔레트**: Ctrl+K
+- **PDF 다운로드**: Ctrl+P
+
+### 🏷 벤더 출처 (투명성)
+- 38 기능에 출처 태그
+- 17개 YG-1 Original ✨
+- Harvey/Sandvik/Walter/ISCAR/Kennametal 영감 명시
+
+### 📱 반응형
+- 모바일 (360px+): 핵심 기능 사용 가능
+- 태블릿 (768px+): 2x2 그리드
+- 데스크탑 (1024px+): 풀 기능

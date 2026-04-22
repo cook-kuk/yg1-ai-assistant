@@ -400,9 +400,10 @@ export function AiAutoAgentPanel({
             <button
               type="button"
               onClick={cancel}
+              aria-label="자율 에이전트 중단"
               className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-white/15 hover:bg-white/25 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/30"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
               중단
             </button>
           )}
@@ -491,6 +492,11 @@ export function AiAutoAgentPanel({
                 className={`h-2 rounded-full overflow-hidden ${
                   darkMode ? "bg-slate-800" : "bg-slate-100"
                 }`}
+                role="progressbar"
+                aria-valuenow={Math.min(currentIter, iterations)}
+                aria-valuemin={0}
+                aria-valuemax={iterations}
+                aria-label={`자율 에이전트 진행도 ${Math.min(currentIter, iterations)} / ${iterations}`}
               >
                 <motion.div
                   className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500"
@@ -530,7 +536,7 @@ export function AiAutoAgentPanel({
                   ) : (
                     <span
                       className={
-                        darkMode ? "text-slate-500" : "text-slate-400"
+                        darkMode ? "text-slate-500" : "text-slate-500"
                       }
                     >
                       사고 스트림 대기 중...
@@ -579,7 +585,7 @@ export function AiAutoAgentPanel({
                   {history.length === 0 && (
                     <div
                       className={`rounded-lg py-6 text-center text-xs ${
-                        darkMode ? "text-slate-500" : "text-slate-400"
+                        darkMode ? "text-slate-500" : "text-slate-500"
                       }`}
                     >
                       첫 iteration 대기 중...
@@ -725,11 +731,12 @@ function GoalSetup({
           step={1}
           value={iterations}
           onChange={(e) => onIterations(Number(e.target.value))}
+          aria-label={`실험 횟수 ${iterations}회 (최소 3, 최대 8)`}
           className="w-full accent-violet-500"
         />
         <div
           className={`flex justify-between text-[10px] mt-0.5 ${
-            darkMode ? "text-slate-500" : "text-slate-400"
+            darkMode ? "text-slate-500" : "text-slate-600"
           }`}
         >
           <span>3</span>
@@ -812,6 +819,11 @@ function IterationCard({
           className={`grow h-1.5 rounded-full overflow-hidden ${
             darkMode ? "bg-slate-900" : "bg-slate-100"
           }`}
+          role="progressbar"
+          aria-valuenow={scorePct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`iteration ${iter.n} score ${scorePct} / 100`}
         >
           <motion.div
             className={`h-full rounded-full ${
@@ -960,7 +972,7 @@ function FinalView({
 
       <div className="p-4 space-y-4">
         {/* Param grid */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {rows.map((p) => (
             <div
               key={p}
@@ -1170,7 +1182,7 @@ function ScoreChart({
       </svg>
       <div
         className={`flex justify-between text-[10px] font-mono mt-0.5 ${
-          darkMode ? "text-slate-500" : "text-slate-400"
+          darkMode ? "text-slate-500" : "text-slate-600"
         }`}
       >
         {points.map((_, i) => (

@@ -407,7 +407,7 @@ export function BeginnerWizard({
 
       {/* card */}
       <div
-        className={`relative max-w-2xl w-full rounded-2xl shadow-2xl overflow-hidden ${cardBgCls}`}
+        className={`relative max-w-2xl w-full max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl ${cardBgCls}`}
       >
         {/* 그라디언트 헤더 */}
         <div
@@ -437,7 +437,14 @@ export function BeginnerWizard({
           </div>
 
           {/* 진행 표시줄 */}
-          <div className="mt-4 flex items-center gap-1.5" aria-hidden="true">
+          <div
+            className="mt-4 flex items-center gap-1.5"
+            role="progressbar"
+            aria-valuenow={step}
+            aria-valuemin={1}
+            aria-valuemax={5}
+            aria-label={`진행 단계 ${step} / 5`}
+          >
             {[1, 2, 3, 4, 5].map((n) => {
               const isDone = n < step
               const isCurrent = n === step
@@ -461,7 +468,7 @@ export function BeginnerWizard({
         </div>
 
         {/* 본문 */}
-        <div className="px-6 py-5 min-h-[360px] relative overflow-hidden">
+        <div className="px-4 sm:px-6 py-5 min-h-[360px] relative overflow-hidden">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={step}
@@ -525,13 +532,13 @@ export function BeginnerWizard({
 
         {/* 하단 버튼 */}
         <div
-          className={`px-6 py-4 flex items-center justify-between gap-2 border-t ${
+          className={`px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 border-t ${
             darkMode
               ? "border-slate-700 bg-slate-900/60"
               : "border-slate-200 bg-slate-50"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handlePrev}
@@ -563,7 +570,7 @@ export function BeginnerWizard({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -661,6 +668,8 @@ function StepMaterial({
               onMouseLeave={() => onHover(null)}
               onFocus={() => onHover(m.key)}
               onBlur={() => onHover(null)}
+              aria-pressed={isSelected}
+              aria-label={`ISO ${m.key} ${m.title} 선택 — ${m.description}`}
               className={`group relative text-left rounded-xl p-3 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${m.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
@@ -713,7 +722,7 @@ function StepMaterial({
               : "bg-slate-50 text-slate-700 ring-1 ring-slate-200"
             : darkMode
               ? "bg-slate-900/40 text-slate-500"
-              : "bg-slate-50/40 text-slate-400"
+              : "bg-slate-50/40 text-slate-600"
         }`}
       >
         {focus ? (
@@ -762,6 +771,8 @@ function StepOperation({ darkMode, selected, onSelect }: StepOperationProps) {
               key={o.key}
               type="button"
               onClick={() => onSelect(o.key)}
+              aria-pressed={isSelected}
+              aria-label={`${o.title} 선택 — ${o.hint}`}
               className={`text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${o.gradient} text-white shadow-lg ring-2 ring-white scale-[1.01]`
@@ -898,6 +909,8 @@ function StepDiameter({ darkMode, value, onChange }: StepDiameterProps) {
                   key={d}
                   type="button"
                   onClick={() => onChange(d)}
+                  aria-pressed={isActive}
+                  aria-label={`공구 지름 ${d} 밀리미터 선택`}
                   className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
                     isActive
                       ? "bg-violet-500 text-white shadow"
@@ -994,6 +1007,8 @@ function StepPriority({ darkMode, selected, onSelect }: StepPriorityProps) {
               key={p.key}
               type="button"
               onClick={() => onSelect(p.key)}
+              aria-pressed={isSelected}
+              aria-label={`${p.title} 우선 — ${p.description}`}
               className={`text-left rounded-xl p-4 transition-all duration-200 focus:outline-none ${
                 isSelected
                   ? `bg-gradient-to-br ${p.gradient} text-white shadow-lg ring-2 ring-white scale-[1.02]`
@@ -1191,7 +1206,7 @@ function SummaryItem({
     >
       <div
         className={`text-[10px] font-semibold uppercase tracking-wider ${
-          darkMode ? "text-slate-500" : "text-slate-400"
+          darkMode ? "text-slate-500" : "text-slate-600"
         }`}
       >
         {label}

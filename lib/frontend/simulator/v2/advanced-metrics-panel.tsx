@@ -98,21 +98,21 @@ function SectionShell({
 }) {
   return (
     <div
-      className={`rounded-lg border p-3 ${
+      className={`flex h-full flex-col rounded-lg border p-3 min-w-0 ${
         darkMode
           ? "border-slate-700 bg-slate-800"
           : "border-slate-200 bg-white"
       }`}
     >
       <div
-        className={`mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide ${
+        className={`mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide min-w-0 ${
           darkMode ? "text-slate-300" : "text-slate-600"
         }`}
       >
-        <span className="text-base leading-none" aria-hidden>{icon}</span>
-        <span>{title}</span>
+        <span className="text-base leading-none flex-shrink-0" aria-hidden>{icon}</span>
+        <span className="truncate">{title}</span>
       </div>
-      {children}
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
@@ -161,23 +161,24 @@ function MiniKpi({
 }) {
   return (
     <div
-      className={`flex flex-col rounded-md border px-2.5 py-1.5 ${
+      className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
         darkMode
           ? "border-slate-700 bg-slate-800/60"
           : "border-slate-200 bg-white"
       }`}
     >
       <span
-        className={`text-[10px] uppercase tracking-wide ${
+        className={`truncate text-[10px] uppercase tracking-wide ${
           darkMode ? "text-slate-400" : "text-slate-500"
         }`}
       >
         {label}
       </span>
       <span
-        className={`font-mono tabular-nums text-sm font-semibold ${
+        className={`truncate font-mono tabular-nums text-sm font-semibold ${
           darkMode ? "text-slate-100" : "text-slate-800"
         }`}
+        title={`${value}${unit ? ` ${unit}` : ""}`}
       >
         {value}
         {unit && (
@@ -578,7 +579,7 @@ function BueSection({ bue, darkMode }: { bue: BueRisk; darkMode: boolean }) {
       </div>
 
       {bue.message && (
-        <div className={`mt-2 text-[11px] leading-snug ${
+        <div className={`mt-2 text-[11px] leading-snug break-words ${
           darkMode ? "text-slate-300" : "text-slate-600"
         }`}>
           {bue.message}
@@ -617,12 +618,12 @@ function ChipMorphSection({
           {chip.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm font-semibold ${
+          <div className={`truncate text-sm font-semibold ${
             darkMode ? "text-slate-100" : "text-slate-800"
           }`}>
             {typeLabel[chip.type]}
           </div>
-          <div className={`mt-0.5 text-[11px] leading-snug ${
+          <div className={`mt-0.5 text-[11px] leading-snug break-words ${
             darkMode ? "text-slate-300" : "text-slate-600"
           }`}>
             {chip.reason}
@@ -709,29 +710,29 @@ export function AdvancedMetricsPanel({
       {!expanded && (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div
-            className={`flex flex-col rounded-md border px-2.5 py-1.5 ${
+            className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
               darkMode
                 ? "border-slate-700 bg-slate-800/60"
                 : "border-slate-200 bg-white"
             }`}
           >
             <span
-              className={`text-[10px] uppercase tracking-wide ${
+              className={`truncate text-[10px] uppercase tracking-wide ${
                 darkMode ? "text-slate-400" : "text-slate-500"
               }`}
             >
               칩 온도
             </span>
-            <span className="flex items-baseline gap-1">
+            <span className="flex items-baseline gap-1 min-w-0">
               <span
-                className={`font-mono tabular-nums text-sm font-semibold ${
+                className={`truncate font-mono tabular-nums text-sm font-semibold ${
                   darkMode ? "text-slate-100" : "text-slate-800"
                 }`}
               >
                 {fmt(heat.chipTempC, 0)}°C
               </span>
               <span
-                className={`rounded-full border px-1.5 text-[9px] font-semibold ${chipRiskCls}`}
+                className={`flex-shrink-0 whitespace-nowrap rounded-full border px-1.5 text-[9px] font-semibold ${chipRiskCls}`}
               >
                 {chipRiskBand === "green" ? "OK" : chipRiskBand === "amber" ? "주의" : "과열"}
               </span>
@@ -743,23 +744,23 @@ export function AdvancedMetricsPanel({
             darkMode={darkMode}
           />
           <div
-            className={`flex flex-col rounded-md border px-2.5 py-1.5 ${
+            className={`flex min-w-0 flex-col rounded-md border px-2.5 py-1.5 ${
               darkMode
                 ? "border-slate-700 bg-slate-800/60"
                 : "border-slate-200 bg-white"
             }`}
           >
             <span
-              className={`text-[10px] uppercase tracking-wide ${
+              className={`truncate text-[10px] uppercase tracking-wide ${
                 darkMode ? "text-slate-400" : "text-slate-500"
               }`}
             >
               칩 형상
             </span>
-            <span className="flex items-center gap-1">
-              <span className="text-base leading-none" aria-hidden>{chipMorph.icon}</span>
+            <span className="flex items-center gap-1 min-w-0">
+              <span className="flex-shrink-0 text-base leading-none" aria-hidden>{chipMorph.icon}</span>
               <span
-                className={`text-xs font-semibold ${
+                className={`truncate text-xs font-semibold ${
                   darkMode ? "text-slate-100" : "text-slate-800"
                 }`}
               >
@@ -778,7 +779,7 @@ export function AdvancedMetricsPanel({
 
       {/* 확장 상태: 6 sections */}
       {expanded && (
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
           <HeatSection heat={heat} darkMode={darkMode} />
           <RunoutSection runout={runout} darkMode={darkMode} />
           <HelixSection helix={helix} darkMode={darkMode} />

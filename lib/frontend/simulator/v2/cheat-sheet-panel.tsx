@@ -451,7 +451,7 @@ function CoatingsTab({
   darkMode: boolean
 }) {
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {COATING_TABLE.map(c => {
         const active = coatingMatches(c.name, currentCoating)
         const cardCls = active
@@ -464,19 +464,20 @@ function CoatingsTab({
         return (
           <div
             key={c.name}
-            className={`flex flex-col gap-1 rounded-lg border p-3 ${cardCls}`}
+            className={`flex h-full min-w-0 flex-col gap-1 rounded-lg border p-3 ${cardCls}`}
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 min-w-0">
               <span
-                className={`font-semibold ${
+                className={`truncate font-semibold min-w-0 ${
                   darkMode ? "text-slate-100" : "text-slate-800"
                 }`}
+                title={c.name}
               >
                 {active && <span className="mr-1" aria-hidden>💡</span>}
                 {c.name}
               </span>
               <span
-                className={`rounded-full border px-1.5 py-0.5 text-[10px] ${
+                className={`flex-shrink-0 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] ${
                   darkMode
                     ? "border-slate-600 text-slate-300"
                     : "border-slate-200 text-slate-500"
@@ -508,7 +509,7 @@ function CoatingsTab({
             </div>
 
             <ul
-              className={`mt-1 space-y-0.5 text-[11px] ${
+              className={`mt-1 space-y-0.5 text-[11px] break-words ${
                 darkMode ? "text-slate-300" : "text-slate-600"
               }`}
             >

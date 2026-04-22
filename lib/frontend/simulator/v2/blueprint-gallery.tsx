@@ -279,18 +279,18 @@ function GalleryCard({ tool, onOpen, onApply, darkMode }: GalleryCardProps) {
       </div>
 
       {/* 본문 */}
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className={`text-sm font-semibold ${textColor}`}>{tool.title}</div>
-        <div className={`text-xs leading-relaxed ${subText}`}>{tool.description}</div>
-        <div className={`text-[11px] ${subText} flex items-center gap-1`}>
-          <Wrench className="h-3 w-3" aria-hidden />
-          <span>{tool.bestFor}</span>
+      <div className="flex flex-1 flex-col gap-2 p-4 min-w-0">
+        <div className={`truncate text-sm font-semibold ${textColor}`} title={tool.title}>{tool.title}</div>
+        <div className={`text-xs leading-relaxed break-words ${subText}`}>{tool.description}</div>
+        <div className={`text-[11px] ${subText} flex items-center gap-1 min-w-0`}>
+          <Wrench className="h-3 w-3 flex-shrink-0" aria-hidden />
+          <span className="truncate">{tool.bestFor}</span>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2 min-w-0">
           <span
             className={[
-              "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+              "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
               badgeBg,
             ].join(" ")}
           >

@@ -250,6 +250,7 @@ export default function BreakEvenChart({
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: 12,
           marginBottom: 14,
+          alignItems: "stretch",
         }}
       >
         {/* 1) 현재 ₩/부품 — slate (neutral) */}
@@ -259,6 +260,10 @@ export default function BreakEvenChart({
             border: `1px solid ${slateBorder}`,
             borderRadius: 12,
             padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            overflow: "hidden",
           }}
         >
           <div
@@ -283,7 +288,12 @@ export default function BreakEvenChart({
               fontWeight: 700,
               color: slateFg,
               fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              minWidth: 0,
             }}
+            title={formatKrw(currentPoint.totalPerPart)}
           >
             {formatKrw(currentPoint.totalPerPart)}
           </div>
@@ -307,6 +317,10 @@ export default function BreakEvenChart({
             boxShadow: `0 0 0 2px ${darkMode ? "rgba(52,211,153,0.25)" : "rgba(52,211,153,0.35)"}`,
             borderRadius: 12,
             padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            overflow: "hidden",
           }}
         >
           <div
@@ -331,7 +345,12 @@ export default function BreakEvenChart({
               fontWeight: 700,
               color: emeraldFg,
               fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              minWidth: 0,
             }}
+            title={formatKrw(economic.totalPerPart)}
           >
             {formatKrw(economic.totalPerPart)}
           </div>
@@ -354,6 +373,10 @@ export default function BreakEvenChart({
             border: `1px solid ${moneyBorder}`,
             borderRadius: 12,
             padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+            overflow: "hidden",
           }}
         >
           <div
@@ -378,7 +401,12 @@ export default function BreakEvenChart({
               fontWeight: 700,
               color: moneyFg,
               fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              minWidth: 0,
             }}
+            title={`₩${monthlySavings.toLocaleString("ko-KR")}`}
           >
             ₩{monthlySavings.toLocaleString("ko-KR")}
           </div>
@@ -486,6 +514,8 @@ export default function BreakEvenChart({
           fontSize: 12,
           color: subFg,
           lineHeight: 1.5,
+          wordBreak: "keep-all",
+          overflowWrap: "break-word",
         }}
       >
         현재 <strong style={{ color: fg }}>{formatKrw(currentPoint.totalPerPart)}/부품</strong> · 경제점{" "}

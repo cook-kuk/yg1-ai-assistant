@@ -227,7 +227,7 @@ function MessageBubble({
   const assistantBubble = darkMode
     ? "bg-slate-800 text-slate-100 border border-slate-700"
     : "bg-slate-100 text-slate-900 border border-slate-200"
-  const timestampColor = darkMode ? "text-slate-500" : "text-slate-400"
+  const timestampColor = darkMode ? "text-slate-500" : "text-slate-500"
 
   return (
     <div
@@ -449,7 +449,7 @@ export function AiChatSidebar({
   const bodyBg = darkMode ? "bg-slate-950" : "bg-white"
   const inputBg = darkMode
     ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500"
-    : "bg-white border-slate-300 text-slate-900 placeholder-slate-400"
+    : "bg-white border-slate-300 text-slate-900 placeholder-slate-500"
   const iconBtn = darkMode
     ? "text-slate-300 hover:bg-slate-800 hover:text-white"
     : "text-slate-600 hover:bg-slate-200 hover:text-slate-900"
@@ -499,13 +499,17 @@ export function AiChatSidebar({
             transition={{ type: "tween", duration: 0.28, ease: "easeOut" }}
             className={`fixed right-0 top-0 bottom-0 z-[75] flex w-[400px] max-w-[90vw] flex-col border-l shadow-2xl ${panelBg}`}
             role="dialog"
-            aria-label="AI 채팅 어시스턴트"
+            aria-modal="true"
+            aria-labelledby="yg1-ai-chat-title"
           >
             {/* Header */}
             <header
               className={`flex items-center justify-between border-b px-4 py-3 ${headerBg}`}
             >
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <h2
+                id="yg1-ai-chat-title"
+                className="flex items-center gap-2 text-sm font-semibold"
+              >
                 <span aria-hidden="true">💬</span>
                 <span>AI 어시스턴트</span>
               </h2>
@@ -565,6 +569,7 @@ export function AiChatSidebar({
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="질문을 입력하세요 (Shift+Enter 줄바꿈)"
+                  aria-label="AI 질문 입력"
                   rows={2}
                   disabled={streaming}
                   className={`flex-1 resize-none rounded-lg border px-3 py-2 text-sm outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500 disabled:opacity-60 ${inputBg}`}
@@ -585,7 +590,7 @@ export function AiChatSidebar({
               </div>
               <p
                 className={`mt-1.5 text-[10px] ${
-                  darkMode ? "text-slate-500" : "text-slate-400"
+                  darkMode ? "text-slate-500" : "text-slate-500"
                 }`}
               >
                 현재 시뮬 조건이 매 요청에 함께 전송됩니다.

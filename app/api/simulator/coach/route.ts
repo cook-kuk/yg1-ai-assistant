@@ -14,8 +14,10 @@
 
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import * as Sentry from "@sentry/nextjs"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { logApiRequest, logApiError, logApiLatency } from "@/lib/logger/sim-logger"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -85,6 +87,9 @@ function buildUserPrompt(
 }
 
 export async function POST(req: NextRequest) {
+  const started = Date.now()
+  logApiRequest("/api/simulator/coach", "POST")
+  try {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return new Response(
@@ -164,6 +169,7 @@ export async function POST(req: NextRequest) {
           stop_reason: finalMessage.stop_reason,
         })
       } catch (err) {
+        try { Sentry.captureException(err) } catch {}
         const msg =
           err instanceof Anthropic.APIError
             ? `Anthropic ${err.status ?? ""}: ${err.message}`
@@ -177,7 +183,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return new Response(stream, {
+  const response = new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
@@ -185,4 +191,10 @@ export async function POST(req: NextRequest) {
       "X-Accel-Buffering": "no",
     },
   })
+  logApiLatency("/api/simulator/coach", Date.now() - started)
+  return response
+  } catch (err) {
+    logApiError("/api/simulator/coach", err)
+    throw err
+  }
 }

@@ -197,7 +197,7 @@ function HeroCard({
       variants={cardVariants}
       whileHover={{ y: -2 }}
       className={[
-        "relative rounded-2xl border-2 transition-shadow duration-200",
+        "relative flex h-full flex-col rounded-2xl border-2 transition-shadow duration-200",
         a.border,
         bg,
         a.glow,
@@ -206,19 +206,19 @@ function HeroCard({
         "hover:shadow-2xl",
       ].join(" ")}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 min-w-0">
         <span
           className={[
-            "text-[10px] font-bold uppercase tracking-[0.2em]",
+            "text-[10px] font-bold uppercase tracking-[0.2em] truncate min-w-0",
             darkMode ? "text-slate-300" : "text-slate-500",
           ].join(" ")}
         >
           {label}
         </span>
-        {icon ? <div className="opacity-80">{icon}</div> : null}
+        {icon ? <div className="opacity-80 flex-shrink-0">{icon}</div> : null}
       </div>
-      <div className="mt-2">{children}</div>
-      {footer ? <div className="mt-3">{footer}</div> : null}
+      <div className="mt-2 min-w-0">{children}</div>
+      {footer ? <div className="mt-auto pt-3 min-w-0">{footer}</div> : null}
     </motion.div>
   )
 }
@@ -459,7 +459,7 @@ export default function DashboardHeroDisplay({
         initial="hidden"
         animate="show"
         className={[
-          "relative z-0 grid gap-3 sm:gap-4",
+          "relative z-0 grid gap-3 sm:gap-4 items-stretch",
           compact ? "grid-cols-4" : "grid-cols-2 lg:grid-cols-4",
         ].join(" ")}
       >
@@ -482,18 +482,18 @@ export default function DashboardHeroDisplay({
             ) : null
           }
         >
-          <motion.div {...shakeAnim} className="flex items-baseline gap-2">
+          <motion.div {...shakeAnim} className="flex items-baseline gap-2 min-w-0">
             <AnimatedNumber
               value={rpm}
               decimals={0}
               className={[
                 numberBase,
-                "bg-gradient-to-br bg-clip-text text-transparent",
+                "bg-gradient-to-br bg-clip-text text-transparent truncate min-w-0",
                 ACCENT_STYLES.blue.textGrad,
                 "drop-shadow-[0_0_12px_rgba(56,189,248,0.35)]",
               ].join(" ")}
             />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 whitespace-nowrap">
               / {rpmMax.toLocaleString("ko-KR")}
             </span>
           </motion.div>
@@ -508,18 +508,18 @@ export default function DashboardHeroDisplay({
           icon={<Zap className="h-4 w-4 text-emerald-500 dark:text-emerald-300" />}
           footer={!compact ? <SparkLine /> : null}
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
             <AnimatedNumber
               value={mrr}
               decimals={2}
               className={[
                 numberBase,
-                "bg-gradient-to-br bg-clip-text text-transparent",
+                "bg-gradient-to-br bg-clip-text text-transparent truncate min-w-0",
                 ACCENT_STYLES.emerald.textGrad,
                 "drop-shadow-[0_0_12px_rgba(16,185,129,0.35)]",
               ].join(" ")}
             />
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="flex-shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
               cm³/min
             </span>
           </div>
@@ -568,18 +568,18 @@ export default function DashboardHeroDisplay({
             ) : null
           }
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
             <AnimatedNumber
               value={pc}
               decimals={2}
               className={[
                 numberBase,
-                "bg-gradient-to-br bg-clip-text text-transparent",
+                "bg-gradient-to-br bg-clip-text text-transparent truncate min-w-0",
                 ACCENT_STYLES.orange.textGrad,
                 "drop-shadow-[0_0_12px_rgba(249,115,22,0.35)]",
               ].join(" ")}
             />
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="flex-shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
               kW
             </span>
           </div>
@@ -608,18 +608,18 @@ export default function DashboardHeroDisplay({
             </div>
           }
         >
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 min-w-0">
             <AnimatedNumber
               value={toolLifeMin}
               decimals={0}
               className={[
                 numberBase,
-                "bg-gradient-to-br bg-clip-text text-transparent",
+                "bg-gradient-to-br bg-clip-text text-transparent truncate min-w-0",
                 ACCENT_STYLES.violet.textGrad,
                 "drop-shadow-[0_0_12px_rgba(139,92,246,0.35)]",
               ].join(" ")}
             />
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="flex-shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
               min
             </span>
           </div>

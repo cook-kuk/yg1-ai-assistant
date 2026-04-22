@@ -268,7 +268,7 @@ export function MultiToolCompare({
       </div>
 
       {/* 슬롯 그리드 */}
-      <div className={`grid gap-3 ${slots.length >= 4 ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-4"
+      <div className={`grid gap-3 items-stretch ${slots.length >= 4 ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-4"
         : slots.length === 3 ? "grid-cols-1 md:grid-cols-3"
         : slots.length === 2 ? "grid-cols-1 md:grid-cols-2"
         : "grid-cols-1"}`}>
@@ -333,9 +333,9 @@ function ToolSlotCard(props: {
     const isBest = activeIdx === bw.bestIdx && activeOnly.length >= 2
     const isWorst = activeIdx === bw.worstIdx && activeOnly.length >= 2 && bw.bestIdx !== bw.worstIdx
     return (
-      <div key={k} className="flex items-center justify-between text-xs py-0.5">
-        <span className="text-muted-foreground">{meta.label}</span>
-        <span className={`font-mono tabular-nums font-medium ${isBest ? "text-emerald-600 dark:text-emerald-400" : isWorst ? "text-rose-600 dark:text-rose-400" : ""}`}>
+      <div key={k} className="flex items-center justify-between gap-2 py-0.5 text-xs min-w-0">
+        <span className="truncate min-w-0 text-muted-foreground">{meta.label}</span>
+        <span className={`flex-shrink-0 whitespace-nowrap font-mono tabular-nums font-medium ${isBest ? "text-emerald-600 dark:text-emerald-400" : isWorst ? "text-rose-600 dark:text-rose-400" : ""}`}>
           {isBest && <span className="mr-1">🏆</span>}
           {isWorst && <span className="mr-1">🔻</span>}
           {formatNumber(val, meta.digits)} <span className="text-muted-foreground font-normal">{meta.unit}</span>
@@ -345,7 +345,7 @@ function ToolSlotCard(props: {
   }
 
   return (
-    <div className={`rounded-lg border p-3 flex flex-col gap-3 ${
+    <div className={`rounded-lg border p-3 flex h-full min-w-0 flex-col gap-3 ${
       isYg1
         ? "border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/10"
         : "border-zinc-200 dark:border-zinc-800"
@@ -386,15 +386,15 @@ function ToolSlotCard(props: {
 
       {/* 공구 요약 */}
       {tool && (
-        <div className="text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            {isYg1 && <Award className="h-3.5 w-3.5 text-amber-500" />}
-            <span className={isYg1 ? "font-semibold text-foreground" : "font-medium text-foreground"}>
+        <div className="min-w-0 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1 min-w-0">
+            {isYg1 && <Award className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />}
+            <span className={`truncate ${isYg1 ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
               {tool.brand}
             </span>
-            <span>· {tool.series}</span>
+            <span className="truncate">· {tool.series}</span>
           </div>
-          <div className="mt-0.5">
+          <div className="mt-0.5 truncate" title={`⌀${tool.D} · ${tool.Z}F · LOC ${tool.LOC}mm · ${tool.shape}`}>
             ⌀{tool.D} · {tool.Z}F · LOC {tool.LOC}mm · {tool.shape}
           </div>
         </div>
@@ -402,11 +402,15 @@ function ToolSlotCard(props: {
 
       {/* 지표 */}
       {metrics && (
-        <div className="border-t border-dashed border-zinc-200 dark:border-zinc-800 pt-2">
+        <div className="border-t border-dashed border-zinc-200 dark:border-zinc-800 pt-2 min-w-0">
           {(Object.keys(METRIC_META) as MetricKey[]).map(k => renderMetric(k))}
-          <div className="mt-2 pt-2 border-t border-dashed border-zinc-200 dark:border-zinc-800 text-[11px] text-muted-foreground space-y-0.5">
-            <div>n = {metrics.n.toLocaleString()} rpm · Vf = {metrics.Vf.toLocaleString()} mm/min</div>
-            <div>사용 Vc {tool!.Vc} m/min · fz {tool!.fz} mm/t</div>
+          <div className="mt-2 pt-2 border-t border-dashed border-zinc-200 dark:border-zinc-800 text-[11px] text-muted-foreground space-y-0.5 min-w-0">
+            <div className="truncate" title={`n = ${metrics.n.toLocaleString()} rpm · Vf = ${metrics.Vf.toLocaleString()} mm/min`}>
+              n = {metrics.n.toLocaleString()} rpm · Vf = {metrics.Vf.toLocaleString()} mm/min
+            </div>
+            <div className="truncate" title={`사용 Vc ${tool!.Vc} m/min · fz ${tool!.fz} mm/t`}>
+              사용 Vc {tool!.Vc} m/min · fz {tool!.fz} mm/t
+            </div>
           </div>
         </div>
       )}
@@ -635,9 +639,9 @@ function Yg1StoryCard({ story, educationMode }: { story: Yg1Story; educationMode
       {story.wins.length > 0 && (
         <ul className="text-sm space-y-1 mb-2">
           {story.wins.map((w, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-emerald-600 dark:text-emerald-400">✓</span>
-              <span>{w}</span>
+            <li key={i} className="flex gap-2 min-w-0">
+              <span className="flex-shrink-0 text-emerald-600 dark:text-emerald-400">✓</span>
+              <span className="min-w-0 break-words">{w}</span>
             </li>
           ))}
         </ul>
@@ -645,9 +649,9 @@ function Yg1StoryCard({ story, educationMode }: { story: Yg1Story; educationMode
       {story.caveats.length > 0 && (
         <ul className="text-xs text-muted-foreground space-y-1 border-t border-amber-200 dark:border-amber-800 pt-2">
           {story.caveats.map((c, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-amber-600 dark:text-amber-500">!</span>
-              <span>{c}</span>
+            <li key={i} className="flex gap-2 min-w-0">
+              <span className="flex-shrink-0 text-amber-600 dark:text-amber-500">!</span>
+              <span className="min-w-0 break-words">{c}</span>
             </li>
           ))}
         </ul>
