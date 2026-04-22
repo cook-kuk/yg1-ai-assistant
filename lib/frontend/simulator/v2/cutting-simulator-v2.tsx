@@ -318,6 +318,11 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showPrimaryParameterMap, setShowPrimaryParameterMap] = useState(true)
   const [selectedHarveyReplacementId, setSelectedHarveyReplacementId] = useState(HARVEY_REPLACEMENT_PRESETS[0]?.id ?? "")
   const [replacementVisualMode, setReplacementVisualMode] = useState<"split" | "flutes" | "live">("split")
+  const [replacementVcScale, setReplacementVcScale] = useState(100)
+  const [replacementFzScale, setReplacementFzScale] = useState(100)
+  const [replacementApRatio, setReplacementApRatio] = useState(50)
+  const [replacementAeRatio, setReplacementAeRatio] = useState(20)
+  const [replacementStickoutRatio, setReplacementStickoutRatio] = useState(Math.round(DEFAULT_STICKOUT_RATIO * 100))
   const [operationType, setOperationType] = useState<OperationType>("endmill-general")
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
@@ -899,13 +904,16 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   const harveyReplacementCards = useMemo(() => {
     if (!harveyReplacementPair) return []
-    const opDef = OPERATION_DEFAULTS[operation] ?? { apRatio: 0.5, aeRatio: 0.2 }
     const buildCard = (tool: ToolOption) => {
-      const pairAp = Math.min(tool.LOC, parseFloat((opDef.apRatio * tool.D).toFixed(1)))
-      const pairAe = Math.min(tool.D, parseFloat((opDef.aeRatio * tool.D).toFixed(1)))
+      const pairAp = Math.min(tool.LOC, parseFloat(((replacementApRatio / 100) * tool.D).toFixed(1)))
+      const pairAe = Math.min(tool.D, parseFloat(((replacementAeRatio / 100) * tool.D).toFixed(1)))
+      const pairVc = parseFloat((tool.Vc * (replacementVcScale / 100)).toFixed(0))
+      const pairFz = parseFloat((tool.fz * (replacementFzScale / 100)).toFixed(4))
+      const pairStickout = parseFloat((tool.D * (replacementStickoutRatio / 100)).toFixed(1))
+      const helixAngle = Math.max(28, Math.min(52, 24 + tool.Z * 4))
       const cutting = calculateCutting({
-        Vc: tool.Vc,
-        fz: tool.fz,
+        Vc: pairVc,
+        fz: pairFz,
         ap: pairAp,
         ae: pairAe,
         D: tool.D,
@@ -916,17 +924,17 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         Pc: cutting.Pc,
         n: cutting.n,
         D: tool.D,
-        shaft: { stickoutMm: tool.D * DEFAULT_STICKOUT_RATIO, youngModulusGPa: 600 },
+        shaft: { stickoutMm: pairStickout, youngModulusGPa: 600 },
       })
       const toolLife = estimateToolLifeMin({
-        Vc: tool.Vc,
-        VcReference: tool.Vc,
+        Vc: pairVc,
+        VcReference: pairVc,
         coatingMult: tool.coatingMult,
         isoGroup: tool.iso,
         toolMaterialE: 600,
       })
       const ra = estimateRaUm({
-        fz: tool.fz,
+        fz: pairFz,
         D: tool.D,
         shape: tool.shape,
         cornerR: tool.cornerR,
@@ -936,6 +944,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         tool,
         ap: pairAp,
         ae: pairAe,
+        Vc: pairVc,
+        fz: pairFz,
+        stickoutMm: pairStickout,
+        helixAngle,
         n: cutting.n,
         Vf: cutting.Vf,
         MRR: cutting.MRR,
@@ -951,7 +963,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       buildCard(harveyReplacementPair.sandvik),
       buildCard(harveyReplacementPair.yg1),
     ]
-  }, [harveyReplacementPair, operation])
+  }, [harveyReplacementPair, replacementAeRatio, replacementApRatio, replacementFzScale, replacementStickoutRatio, replacementVcScale])
 
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
@@ -2153,8 +2165,16 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             ))}
           </div>
 
+          <div className="mt-3 grid gap-2 rounded-xl border border-amber-200 bg-white/80 p-3 lg:grid-cols-5">
+            <CompareControlSlider label="Vc" value={replacementVcScale} min={70} max={140} step={5} suffix="%" onChange={setReplacementVcScale} />
+            <CompareControlSlider label="fz" value={replacementFzScale} min={70} max={140} step={5} suffix="%" onChange={setReplacementFzScale} />
+            <CompareControlSlider label="ap" value={replacementApRatio} min={10} max={120} step={5} suffix="%D" onChange={setReplacementApRatio} />
+            <CompareControlSlider label="ae" value={replacementAeRatio} min={5} max={80} step={5} suffix="%D" onChange={setReplacementAeRatio} />
+            <CompareControlSlider label="Stick" value={replacementStickoutRatio} min={200} max={700} step={25} suffix="%D" onChange={setReplacementStickoutRatio} />
+          </div>
+
           <div className="mb-3 rounded-xl border border-dashed border-amber-200 bg-white/70 px-3 py-2 text-[12px] text-amber-900">
-            3자 시각화 분할 화면입니다. Harvey, Sandvik, YG-1 대체품을 같은 조건 축으로 바로 비교합니다.
+            3자 시각화 분할 화면입니다. 위 공통 슬라이더를 움직이면 Harvey, Sandvik, YG-1 세 카드가 같은 축으로 동시에 갱신됩니다.
           </div>
           <div data-testid="ab-visual-split" className="mt-4 grid gap-3 lg:grid-cols-3">
             {harveyReplacementCards.map((card, index) => (
@@ -3312,6 +3332,10 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
     tool: ToolOption
     ap: number
     ae: number
+    Vc: number
+    fz: number
+    stickoutMm: number
+    helixAngle: number
     n: number
     Vf: number
     MRR: number
@@ -3337,20 +3361,28 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
         </div>
       </div>
 
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {Array.from({ length: card.tool.Z }, (_, i) => (
+          <span key={i} className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+            flute {i + 1}
+          </span>
+        ))}
+      </div>
+
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Spec</div>
           <div className="mt-1 space-y-1 text-[12px] text-slate-700">
             <div>D {card.tool.D}mm · Z {card.tool.Z} · LOC {card.tool.LOC}mm</div>
-            <div>{card.tool.shape}{card.tool.cornerR ? ` · R ${card.tool.cornerR}` : ""}</div>
+            <div>{card.tool.shape}{card.tool.cornerR ? ` · R ${card.tool.cornerR}` : ""} · helix {card.helixAngle}°</div>
             <div>단가 ₩{card.tool.priceKrw.toLocaleString()}</div>
           </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cutting</div>
           <div className="mt-1 space-y-1 text-[12px] text-slate-700">
-            <div>Vc {card.tool.Vc} · fz {card.tool.fz.toFixed(3)}</div>
-            <div>ap {card.ap.toFixed(1)} · ae {card.ae.toFixed(1)}</div>
+            <div>Vc {card.Vc} · fz {card.fz.toFixed(3)}</div>
+            <div>ap {card.ap.toFixed(1)} · ae {card.ae.toFixed(1)} · stick {card.stickoutMm.toFixed(1)}</div>
             <div>RPM {Math.round(card.n).toLocaleString()} · Vf {Math.round(card.Vf).toLocaleString()}</div>
           </div>
         </div>
@@ -3362,14 +3394,14 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
             <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">3D Tool View</div>
             <div className="flex justify-center">
               <Endmill3DPreview
-                shape={card.tool.shape}
-                diameter={card.tool.D}
-                flutes={card.tool.Z}
-                rpm={card.n}
-                helixAngle={38}
-                cornerR={card.tool.cornerR}
-                darkMode={false}
-              />
+              shape={card.tool.shape}
+              diameter={card.tool.D}
+              flutes={card.tool.Z}
+              rpm={card.n}
+              helixAngle={card.helixAngle}
+              cornerR={card.tool.cornerR}
+              darkMode={false}
+            />
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -3379,13 +3411,13 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
                 shape={card.tool.shape}
                 diameter={card.tool.D}
                 flutes={card.tool.Z}
-                helixAngle={38}
-                Vc={card.tool.Vc}
+                helixAngle={card.helixAngle}
+                Vc={card.Vc}
                 Vf={card.Vf}
                 rpm={card.n}
                 ap={card.ap}
                 ae={card.ae}
-                stickoutMm={card.tool.D * DEFAULT_STICKOUT_RATIO}
+                stickoutMm={card.stickoutMm}
                 materialGroup={card.tool.iso}
                 chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
                 chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
@@ -3407,7 +3439,7 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
               diameter={card.tool.D}
               flutes={card.tool.Z}
               rpm={card.n}
-              helixAngle={46}
+              helixAngle={card.helixAngle + 4}
               cornerR={card.tool.cornerR}
               darkMode={false}
             />
@@ -3426,13 +3458,13 @@ const ReplacementSimCard = memo(function ReplacementSimCard({
               shape={card.tool.shape}
               diameter={card.tool.D}
               flutes={card.tool.Z}
-              helixAngle={38}
-              Vc={card.tool.Vc}
+              helixAngle={card.helixAngle}
+              Vc={card.Vc}
               Vf={card.Vf}
               rpm={card.n}
               ap={card.ap}
               ae={card.ae}
-              stickoutMm={card.tool.D * DEFAULT_STICKOUT_RATIO}
+              stickoutMm={card.stickoutMm}
               materialGroup={card.tool.iso}
               chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
               chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
@@ -3505,6 +3537,46 @@ const MiniStatChip = memo(function MiniStatChip({
     <div className={`rounded-xl border px-3 py-2 ${toneClass}`}>
       <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</div>
       <div className="mt-1 text-[12px] font-semibold">{value}</div>
+    </div>
+  )
+})
+
+const CompareControlSlider = memo(function CompareControlSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  suffix: string
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-900">{label}</span>
+        <span className="text-[11px] font-mono font-bold text-amber-800">{value}{suffix}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="mt-2 w-full cursor-pointer accent-amber-600"
+      />
+      <div className="mt-1 flex justify-between text-[9px] font-mono text-amber-700/70">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
     </div>
   )
 })

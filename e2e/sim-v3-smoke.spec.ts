@@ -72,6 +72,11 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(dual.getByText("B · Sandvik 비교")).toBeVisible()
     await expect(dual.getByText("C · YG-1 대체품")).toBeVisible()
     await expect(dual.getByRole("button", { name: "날수 보기" })).toBeVisible()
+    await expect(dual.getByText("Vc", { exact: true })).toBeVisible()
+    await expect(dual.getByText("fz", { exact: true })).toBeVisible()
+    await expect(dual.getByText("ap", { exact: true })).toBeVisible()
+    await expect(dual.getByText("ae", { exact: true })).toBeVisible()
+    await expect(dual.getByText("Stick", { exact: true })).toBeVisible()
     await expect(page.getByTestId("ab-visual-split")).toBeVisible()
   })
 
