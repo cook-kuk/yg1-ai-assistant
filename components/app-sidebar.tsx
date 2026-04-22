@@ -186,11 +186,16 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
   const pathname = usePathname()
   const router = useRouter()
   const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
+  const [hydrated, setHydrated] = useState(false)
   const [countryList, setCountryList] = useState<string[]>([])
   const [dealerPopupOpen, setDealerPopupOpen] = useState(false)
   const { lat, lng, source, permissionStatus, requestGPS } = useLocation()
   const nearest = useNearestDealers(lat, lng, { topK: 1 })
   const topDealer = nearest[0]
+
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
 
   useEffect(() => {
     fetch("/api/countries")
@@ -232,41 +237,58 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
 
       {/* Demo Mode Selector */}
       <div className="px-3 py-3 border-b border-sidebar-border">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-full justify-between text-xs h-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent/80",
-                demoScenario && "border-sidebar-primary"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <Play className="h-3 w-3" />
-                {demoScenario ? `Demo: ${wowScenarios.find(s => s.id === demoScenario)?.title || demoScenario}` : "Demo Mode"}
-              </span>
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuLabel>{language === 'ko' ? '데모 시나리오 선택' : 'Select Demo Scenario'}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-{wowScenarios.map(scenario => (
-  <DropdownMenuItem
-  key={scenario.id}
-  onClick={() => setDemoScenario(scenario.id)}
-  className="flex flex-col items-start py-2"
-  >
-  <span className="font-medium">{scenario.title}</span>
-  <span className="text-xs text-muted-foreground">{scenario.subtitle}</span>
-  </DropdownMenuItem>
-  ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setDemoScenario(null)}>
-              <span className="text-muted-foreground">{language === 'ko' ? 'Demo Mode 종료' : 'Exit Demo Mode'}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {hydrated ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-between text-xs h-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent/80",
+                  demoScenario && "border-sidebar-primary"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <Play className="h-3 w-3" />
+                  {demoScenario ? `Demo: ${wowScenarios.find(s => s.id === demoScenario)?.title || demoScenario}` : "Demo Mode"}
+                </span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-72">
+              <DropdownMenuLabel>{language === 'ko' ? '데모 시나리오 선택' : 'Select Demo Scenario'}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {wowScenarios.map(scenario => (
+                <DropdownMenuItem
+                  key={scenario.id}
+                  onClick={() => setDemoScenario(scenario.id)}
+                  className="flex flex-col items-start py-2"
+                >
+                  <span className="font-medium">{scenario.title}</span>
+                  <span className="text-xs text-muted-foreground">{scenario.subtitle}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setDemoScenario(null)}>
+                <span className="text-muted-foreground">{language === 'ko' ? 'Demo Mode 종료' : 'Exit Demo Mode'}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full justify-between text-xs h-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent/80",
+              demoScenario && "border-sidebar-primary"
+            )}
+            aria-label="Demo Mode"
+          >
+            <span className="flex items-center gap-2">
+              <Play className="h-3 w-3" />
+              {demoScenario ? `Demo: ${wowScenarios.find(s => s.id === demoScenario)?.title || demoScenario}` : "Demo Mode"}
+            </span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -430,41 +452,62 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         <DealerPopup isOpen={dealerPopupOpen} onClose={() => setDealerPopupOpen(false)} />
 
         {/* User Role Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="w-full justify-between text-sidebar-foreground hover:bg-sidebar-accent"
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium">
-                  {currentUser.nameKr.charAt(0)}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium">{language === 'ko' ? currentUser.nameKr : currentUser.name}</p>
-                  <p className="text-xs text-sidebar-foreground/60">
-                    {language === 'ko' ? roleLabels[currentUser.role].kr : roleLabels[currentUser.role].en}
-                  </p>
-                </div>
-              </div>
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>{language === 'ko' ? '역할 변경 (Demo)' : 'Switch Role (Demo)'}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {(Object.keys(roleLabels) as Array<keyof typeof roleLabels>).map(role => (
-              <DropdownMenuItem
-                key={role}
-                onClick={() => setUserRole(role)}
-                className={cn(currentUser.role === role && "bg-accent")}
+        {hydrated ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="w-full justify-between text-sidebar-foreground hover:bg-sidebar-accent"
               >
-                <span>{language === 'ko' ? roleLabels[role].kr : roleLabels[role].en}</span>
-                <span className="ml-2 text-xs text-muted-foreground">({language === 'ko' ? roleLabels[role].en : roleLabels[role].kr})</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium">
+                    {currentUser.nameKr.charAt(0)}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium">{language === 'ko' ? currentUser.nameKr : currentUser.name}</p>
+                    <p className="text-xs text-sidebar-foreground/60">
+                      {language === 'ko' ? roleLabels[currentUser.role].kr : roleLabels[currentUser.role].en}
+                    </p>
+                  </div>
+                </div>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>{language === 'ko' ? '역할 변경 (Demo)' : 'Switch Role (Demo)'}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {(Object.keys(roleLabels) as Array<keyof typeof roleLabels>).map(role => (
+                <DropdownMenuItem
+                  key={role}
+                  onClick={() => setUserRole(role)}
+                  className={cn(currentUser.role === role && "bg-accent")}
+                >
+                  <span>{language === 'ko' ? roleLabels[role].kr : roleLabels[role].en}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">({language === 'ko' ? roleLabels[role].en : roleLabels[role].kr})</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            variant="ghost"
+            className="w-full justify-between text-sidebar-foreground hover:bg-sidebar-accent"
+            aria-label={language === 'ko' ? '역할 변경 (Demo)' : 'Switch Role (Demo)'}
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium">
+                {currentUser.nameKr.charAt(0)}
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-medium">{language === 'ko' ? currentUser.nameKr : currentUser.name}</p>
+                <p className="text-xs text-sidebar-foreground/60">
+                  {language === 'ko' ? roleLabels[currentUser.role].kr : roleLabels[currentUser.role].en}
+                </p>
+              </div>
+            </div>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </aside>
     </>
