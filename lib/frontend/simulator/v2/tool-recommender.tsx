@@ -56,10 +56,42 @@ interface ToolRecommenderProps {
 
 type Mode = "current" | "diameter-only" | "strict"
 
-const MODE_META: Record<Mode, { icon: typeof Target; title: string; subtitle: string; emoji: string }> = {
-  current: { icon: Target, title: "현재 조건 그대로", subtitle: "iso + 직경 + 형상 + 경도", emoji: "🎯" },
-  "diameter-only": { icon: Search, title: "직경만 넓게 탐색", subtitle: "iso + 직경만 (형상/경도 생략)", emoji: "🔍" },
-  strict: { icon: Gem, title: "프리미엄 매칭", subtitle: "모든 필터 엄격 → top 1~2", emoji: "💎" },
+interface ModeMeta {
+  icon: typeof Target
+  title: string        // 버튼 타이틀 (짧음)
+  subtitle: string     // 버튼 서브텍스트
+  emoji: string
+  displayLabel: string // 결과 헤더 라벨 (예: "현재 조건 매칭")
+  limit: number
+  minScore?: number    // 클라이언트 필터 (strict 전용)
+}
+
+const MODE_META: Record<Mode, ModeMeta> = {
+  current: {
+    icon: Target,
+    title: "현재 조건 그대로",
+    subtitle: "iso + 직경 + 형상 + 경도",
+    emoji: "🎯",
+    displayLabel: "현재 조건 매칭",
+    limit: 6,
+  },
+  "diameter-only": {
+    icon: Search,
+    title: "직경 기반 탐색",
+    subtitle: "iso + 직경만 (형상/경도 생략)",
+    emoji: "🔍",
+    displayLabel: "직경 기반 탐색",
+    limit: 10,
+  },
+  strict: {
+    icon: Gem,
+    title: "프리미엄 매칭",
+    subtitle: "80점 이상만 → top 3",
+    emoji: "💎",
+    displayLabel: "프리미엄 매칭 (80점 이상)",
+    limit: 3,
+    minScore: 80,
+  },
 }
 
 async function fetchRecs(params: {
@@ -67,12 +99,13 @@ async function fetchRecs(params: {
   diameter?: number
   shape?: string
   hardness?: string
+  limit: number
 }): Promise<RecommendResponse> {
   const query = new URLSearchParams({ iso: params.iso })
   if (params.diameter) query.set("diameter", String(params.diameter))
   if (params.shape) query.set("shape", params.shape)
   if (params.hardness) query.set("hardness", params.hardness)
-  query.set("limit", "6")
+  query.set("limit", String(params.limit))
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
@@ -95,24 +128,42 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
   const [activeMode, setActiveMode] = useState<Mode>("current")
   const [error, setError] = useState<string | null>(null)
   const [lastMode, setLastMode] = useState<Mode | null>(null)
+  const [strictFilteredOut, setStrictFilteredOut] = useState(false) // strict에서 점수필터로 0개가 된 경우
+  const [fadeTick, setFadeTick] = useState(0) // 결과 전환 fade 트리거
 
   const hasMinimum = Boolean(iso && diameter && diameter > 0)
 
   const run = useCallback(
     async (mode: Mode) => {
       if (!hasMinimum) return
+      const meta = MODE_META[mode]
       setLoading(mode)
       setError(null)
       setActiveMode(mode)
+      setStrictFilteredOut(false)
       try {
-        const params: Parameters<typeof fetchRecs>[0] = { iso, diameter }
+        const params: Parameters<typeof fetchRecs>[0] = {
+          iso,
+          diameter,
+          limit: meta.limit,
+        }
         if (mode === "current" || mode === "strict") {
           if (shape) params.shape = shape
           if (hardness) params.hardness = hardness
         }
         const data = await fetchRecs(params)
-        setRecs(data.recommendations ?? [])
+        let results = data.recommendations ?? []
+
+        // strict 모드: 클라이언트 사이드 점수 필터
+        if (mode === "strict" && meta.minScore != null) {
+          const before = results.length
+          results = results.filter((r) => r.score >= meta.minScore!)
+          setStrictFilteredOut(before > 0 && results.length === 0)
+        }
+
+        setRecs(results)
         setLastMode(mode)
+        setFadeTick((t) => t + 1)
       } catch (e) {
         const msg = e instanceof Error ? e.message : "네트워크 오류"
         setError(msg)
@@ -256,18 +307,51 @@ export function ToolRecommender({ iso, diameter, shape, hardness, onPick }: Tool
             </div>
           )}
 
-          {/* 결과 없음 */}
-          {!loading && recs.length === 0 && lastMode && !error && (
+          {/* strict 전용 빈결과 — 점수 필터로 0개가 된 경우 */}
+          {!loading && lastMode === "strict" && strictFilteredOut && !error && (
+            <div className="rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 text-[11px] text-slate-700 dark:text-slate-300 flex items-start gap-2">
+              <span className="text-base flex-shrink-0 leading-none">💡</span>
+              <div>
+                <b>현재 조건엔 프리미엄 매칭이 없습니다.</b>{" "}
+                직경·형상·경도 중 하나를 완화하거나{" "}
+                <button
+                  onClick={() => run("diameter-only")}
+                  className="underline text-indigo-700 dark:text-indigo-300 hover:text-indigo-900"
+                >
+                  🔍 직경 기반 탐색
+                </button>
+                을 시도해보세요.
+              </div>
+            </div>
+          )}
+
+          {/* 일반 결과 없음 (API 자체가 0개) */}
+          {!loading && recs.length === 0 && lastMode && !error && !strictFilteredOut && (
             <div className="text-[11px] text-gray-500 dark:text-gray-400 py-3 text-center">
               해당 조건에 매칭된 시리즈 없음. 다른 모드로 시도해보세요.
             </div>
           )}
 
-          {/* 결과 카드 */}
+          {/* 결과 카드 — fade 전환 (150ms) */}
           {!loading && recs.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                [{meta.emoji} {meta.title}] 상위 {recs.length}개 표시
+            <div
+              key={fadeTick}
+              className="space-y-2 animate-in fade-in duration-150"
+              style={{ animation: "tr-fade-in 150ms ease-out" }}
+            >
+              <style>{`@keyframes tr-fade-in { from { opacity: 0.2 } to { opacity: 1 } }`}</style>
+              {/* 모드별 요약 배지 (점수 범위) */}
+              <div className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 px-2 py-0.5 font-semibold">
+                  {meta.emoji} {meta.displayLabel}
+                </span>
+                <span className="font-mono">
+                  {lastMode === "strict"
+                    ? `총 ${recs.length}개 프리미엄 (모두 ${meta.minScore}점 이상)`
+                    : lastMode === "diameter-only"
+                    ? `총 ${recs.length}개 탐색 (점수 ${recs[0].score}~${recs[recs.length - 1].score})`
+                    : `총 ${recs.length}개 매칭 (점수 ${recs[0].score}~${recs[recs.length - 1].score})`}
+                </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {recs.map((r, i) => {
