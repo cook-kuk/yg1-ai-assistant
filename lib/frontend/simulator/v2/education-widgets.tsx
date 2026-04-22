@@ -61,7 +61,7 @@ export function EduLabel({
       {open && (
         <div
           ref={popRef}
-          className="absolute z-50 left-0 top-full mt-1 w-80 rounded-lg border border-blue-200 bg-white dark:bg-slate-900 shadow-xl p-3 text-left"
+          className="absolute z-50 left-0 top-full mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-blue-200 bg-white dark:bg-slate-900 shadow-xl p-3 text-left"
           style={{ fontFamily: "inherit" }}
         >
           <EduCard entry={entry} level={edu.level} showFormulas={edu.showFormulas}

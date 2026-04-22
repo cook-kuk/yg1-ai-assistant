@@ -34,7 +34,7 @@ export function ManualDownloadButton() {
         <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-72 rounded-lg border border-blue-200 bg-white dark:bg-slate-900 shadow-xl p-1">
+        <div className="absolute right-0 top-full mt-1 z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-blue-200 bg-white dark:bg-slate-900 shadow-xl p-1">
           <div className="px-3 py-2 text-[10px] text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-800">
             사용법 + 112 CNC 용어 사전 · Sandvik/Harvey 출처 포함
           </div>

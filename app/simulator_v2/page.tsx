@@ -38,9 +38,9 @@ function SimulatorV2Content() {
       <CinematicBackdrop intensity="low" theme="aurora" />
       {/* Header */}
       <div className="border-b bg-white/95">
-        <div className="mx-auto max-w-6xl px-4 py-5">
+        <div className="mx-auto max-w-6xl px-3 md:px-4 py-5">
           <div className="mb-2 h-1 w-14 rounded-full bg-red-600" />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <h1 className="text-xl font-semibold tracking-[-0.03em] text-gray-950">
               가공조건 시뮬레이터
             </h1>
@@ -66,7 +66,7 @@ function SimulatorV2Content() {
 
       {/* Tabs */}
       <div className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-4">
+        <div className="mx-auto max-w-6xl px-3 md:px-4">
           <div className="flex gap-1">
             <button
               onClick={() => setTab("simulator")}
@@ -95,7 +95,7 @@ function SimulatorV2Content() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mx-auto max-w-6xl px-3 md:px-4 py-6">
         {tab === "simulator" ? (
           <CuttingSimulatorV2
             initialProduct={product}

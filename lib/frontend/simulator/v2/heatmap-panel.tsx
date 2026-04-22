@@ -343,11 +343,11 @@ export function HeatmapPanel(props: HeatmapPanelProps) {
       {/* Body */}
       <div className="flex flex-col gap-3 p-4 md:flex-row md:items-start">
         {/* SVG 차트 */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 overflow-x-auto -mx-1 px-1">
           <svg
             viewBox={`0 0 ${SVG_W} ${SVG_H}`}
             className="max-w-full"
-            style={{ width: SVG_W, height: SVG_H }}
+            style={{ width: SVG_W, height: SVG_H, minWidth: 480 }}
             role="img"
             aria-label="가공조건 히트맵"
             onMouseLeave={() => setHover(null)}
