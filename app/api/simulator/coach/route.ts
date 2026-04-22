@@ -133,9 +133,8 @@ export async function POST(req: NextRequest) {
 
       try {
         const messageStream = client.messages.stream({
-          model: "claude-opus-4-7",
-          max_tokens: 64000,
-          thinking: { type: "adaptive" },
+          model: process.env.ANTHROPIC_COACH_MODEL ?? "claude-sonnet-4-6",
+          max_tokens: 8192,
           system: [
             {
               type: "text",

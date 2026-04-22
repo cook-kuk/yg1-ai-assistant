@@ -288,6 +288,34 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showCheatSheet, setShowCheatSheet] = useState(false)
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
+  // 패널 single-toggle 헬퍼: 하나 켜면 나머지 자동 꺼지고 상단 스크롤
+  const activatePanel = useCallback((panelKey: string | null) => {
+    // 모든 비주얼 패널 닫기
+    setShowLiveScene(false); setShow3DPreview(false); setShowBlueprint(false)
+    setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
+    setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
+    setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
+    // 대상 켜기
+    if (panelKey === "live") setShowLiveScene(true)
+    else if (panelKey === "3d") setShow3DPreview(true)
+    else if (panelKey === "blueprint") setShowBlueprint(true)
+    else if (panelKey === "gauges") setShowAnalogGauges(true)
+    else if (panelKey === "tool-path") setShowToolPath(true)
+    else if (panelKey === "vibration") setShowVibration(true)
+    else if (panelKey === "temp") setShowTempHeatmap(true)
+    else if (panelKey === "force") setShowForceVec(true)
+    else if (panelKey === "wear") setShowWearGauge(true)
+    else if (panelKey === "break-even") setShowBreakEven(true)
+    else if (panelKey === "advanced") setAdvancedMetricsOpen(true)
+    else if (panelKey === "cheat") setShowCheatSheet(true)
+    // 상단 스크롤 (활성 패널 앵커로)
+    if (panelKey) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-visual-panel="${panelKey}"]`)
+        el?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 120)
+    }
+  }, [])
 
   // v2.3: Coolant, Coating, Tool Group, Advanced filters, Cost, Corner, GCode
   const [toolGroup, setToolGroup] = useState<string>("milling")
@@ -1165,15 +1193,15 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 모든 모드에서 표시 */}
       <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
           <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
-          <button onClick={() => setShowLiveScene(v => !v)}
+          <button onClick={() => activatePanel(showLiveScene ? null : "live")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🎬 실시간 절삭
           </button>
-          <button onClick={() => setShow3DPreview(v => !v)}
+          <button onClick={() => activatePanel(show3DPreview ? null : "3d")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🔄 3D 엔드밀
           </button>
-          <button onClick={() => setShowBlueprint(v => !v)}
+          <button onClick={() => activatePanel(showBlueprint ? null : "blueprint")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📐 도면
           </button>
@@ -1181,7 +1209,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🖼 갤러리(6)
           </button>
-          <button onClick={() => setShowAnalogGauges(v => !v)}
+          <button onClick={() => activatePanel(showAnalogGauges ? null : "gauges")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🎛 게이지
           </button>
@@ -1189,31 +1217,31 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             ✨ 영웅 KPI
           </button>
-          <button onClick={() => setShowWearGauge(v => !v)}
+          <button onClick={() => activatePanel(showWearGauge ? null : "wear")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🔧 마모 게이지
           </button>
-          <button onClick={() => setAdvancedMetricsOpen(v => !v)}
+          <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🔬 고급 지표
           </button>
-          <button onClick={() => setShowBreakEven(v => !v)}
+          <button onClick={() => activatePanel(showBreakEven ? null : "break-even")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             💰 Break-Even
           </button>
-          <button onClick={() => setShowToolPath(v => !v)}
+          <button onClick={() => activatePanel(showToolPath ? null : "tool-path")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🗺 툴패스
           </button>
-          <button onClick={() => setShowVibration(v => !v)}
+          <button onClick={() => activatePanel(showVibration ? null : "vibration")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📡 진동
           </button>
-          <button onClick={() => setShowTempHeatmap(v => !v)}
+          <button onClick={() => activatePanel(showTempHeatmap ? null : "temp")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🌡 온도
           </button>
-          <button onClick={() => setShowForceVec(v => !v)}
+          <button onClick={() => activatePanel(showForceVec ? null : "force")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             ➡ 힘 벡터
           </button>
@@ -1227,7 +1255,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             🎯 투어
           </button>
-          <button onClick={() => setShowCheatSheet(v => !v)}
+          <button onClick={() => activatePanel(showCheatSheet ? null : "cheat")}
             className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
             📋 치트시트
           </button>
@@ -2199,6 +2227,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
       {/* 🎛 아날로그 계기판 */}
       {showAnalogGauges && (
+        <div data-visual-panel="gauges" className="scroll-mt-20">
         <HolographicFrame accent="rose" intensity="medium" scanlines darkMode={darkMode}>
           <div className="p-2">
             <AnalogGauges
@@ -2214,6 +2243,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             />
           </div>
         </HolographicFrame>
+        </div>
       )}
 
       {/* 🖼 도면 갤러리 6종 (모달) */}
@@ -2252,7 +2282,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
       {/* 🎬 실시간 절삭 시뮬레이션 씬 */}
       {showLiveScene && (
-        <div data-section="live-scene" className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
+        <div data-section="live-scene" data-visual-panel="live" className="scroll-mt-20 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
               <FeatureExplainer featureId="live-scene" inline darkMode={darkMode} />
