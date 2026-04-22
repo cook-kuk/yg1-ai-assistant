@@ -5,6 +5,16 @@ import { useSearchParams } from "next/navigation"
 import { Calculator, ArrowLeftRight } from "lucide-react"
 import { CuttingSimulatorV2 } from "@/lib/frontend/simulator/v2/cutting-simulator-v2"
 import { CompetitorTab } from "@/lib/frontend/simulator/competitor-tab"
+import { EducationProvider } from "@/lib/frontend/simulator/v2/education-context"
+import { EducationControl } from "@/lib/frontend/simulator/v2/education-widgets"
+
+function EducationControlMount() {
+  return (
+    <div className="ml-auto">
+      <EducationControl />
+    </div>
+  )
+}
 
 function SimulatorV2Content() {
   const searchParams = useSearchParams()
@@ -24,12 +34,13 @@ function SimulatorV2Content() {
             <h1 className="text-xl font-semibold tracking-[-0.03em] text-gray-950">
               가공조건 시뮬레이터
             </h1>
-            <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-purple-700">
-              v2 · BETA
+            <span className="rounded-full bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white">
+              v3 · DIRECTOR-READY
             </span>
+            <EducationControlMount />
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            YG-1 엔드밀 전용 · Harvey MAP + SpeedLab 장점 결합
+            YG-1 엔드밀 전용 · Harvey MAP 완전 벤치마킹 + 교육 모드 · 차세대 7 기능
           </p>
         </div>
       </div>
@@ -82,8 +93,10 @@ function SimulatorV2Content() {
 
 export default function SimulatorV2Page() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
-      <SimulatorV2Content />
-    </Suspense>
+    <EducationProvider>
+      <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
+        <SimulatorV2Content />
+      </Suspense>
+    </EducationProvider>
   )
 }
