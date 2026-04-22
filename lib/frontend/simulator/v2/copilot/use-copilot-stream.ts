@@ -121,24 +121,21 @@ export function useCopilotStream(): UseCopilotStreamReturn {
               done = true;
               break;
             }
+            // Parse once in an isolated try/catch; rethrow logic relies on an
+            // explicit tag (locale-safe) rather than sniffing the browser's
+            // JSON.parse error message.
+            let parsed: { text?: string; error?: string } | null = null;
             try {
-              const parsed = JSON.parse(payload) as {
-                text?: string;
-                error?: string;
-              };
-              if (parsed.error) {
-                throw new Error(parsed.error);
-              }
-              if (typeof parsed.text === "string" && parsed.text.length > 0) {
-                accumulated += parsed.text;
-                setStreamingMessage(accumulated);
-              }
-            } catch (e) {
-              // If it's a JSON parse failure for unknown payload, skip;
-              // if it's a thrown Error above, rethrow.
-              if (e instanceof Error && e.message && !e.message.startsWith("Unexpected")) {
-                throw e;
-              }
+              parsed = JSON.parse(payload) as { text?: string; error?: string };
+            } catch {
+              continue; // malformed SSE frame — skip
+            }
+            if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+            if (typeof parsed.text === "string" && parsed.text.length > 0) {
+              accumulated += parsed.text;
+              setStreamingMessage(accumulated);
             }
           }
         }

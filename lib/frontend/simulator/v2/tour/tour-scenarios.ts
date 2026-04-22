@@ -49,7 +49,7 @@ const FIRST_VISIT: TourScenario = {
       title: "ARIA에 오신 걸 환영합니다",
       content:
         "**YG-1 ARIA AI Research Lab**에 오신 것을 환영합니다.\n\n이 투어는 약 **3분** 동안 주요 기능을 소개해 드려요. 언제든 `ESC` 키로 종료할 수 있습니다.",
-      placement: "center",
+      placement: "center", // center placement = fallback-safe even if target missing
     },
     {
       id: "demo-banner",
@@ -77,7 +77,7 @@ const FIRST_VISIT: TourScenario = {
     },
     {
       id: "sensor-anomaly",
-      target: "[data-tour=\"sensor-anomaly\"]",
+      target: "[data-tour=\"sensor-anomaly-panel\"]",
       title: "센서 이상 탐지",
       content:
         "진동·전류·음향 센서를 통합 분석해 **이상 징후**가 감지되면 즉시 경고합니다. 초록 파형 = 정상.",
@@ -85,7 +85,7 @@ const FIRST_VISIT: TourScenario = {
     },
     {
       id: "causal-xai",
-      target: "[data-tour=\"causal-xai\"]",
+      target: "[data-tour=\"causal-xai-panel\"]",
       title: "인과 XAI 패널",
       content:
         "단순 상관이 아닌 **인과 관계**를 기반으로 원인을 추정합니다. 각 노드를 클릭해 상세 근거를 볼 수 있어요.",
@@ -93,7 +93,7 @@ const FIRST_VISIT: TourScenario = {
     },
     {
       id: "copilot",
-      target: "[data-tour=\"ai-copilot\"]",
+      target: "[data-tour=\"copilot-trigger\"]",
       title: "ARIA Copilot",
       content:
         "자연어로 질문하세요. 예: *\"현재 Vc를 10% 올리면 수명이 어떻게 바뀌지?\"*\n\n현재 컨텍스트를 이해하고 근거와 함께 답합니다.",
@@ -101,8 +101,8 @@ const FIRST_VISIT: TourScenario = {
     },
     {
       id: "info-toggle",
-      target: "[data-tour=\"info-toggle\"]",
-      title: "정보 수준 토글",
+      target: "[data-tour=\"info-toggle-example\"]",
+      title: "정보 토글 (❓)",
       content:
         "화면에 표시되는 정보량을 **Basic / Pro / Expert**로 전환할 수 있습니다. 처음이라면 Basic을 추천해요.",
       placement: "bottom",
@@ -142,7 +142,7 @@ const ML_DEEP_DIVE: TourScenario = {
     },
     {
       id: "feature-importance",
-      target: "[data-tour=\"feature-importance\"]",
+      target: "[data-tour=\"ml-prediction-gauge\"]",
       title: "Feature Importance",
       content:
         "어떤 입력 변수가 예측에 **가장 큰 영향**을 주는지 보여줍니다. 순열 중요도 기반이라 해석이 안정적이에요.",
@@ -158,7 +158,7 @@ const ML_DEEP_DIVE: TourScenario = {
     },
     {
       id: "shap-values",
-      target: "[data-tour=\"shap-values\"]",
+      target: "[data-tour=\"causal-xai-panel\"]",
       title: "SHAP 기여도",
       content:
         "개별 예측값에 각 피처가 **얼마나 기여**했는지 분해해 보여줍니다. 양/음 부호로 방향도 확인하세요.",
@@ -166,7 +166,7 @@ const ML_DEEP_DIVE: TourScenario = {
     },
     {
       id: "survival-curve",
-      target: "[data-tour=\"survival-curve\"]",
+      target: "[data-tour=\"survival-curve-panel\"]",
       title: "생존 곡선",
       content:
         "시간에 따른 **잔존 확률**을 그립니다. 곡선이 급하강하는 구간이 고장 위험이 급증하는 구간이에요.",

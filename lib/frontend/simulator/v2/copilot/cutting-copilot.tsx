@@ -87,7 +87,13 @@ export function CuttingCopilot({
     }
   }, [isOpen]);
 
-  // Global "copilot:ask" event bridge
+  // Global "copilot:ask" event bridge. InfoToggle buttons across the app
+  // dispatch this event with the question in detail. We open the window and
+  // submit directly — no 300ms delay (the old delay was there to "show"
+  // input text briefly before clearing, but that race-conditioned with any
+  // keystrokes the user made between the event and the submit). Track
+  // pending timeouts at the hook level so unmount can clear them.
+  const pendingRef = React.useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = (evt: Event) => {
@@ -95,18 +101,20 @@ export function CuttingCopilot({
       const question = custom.detail?.question ?? "";
       if (!question) return;
       setUiState("open");
-      setInput(question);
+      // Submit on the next tick so React has a chance to flush uiState.
+      // Submitting synchronously can race against the "opened" render in
+      // strict mode and lose focus on the text input.
       const t = setTimeout(() => {
-        setInput("");
+        pendingRef.current.delete(t);
         void submit(question);
-      }, 300);
-      // best-effort cleanup handled by the listener lifecycle; per-call timeout
-      // is small (300ms) so leaking one is not a concern.
-      return () => clearTimeout(t);
+      }, 0);
+      pendingRef.current.add(t);
     };
     window.addEventListener("copilot:ask", handler as EventListener);
     return () => {
       window.removeEventListener("copilot:ask", handler as EventListener);
+      for (const t of pendingRef.current) clearTimeout(t);
+      pendingRef.current.clear();
     };
   }, [submit]);
 

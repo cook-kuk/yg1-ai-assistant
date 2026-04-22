@@ -67,7 +67,7 @@ export function AiResearchLab(props: AiResearchLabProps = {}) {
       <StickyDemoBanner />
 
       {/* Overview banner with a master InfoToggle */}
-      <div className="flex items-start gap-3 flex-wrap">
+      <div data-tour="lab-header" className="flex items-start gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             🧪 AI Research Laboratory

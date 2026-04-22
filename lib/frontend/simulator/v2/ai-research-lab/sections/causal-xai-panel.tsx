@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sparkles, GitBranch, BarChart3, Loader2 } from "lucide-react"
 import { InfoToggle } from "../../shared/info-toggle"
 import { SectionShell } from "../section-shell"
@@ -20,6 +20,10 @@ export function CausalXaiPanel(props: CausalXaiPanelProps) {
   const [explanation, setExplanation] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [hasStarted, setHasStarted] = useState(false)
+  // AbortController for the in-flight causal fetch. Held in a ref so the
+  // unmount cleanup + "다시 생성" can both cancel the current stream without
+  // letting two concurrent streams fight over state / burn tokens.
+  const abortRef = useRef<AbortController | null>(null)
 
   const shapData = useMemo(
     () =>
@@ -31,22 +35,51 @@ export function CausalXaiPanel(props: CausalXaiPanelProps) {
     [props.prediction, props.sandvikPrediction, props.toolCode],
   )
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+  }, [])
+
   async function requestExplanation() {
+    // Cancel any in-flight request before starting a new one.
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setHasStarted(true)
     setIsStreaming(true)
     setExplanation("")
     setError(null)
 
     try {
+      // Server expects ShapEntry[] (not the full ShapData object). Forward
+      // the contributions array directly, and pass causal-graph edges as
+      // pre-formatted strings on context.causalEdges so the LLM can cite
+      // them without knowing the internal graph shape.
+      const shapEntries = shapData.contributions.map(c => ({
+        feature: c.feature,
+        value: c.value,
+      }))
+      const causalEdges = shapData.graphEdges.map(
+        e => `${e.from} → ${e.to} (strength ${e.strength.toFixed(2)})`,
+      )
+
       const res = await fetch("/api/xai/causal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prediction: props.prediction,
           sandvikPrediction: props.sandvikPrediction,
-          shapValues: shapData,
-          context: { toolCode: props.toolCode, materialKey: props.materialKey },
+          shapValues: shapEntries,
+          context: {
+            toolCode: props.toolCode,
+            materialKey: props.materialKey,
+            causalEdges,
+          },
         }),
+        signal: controller.signal,
       })
 
       if (!res.ok || !res.body) {
@@ -57,8 +90,8 @@ export function CausalXaiPanel(props: CausalXaiPanelProps) {
       const decoder = new TextDecoder()
       let buffer = ""
 
-      // SSE parsing: split by \n, keep `data: ` prefixed lines, JSON.parse after slice(6),
-      // accumulate `text` fields into state. [DONE] sentinel closes the stream.
+      // SSE parsing: split by \n, keep `data:` prefixed lines, JSON.parse the
+      // trimmed remainder, accumulate `text` fields. `[DONE]` sentinel closes.
       while (true) {
         const { value, done } = await reader.read()
         if (done) break
@@ -66,31 +99,35 @@ export function CausalXaiPanel(props: CausalXaiPanelProps) {
         const lines = buffer.split("\n")
         buffer = lines.pop() ?? ""
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue
-          const payload = line.slice(6).trim()
+          if (!line.startsWith("data:")) continue
+          const payload = line.slice(5).trim()
           if (!payload) continue
           if (payload === "[DONE]") {
             setIsStreaming(false)
             return
           }
+          let parsed: { text?: string; error?: string } | null = null
           try {
-            const data = JSON.parse(payload) as { text?: string; error?: string }
-            if (data.error) {
-              setError(data.error)
-              continue
-            }
-            if (typeof data.text === "string") {
-              setExplanation(prev => prev + data.text)
-            }
+            parsed = JSON.parse(payload)
           } catch {
-            // Ignore malformed SSE frames
+            continue // malformed frame — skip silently
+          }
+          if (parsed?.error) {
+            setError(parsed.error)
+            continue
+          }
+          if (typeof parsed?.text === "string") {
+            setExplanation(prev => prev + parsed!.text)
           }
         }
       }
     } catch (e) {
+      // Silent on abort (intentional cancel); surface real network errors.
+      if (e instanceof Error && e.name === "AbortError") return
       setError(e instanceof Error ? e.message : "알 수 없는 오류")
     } finally {
       setIsStreaming(false)
+      if (abortRef.current === controller) abortRef.current = null
     }
   }
 

@@ -36,6 +36,24 @@ export function SensorAnomalyPanel(props: SensorAnomalyPanelProps) {
   )
 
   const current = allFrames[currentFrame] ?? allFrames[0]
+  // Defensive: an empty stream (durationSec=0) would make current undefined.
+  // Render a neutral placeholder rather than crash on property access.
+  if (!current) {
+    return (
+      <SectionShell
+        id="sensor-anomaly-panel"
+        title="실시간 센서 이상탐지"
+        subtitle="스트림 데이터 없음"
+        infoId="sensor-anomaly-detection"
+        phase="Phase 3 · 2028 Q1 예정"
+        onAskAI={props.onAskAI}
+      >
+        <div className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+          센서 스트림 데이터가 생성되지 않았습니다.
+        </div>
+      </SectionShell>
+    )
+  }
   const anomalyPct = Math.round(current.anomalyScore * 100)
   const isAlert = current.anomalyScore > 0.6
 
