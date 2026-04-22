@@ -75,6 +75,7 @@ export interface LiveCuttingSceneProps {
   shape: LiveShape
   diameter: number
   flutes: number
+  helixAngle?: number
   Vc: number
   Vf: number
   rpm: number
@@ -213,6 +214,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     shape,
     diameter,
     flutes,
+    helixAngle = 38,
     Vc,
     Vf,
     rpm,
@@ -330,8 +332,11 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     const toolRadius = toolDiaPx / 2
 
     // 절삭된 자국: tool이 지나간 경로에 ae 깊이 slot
-    const aePx = clamp(p.ae * TOOL_PX_PER_MM, 2, toolDiaPx)
-    const apPx = clamp(p.ap * TOOL_PX_PER_MM, 1, stockH * 0.7)
+    const aePx = clamp(p.ae * TOOL_PX_PER_MM, 4, toolDiaPx)
+    const apPx = clamp(p.ap * TOOL_PX_PER_MM, 3, stockH * 0.7)
+    const engagementRatio = clamp(aePx / Math.max(toolDiaPx, 1), 0.08, 1)
+    const helixAngleLive = clamp(p.helixAngle ?? helixAngle, 20, 55)
+    const helixSkew = ((helixAngleLive - 20) / 35) * toolRadius * 0.9
 
     // Stock body
     ctx.save()
@@ -348,6 +353,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     const grooveStartX = pathStartX
     const grooveW = Math.max(0, grooveEndX - grooveStartX)
     ctx.fillRect(grooveStartX, stockY, grooveW, apPx)
+    ctx.fillStyle = darkMode ? "rgba(56,189,248,0.16)" : "rgba(14,165,233,0.16)"
+    ctx.fillRect(Math.max(grooveStartX, toolCx - aePx), stockY, aePx, apPx)
     ctx.restore()
 
     // Stickout + shank
@@ -409,15 +416,39 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       ctx.stroke()
     }
 
-    // Flute spokes
+    // Engagement zone
+    ctx.save()
+    ctx.translate(toolCx, toolCy + vib)
+    ctx.fillStyle = darkMode ? "rgba(56,189,248,0.24)" : "rgba(14,165,233,0.22)"
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.arc(
+      0,
+      0,
+      toolRadius * 0.98,
+      Math.PI - engagementRatio * Math.PI,
+      Math.PI,
+    )
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+
+    // Helical flute arcs
     ctx.strokeStyle = toolStroke
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = 1.35
     const fluteCount = Math.max(2, Math.min(12, Math.round(p.flutes)))
     for (let i = 0; i < fluteCount; i++) {
       const ang = (i / fluteCount) * Math.PI * 2
       ctx.beginPath()
-      ctx.moveTo(0, 0)
-      ctx.lineTo(Math.cos(ang) * toolRadius * 0.9, Math.sin(ang) * toolRadius * 0.9)
+      ctx.moveTo(Math.cos(ang) * toolRadius * 0.2, Math.sin(ang) * toolRadius * 0.2)
+      ctx.bezierCurveTo(
+        Math.cos(ang + 0.25) * toolRadius * 0.55,
+        Math.sin(ang + 0.25) * toolRadius * 0.4 - helixSkew * 0.15,
+        Math.cos(ang + 0.45) * toolRadius * 0.8,
+        Math.sin(ang + 0.45) * toolRadius * 0.7 + helixSkew * 0.15,
+        Math.cos(ang + 0.62) * toolRadius * 0.92,
+        Math.sin(ang + 0.62) * toolRadius * 0.92,
+      )
       ctx.stroke()
     }
 
@@ -435,8 +466,21 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     ctx.lineWidth = 1
     ctx.setLineDash([4, 3])
     ctx.beginPath()
-    ctx.moveTo(toolCx - aePx / 2, stockY - 2)
-    ctx.lineTo(toolCx + aePx / 2, stockY - 2)
+    ctx.moveTo(toolCx - aePx, stockY - 2)
+    ctx.lineTo(toolCx, stockY - 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.restore()
+
+    // Helix lean guide on shank
+    ctx.save()
+    ctx.translate(vib, 0)
+    ctx.strokeStyle = darkMode ? "#38bdf8" : "#0284c7"
+    ctx.lineWidth = 1.4
+    ctx.setLineDash([5, 4])
+    ctx.beginPath()
+    ctx.moveTo(toolCx, shankTopY - 14)
+    ctx.lineTo(toolCx + helixSkew * 0.55, toolCy - toolRadius * 0.7)
     ctx.stroke()
     ctx.setLineDash([])
     ctx.restore()
@@ -570,8 +614,8 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     [Vc, rpm, Vf],
   )
   const overlayBottomRight = useMemo(
-    () => `chip=${chipMorph} · chatter=${chatterRisk}`,
-    [chipMorph, chatterRisk],
+    () => `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°`,
+    [chipMorph, chatterRisk, helixAngle],
   )
 
   const containerBg = darkMode ? "#020617" : "#ffffff"
@@ -685,7 +729,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
         🎬 실시간 가공 시뮬레이션 · 슬라이더를 움직여보세요
         {" "}
         <span style={{ opacity: 0.7 }}>
-          (⌀{diameter}mm · Z{flutes} · ap={ap}mm · ae={ae}mm · stickout={stickoutMm}mm · {materialGroup})
+          (⌀{diameter}mm · Z{flutes} · helix={helixAngle}° · ap={ap}mm · ae={ae}mm · stickout={stickoutMm}mm · {materialGroup})
         </span>
       </div>
     </div>

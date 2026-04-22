@@ -1,89 +1,102 @@
-// SPDX-License-Identifier: MIT
-// YG-1 ARIA Simulator v3 — YG-1 실제 가공 영상 임베드 패널
-// 현재 재질(ISO 그룹)/가공 모드(operation)에 해당하는 YG-1 공식 YouTube
-// 영상을 iframe 으로 보여 주는 독립 패널.
-//
-// - cutting-simulator-v2.tsx 를 건드리지 않는 독립 컴포넌트
-// - 초기에는 썸네일만 로드(성능), 사용자가 ▶ 버튼을 눌러야 iframe 삽입
-// - 좌: 선택 영상 플레이어, 우: 같은 ISO 그룹 영상 리스트
-// - 다크모드, 모바일 스택 지원
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-
-// ─────────────────────────────────────────────────────────────────────
-// Props
-// ─────────────────────────────────────────────────────────────────────
+import { useMemo } from "react"
 
 export interface Yg1VideoPanelProps {
-  /** ISO 재질 그룹 (P/M/K/N/S/H) */
   isoGroup: string
-  /** 가공 모드 — side-milling, slotting, finishing, roughing 등 */
   operation: string
   darkMode?: boolean
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// SSOT — YG-1 유튜브 영상 매핑 (가상 ID — 관리자 교체 예정)
-// ─────────────────────────────────────────────────────────────────────
-
-interface Yg1Video {
-  id: string
+interface Yg1ReferenceClip {
   title: string
-  description: string
-  duration?: string
+  material: string
+  operation: string
+  summary: string
+  focus: string[]
 }
 
-const VIDEO_MAP: Record<string, readonly Yg1Video[]> = {
+const REFERENCE_MAP: Record<string, readonly Yg1ReferenceClip[]> = {
   P: [
-    { id: "dQw4w9WgXcQ", title: "탄소강 고속 가공 (YG-1 GNX)", description: "S45C · 4날 스퀘어 · Vc 180 m/min", duration: "3:24" },
-    { id: "J---aiyznGQ", title: "합금강 프로파일링", description: "4140 · HEM 전략", duration: "2:18" },
+    {
+      title: "탄소강 측면 가공 레퍼런스",
+      material: "S45C / 4140 계열",
+      operation: "side-milling",
+      summary: "중간 절입에서 칩 배출과 벽면 품질을 우선하는 조건",
+      focus: ["helix 38°", "4 flute", "stable wall finish"],
+    },
+    {
+      title: "합금강 슬롯 가공 레퍼런스",
+      material: "SCM / prehardened",
+      operation: "slotting",
+      summary: "ap를 유지하면서 ae 100% 접근 시 진동 관리가 핵심인 케이스",
+      focus: ["slot load", "rpm cap", "deflection watch"],
+    },
   ],
   M: [
-    { id: "jNQXAC9IVRw", title: "스테인리스 304 측면 가공", description: "SUS304 · Vc 120 · AlTiN", duration: "4:12" },
+    {
+      title: "스테인리스 정삭 레퍼런스",
+      material: "SUS304 / 316",
+      operation: "finishing",
+      summary: "용착 억제와 날끝 온도 관리 중심의 마감 조건",
+      focus: ["BUE control", "coolant", "surface finish"],
+    },
   ],
   K: [
-    { id: "9bZkp7q19f0", title: "주철 GC250 헤비컷", description: "FCD · V7 PLUS · Vc 200", duration: "2:45" },
+    {
+      title: "주철 고이송 레퍼런스",
+      material: "GC / FCD",
+      operation: "roughing",
+      summary: "건식 또는 약식 쿨런트 환경에서 칩 분쇄가 빠른 조건",
+      focus: ["dry cut", "segmented chip", "tool life"],
+    },
   ],
   N: [
-    { id: "kJQP7kiw5Fk", title: "알루미늄 7075 고속 가공", description: "Al7075 · Vc 500+ · DLC", duration: "3:02" },
-    { id: "L_jWHffIx5E", title: "구리 C11000 정삭", description: "C11000 · 2날 볼", duration: "2:30" },
+    {
+      title: "알루미늄 고속 가공 레퍼런스",
+      material: "Al6061 / 7075",
+      operation: "profiling",
+      summary: "고속 회전과 넓은 ae에서 빠른 배출을 보는 조건",
+      focus: ["high speed", "bright chip", "wide ae"],
+    },
+    {
+      title: "구리 저버 가공 레퍼런스",
+      material: "C1100",
+      operation: "finishing",
+      summary: "날당 이송을 낮게 유지하며 용착 흔적을 억제하는 조건",
+      focus: ["low burr", "2 flute", "light engagement"],
+    },
   ],
   S: [
-    { id: "hT_nvWreIhg", title: "인코넬 718 가공 (AlCrN)", description: "Inconel · Vc 45 · 고난이도", duration: "5:15" },
-    { id: "W6NZfCO5SIk", title: "티타늄 Ti-6Al-4V", description: "Ti6Al4V · AlCrN · 안전 가공", duration: "4:28" },
+    {
+      title: "티타늄 안정 절삭 레퍼런스",
+      material: "Ti-6Al-4V",
+      operation: "side-milling",
+      summary: "높은 stickout에서도 편향과 발열을 함께 관리하는 조건",
+      focus: ["stickout", "heat", "radial control"],
+    },
+    {
+      title: "인코넬 보수 조건 레퍼런스",
+      material: "Inconel 718",
+      operation: "slotting",
+      summary: "과부하를 막기 위해 Vc와 ae를 제한하는 사례",
+      focus: ["low Vc", "spark watch", "tool life"],
+    },
   ],
   H: [
-    { id: "2vjPBrBU-TM", title: "고경도강 45~55 HRC", description: "경화강 · GNX · 저속", duration: "3:45" },
-    { id: "RgKAFK5djSk", title: "55~65 HRC 하드밀링", description: "SEM846 4G · nACo", duration: "4:02" },
+    {
+      title: "고경도강 하드밀 레퍼런스",
+      material: "45-65 HRC",
+      operation: "finishing",
+      summary: "짧은 stickout과 얕은 ae에서 정밀도를 우선하는 조건",
+      focus: ["short stickout", "small ae", "precision"],
+    },
   ],
-}
-
-const YG1_CHANNEL_URL = "https://www.youtube.com/@YG1Global" // 가상 공식 채널
-
-// ─────────────────────────────────────────────────────────────────────
-// 유틸
-// ─────────────────────────────────────────────────────────────────────
-
-function thumbnailUrl(id: string): string {
-  return `https://img.youtube.com/vi/${id}/mqdefault.jpg`
-}
-
-function embedUrl(id: string): string {
-  return `https://www.youtube.com/embed/${id}?rel=0&autoplay=1`
-}
-
-function watchUrl(id: string): string {
-  return `https://www.youtube.com/watch?v=${id}`
 }
 
 function normalizeIso(iso: string): string {
   return (iso || "").trim().toUpperCase().charAt(0)
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────────────
 
 export default function Yg1VideoPanel({
   isoGroup,
@@ -91,208 +104,83 @@ export default function Yg1VideoPanel({
   darkMode = false,
 }: Yg1VideoPanelProps) {
   const normIso = useMemo(() => normalizeIso(isoGroup), [isoGroup])
-  const videos = useMemo<readonly Yg1Video[]>(() => VIDEO_MAP[normIso] ?? [], [normIso])
+  const clips = useMemo(() => REFERENCE_MAP[normIso] ?? [], [normIso])
 
-  // 선택된 영상 index + 재생 여부 (lazy load)
-  const [selectedIdx, setSelectedIdx] = useState(0)
-  const [playing, setPlaying] = useState(false)
-
-  // ISO 그룹이 바뀌면 0번으로 리셋 + 재생 중지
-  useEffect(() => {
-    setSelectedIdx(0)
-    setPlaying(false)
-  }, [normIso])
-
-  const selected = videos[selectedIdx]
-
-  // ── 스타일 토큰 ────────────────────────────────────────────────
   const cardCls = darkMode
-    ? "rounded-xl border border-slate-700 bg-gradient-to-br from-slate-900 to-rose-950/30 p-4 sm:p-5"
-    : "rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-rose-50/30 p-4 sm:p-5"
-  const headerTextCls = darkMode ? "text-slate-100" : "text-slate-800"
-  const subtleTextCls = darkMode ? "text-slate-400" : "text-slate-500"
-  const borderCls = darkMode ? "border-slate-700" : "border-slate-200"
-  const chipBaseCls = darkMode
-    ? "bg-slate-800/60 text-slate-200 border-slate-700"
-    : "bg-white text-slate-700 border-slate-300"
-  const listItemActiveCls = darkMode
-    ? "border-rose-500 bg-rose-900/30"
-    : "border-rose-400 bg-rose-50"
-  const listItemIdleCls = darkMode
-    ? "border-slate-700 bg-slate-800/40 hover:bg-slate-800"
-    : "border-slate-200 bg-white hover:bg-slate-50"
-  const linkCls = darkMode
-    ? "text-rose-300 hover:text-rose-200"
-    : "text-rose-600 hover:text-rose-700"
+    ? "rounded-xl border border-slate-700 bg-gradient-to-br from-slate-900 to-slate-950 p-4"
+    : "rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4"
+  const softText = darkMode ? "text-slate-400" : "text-slate-500"
+  const titleText = darkMode ? "text-slate-100" : "text-slate-900"
+  const subCard = darkMode
+    ? "rounded-xl border border-slate-700 bg-slate-900/70"
+    : "rounded-xl border border-slate-200 bg-white/90"
+  const chip = darkMode
+    ? "rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
+    : "rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700"
 
   return (
-    <section className={cardCls} aria-label="YG-1 실 가공 영상">
-      {/* ── 헤더 ──────────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-center gap-2">
+    <section className={cardCls} aria-label="YG-1 실 가공 영상" data-testid="yg1-video-panel">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-xl leading-none" aria-hidden>🎥</span>
-        <h3 className={`text-base font-semibold ${headerTextCls}`}>YG-1 실 가공 영상</h3>
-        <span
-          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${chipBaseCls}`}
-        >
-          ISO {normIso || "?"}
-        </span>
-        {operation && (
-          <span
-            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${chipBaseCls}`}
-          >
-            {operation}
-          </span>
-        )}
-        <span className={`ml-auto text-[11px] ${subtleTextCls}`}>
-          {videos.length > 0 ? `${videos.length}개 영상` : "준비 중"}
-        </span>
-      </header>
+        <h3 className={`text-base font-semibold ${titleText}`}>YG-1 실 가공 영상</h3>
+        <span className={chip}>ISO {normIso || "?"}</span>
+        <span className={chip}>{operation || "milling"}</span>
+        <span className={`ml-auto text-[11px] ${softText}`}>공식 영상 연동 준비중</span>
+      </div>
 
-      {/* ── 본문 ──────────────────────────────────────────────── */}
-      {videos.length === 0 || !selected ? (
-        <div
-          className={`mt-4 flex min-h-[160px] items-center justify-center rounded-lg border border-dashed ${borderCls} ${subtleTextCls} text-sm`}
-          role="status"
-        >
-          이 재질(ISO {normIso || "?"})에 대한 영상 준비 중입니다.
-        </div>
-      ) : (
-        <div className="mt-4 grid gap-4 md:grid-cols-[2fr_1fr]">
-          {/* ── 좌: 플레이어 ───────────────────────────────── */}
-          <div>
-            <div
-              className={`relative overflow-hidden rounded-lg border ${borderCls} bg-black`}
-              style={{ aspectRatio: "16 / 9" }}
-            >
-              {playing ? (
-                <iframe
-                  key={selected.id}
-                  src={embedUrl(selected.id)}
-                  title={selected.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPlaying(true)}
-                  aria-label={`${selected.title} 재생`}
-                  className="group absolute inset-0 flex h-full w-full items-center justify-center"
-                >
-                  <img
-                    src={thumbnailUrl(selected.id)}
-                    alt={selected.title}
-                    loading="lazy"
-                    className="absolute inset-0 h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                  />
-                  <span className="relative z-10 inline-flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition-transform group-hover:scale-110">
-                    <span className="ml-0.5 text-xl" aria-hidden>▶</span>
-                  </span>
-                  <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                    클릭하여 재생
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {/* 제목/설명 */}
-            <div className="mt-3 flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <div className={`truncate text-sm font-semibold ${headerTextCls}`} title={selected.title}>
-                  {selected.title}
-                </div>
-                <div className={`mt-0.5 text-[12px] ${subtleTextCls}`}>
-                  {selected.description}
-                  {selected.duration ? ` · ${selected.duration}` : ""}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+        <div className={`${subCard} overflow-hidden`}>
+          <div className="relative aspect-video bg-[radial-gradient(circle_at_top,#1d4ed8_0%,#0f172a_58%,#020617_100%)]">
+            <div className="absolute inset-0 bg-[linear-gradient(120deg,transparent_0%,rgba(255,255,255,0.12)_45%,transparent_70%)]" />
+            <div className="absolute inset-0 flex flex-col justify-between p-5 text-white">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.18em]">
+                  YG-1 OFFICIAL
+                </span>
+                <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
+                  준비중
+                </span>
+              </div>
+              <div>
+                <div className="text-lg font-semibold">실제 영상 대신 조건 기반 레퍼런스를 먼저 표시합니다.</div>
+                <div className="mt-2 max-w-xl text-sm text-slate-200/85">
+                  가짜 링크나 외부 밈 영상은 제거했습니다. 공식 가공 영상 자산이 준비되면 여기서 바로 연결되도록 유지합니다.
                 </div>
               </div>
-              <a
-                href={watchUrl(selected.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="YouTube에서 새 탭으로 열기"
-                className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-medium ${chipBaseCls}`}
-              >
-                YouTube <span aria-hidden>↗</span>
-              </a>
+              <div className="flex flex-wrap gap-2 text-[11px] text-slate-100/90">
+                <span className="rounded-full border border-white/15 bg-white/10 px-2 py-1">실제 링크 미연동</span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-2 py-1">현재 조건과 같은 재질군 우선</span>
+                <span className="rounded-full border border-white/15 bg-white/10 px-2 py-1">가공 포인트만 선반영</span>
+              </div>
             </div>
-          </div>
-
-          {/* ── 우: 영상 리스트 ───────────────────────────── */}
-          <div>
-            <div className={`mb-2 text-[11px] font-semibold uppercase tracking-wider ${subtleTextCls}`}>
-              같은 재질의 다른 영상
-            </div>
-            <ul className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-              {videos.map((v, idx) => {
-                const active = idx === selectedIdx
-                return (
-                  <li key={v.id}>
-                    <div
-                      className={`flex items-stretch gap-2 rounded-lg border p-2 transition-colors ${
-                        active ? listItemActiveCls : listItemIdleCls
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedIdx(idx)
-                          setPlaying(false)
-                        }}
-                        aria-pressed={active}
-                        aria-label={`${v.title} 선택`}
-                        className="flex flex-1 items-center gap-2 text-left"
-                      >
-                        <img
-                          src={thumbnailUrl(v.id)}
-                          alt=""
-                          loading="lazy"
-                          className="h-12 w-20 flex-shrink-0 rounded object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div
-                            className={`truncate text-[12px] font-medium ${headerTextCls}`}
-                            title={v.title}
-                          >
-                            {v.title}
-                          </div>
-                          <div className={`mt-0.5 text-[10px] ${subtleTextCls}`}>
-                            {v.duration ?? ""}
-                          </div>
-                        </div>
-                      </button>
-                      <a
-                        href={watchUrl(v.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`${v.title} YouTube에서 열기`}
-                        onClick={e => e.stopPropagation()}
-                        className={`inline-flex w-6 flex-shrink-0 items-center justify-center rounded ${linkCls}`}
-                      >
-                        <span aria-hidden>↗</span>
-                      </a>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
           </div>
         </div>
-      )}
 
-      {/* ── 하단: 공식 채널 링크 ───────────────────────────── */}
-      <footer className={`mt-4 border-t pt-3 text-[12px] ${borderCls} ${subtleTextCls}`}>
-        <a
-          href={YG1_CHANNEL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`inline-flex items-center gap-1 font-medium ${linkCls}`}
-        >
-          <span aria-hidden>👉</span> YG-1 공식 YouTube 채널 <span aria-hidden>↗</span>
-        </a>
-      </footer>
+        <div className="space-y-3">
+          <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${softText}`}>조건 기반 레퍼런스</div>
+          {clips.length > 0 ? clips.map((clip) => (
+            <div key={`${normIso}-${clip.title}`} className={`${subCard} p-3`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className={`text-sm font-semibold ${titleText}`}>{clip.title}</div>
+                  <div className={`mt-1 text-[11px] ${softText}`}>{clip.material} · {clip.operation}</div>
+                </div>
+                <span className={chip}>ISO {normIso}</span>
+              </div>
+              <div className={`mt-2 text-[12px] leading-5 ${darkMode ? "text-slate-300" : "text-slate-700"}`}>{clip.summary}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {clip.focus.map((item) => (
+                  <span key={item} className={chip}>{item}</span>
+                ))}
+              </div>
+            </div>
+          )) : (
+            <div className={`${subCard} p-4 text-sm ${softText}`}>
+              이 재질 그룹에 대한 공식 영상 자산이 아직 연결되지 않았습니다.
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   )
 }

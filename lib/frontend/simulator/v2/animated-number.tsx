@@ -70,25 +70,42 @@ export function AnimatedNumber({
 
   const [flashDir, setFlashDir] = useState<"up" | "down" | null>(null)
   const prevRef = useRef(value)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!flash) {
+      if (flashTimerRef.current) {
+        clearTimeout(flashTimerRef.current)
+        flashTimerRef.current = null
+      }
+      if (flashDir !== null) setFlashDir(null)
       prevRef.current = value
       return
     }
-    if (value > prevRef.current + 0.0001) {
+    const prev = prevRef.current
+    if (value > prev + 0.0001) {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
       setFlashDir("up")
-      const t = setTimeout(() => setFlashDir(null), 500)
-      prevRef.current = value
-      return () => clearTimeout(t)
-    } else if (value < prevRef.current - 0.0001) {
+      flashTimerRef.current = setTimeout(() => {
+        setFlashDir(null)
+        flashTimerRef.current = null
+      }, 500)
+    } else if (value < prev - 0.0001) {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
       setFlashDir("down")
-      const t = setTimeout(() => setFlashDir(null), 500)
-      prevRef.current = value
-      return () => clearTimeout(t)
+      flashTimerRef.current = setTimeout(() => {
+        setFlashDir(null)
+        flashTimerRef.current = null
+      }, 500)
     }
     prevRef.current = value
-  }, [value, flash])
+    return () => {
+      if (flashTimerRef.current) {
+        clearTimeout(flashTimerRef.current)
+        flashTimerRef.current = null
+      }
+    }
+  }, [value, flash, flashDir])
 
   const flashClass =
     flashDir === "up"

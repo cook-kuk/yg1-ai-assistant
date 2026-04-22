@@ -42,7 +42,7 @@ export interface MultiToolCompareProps {
   onSelectTool?: (series: string, D: number) => void
 }
 
-interface YG1ToolOption {
+export interface YG1ToolOption {
   kind: "yg1"
   id: string
   brand: string
@@ -60,7 +60,7 @@ interface YG1ToolOption {
   cornerR?: number
 }
 
-interface CompetitorToolOption {
+export interface CompetitorToolOption {
   kind: "competitor"
   id: string
   brand: "Harvey" | "Sandvik" | "Walter" | "Kennametal"
@@ -78,10 +78,19 @@ interface CompetitorToolOption {
   cornerR?: number
 }
 
-type ToolOption = YG1ToolOption | CompetitorToolOption
+export type ToolOption = YG1ToolOption | CompetitorToolOption
+
+export interface HarveyReplacementPreset {
+  id: string
+  title: string
+  subtitle: string
+  harveyId: string
+  sandvikId: string
+  yg1Id: string
+}
 
 // ── YG-1 공구 (ENDMILL_EXAMPLES 축약형, 가격 + coating multiplier 추가) ─────────
-const YG1_TOOLS: YG1ToolOption[] = [
+export const YG1_TOOLS: YG1ToolOption[] = [
   { kind: "yg1", id: "yg1-ehd84-10", brand: "YG-1", series: "EHD84", label: "EHD84 ⌀10 · SUS304 측면", iso: "M", D: 10, Z: 4, LOC: 25, shape: "square", priceKrw: 58000, Vc: 135, fz: 0.055, coatingMult: 1.10 },
   { kind: "yg1", id: "yg1-ga931-8", brand: "YG-1", series: "GA931", label: "GA931 ⌀8 · 스테인리스 4날", iso: "M", D: 8, Z: 4, LOC: 20, shape: "square", priceKrw: 46000, Vc: 140, fz: 0.045, coatingMult: 1.08 },
   { kind: "yg1", id: "yg1-v7plus-gmg87-8", brand: "YG-1", series: "V7 PLUS GMG87", label: "V7 PLUS ⌀8 · 주철 헤비", iso: "K", D: 8, Z: 4, LOC: 20, shape: "square", priceKrw: 52000, Vc: 210, fz: 0.09, coatingMult: 1.15 },
@@ -96,7 +105,7 @@ const YG1_TOOLS: YG1ToolOption[] = [
 ]
 
 // ── 경쟁사 벤치마크 (공개 카탈로그 기반 추정 — 영업자료 전용) ────────────────
-const COMPETITOR_BENCHMARKS: CompetitorToolOption[] = [
+export const COMPETITOR_BENCHMARKS: CompetitorToolOption[] = [
   { kind: "competitor", id: "harvey-emb30c-10", brand: "Harvey", series: "EMB30C", label: "Harvey EMB30C ⌀10 · 3F AlTiN", iso: "P", D: 10, Z: 3, LOC: 22, shape: "square", priceKrw: 85000, Vc: 220, fz: 0.08, coatingMult: 1.00 },
   { kind: "competitor", id: "harvey-emb50m-8", brand: "Harvey", series: "EMB50M", label: "Harvey EMB50M ⌀8 · SS 5F", iso: "M", D: 8, Z: 5, LOC: 19, shape: "square", priceKrw: 92000, Vc: 150, fz: 0.05, coatingMult: 1.00 },
   { kind: "competitor", id: "sandvik-cm390-10", brand: "Sandvik", series: "CoroMill 390", label: "Sandvik CoroMill 390 ⌀10", iso: "P", D: 10, Z: 4, LOC: 20, shape: "square", priceKrw: 120000, Vc: 200, fz: 0.10, coatingMult: 1.00 },
@@ -109,7 +118,38 @@ const COMPETITOR_BENCHMARKS: CompetitorToolOption[] = [
   { kind: "competitor", id: "harvey-emb60h-6", brand: "Harvey", series: "EMB60H", label: "Harvey EMB60H ⌀6 · 60HRC용", iso: "H", D: 6, Z: 6, LOC: 14, shape: "square", priceKrw: 115000, Vc: 95, fz: 0.025, coatingMult: 1.00 },
 ]
 
-const ALL_TOOLS: ToolOption[] = [...YG1_TOOLS, ...COMPETITOR_BENCHMARKS]
+export const ALL_TOOLS: ToolOption[] = [...YG1_TOOLS, ...COMPETITOR_BENCHMARKS]
+
+export const HARVEY_REPLACEMENT_PRESETS: HarveyReplacementPreset[] = [
+  {
+    id: "harvey-p-10",
+    title: "Harvey EMB30C 대체",
+    subtitle: "탄소강/합금강 10mm 구간",
+    harveyId: "harvey-emb30c-10",
+    sandvikId: "sandvik-cm390-10",
+    yg1Id: "yg1-x5070-10-r05",
+  },
+  {
+    id: "harvey-m-8",
+    title: "Harvey EMB50M 대체",
+    subtitle: "스테인리스 8mm 구간",
+    harveyId: "harvey-emb50m-8",
+    sandvikId: "sandvik-cm316-8",
+    yg1Id: "yg1-ga931-8",
+  },
+  {
+    id: "harvey-h-6",
+    title: "Harvey EMB60H 대체",
+    subtitle: "고경도강 6mm 구간",
+    harveyId: "harvey-emb60h-6",
+    sandvikId: "sandvik-cm plura-6",
+    yg1Id: "yg1-4g-sem846-6",
+  },
+]
+
+export function getToolOptionById(id: string): ToolOption | undefined {
+  return ALL_TOOLS.find((tool) => tool.id === id)
+}
 
 // ── 계산 결과 타입 ───────────────────────────────────
 interface SlotMetrics {

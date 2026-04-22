@@ -130,9 +130,19 @@ export function MachiningAnimation({
   const lastTsRef = useRef<number | null>(null)
   const chipSpawnAccumRef = useRef<number>(0)
   const chipIdRef = useRef<number>(0)
+  const toolXRef = useRef<number>(feedStartX)
+  const simElapsedRef = useRef<number>(0)
 
   // 1분 가공 완료 여부
   const completed = simElapsedMs >= SIM_DURATION_MIN * 60_000
+
+  useEffect(() => {
+    toolXRef.current = toolX
+  }, [toolX])
+
+  useEffect(() => {
+    simElapsedRef.current = simElapsedMs
+  }, [simElapsedMs])
 
   // 초당 회전수 (rps). speed 반영.
   const rpsEffective = useMemo(() => (n / 60) * speed, [n, speed])
@@ -172,6 +182,7 @@ export function MachiningAnimation({
       // 완료 판정 — 1분 이상이면 정지
       setSimElapsedMs(prev => {
         const next = prev + simDt
+        simElapsedRef.current = Math.min(next, SIM_DURATION_MIN * 60_000)
         if (next >= SIM_DURATION_MIN * 60_000) {
           setPlaying(false)
           return SIM_DURATION_MIN * 60_000
@@ -190,6 +201,7 @@ export function MachiningAnimation({
           // 랩어라운드 (반복 절삭 시각화)
           nextX = feedStartX + (nextX - feedEndX)
         }
+        toolXRef.current = nextX
         return nextX
       })
 
@@ -197,22 +209,15 @@ export function MachiningAnimation({
       chipSpawnAccumRef.current += realDt
       while (chipSpawnAccumRef.current >= chipSpawnIntervalMs) {
         chipSpawnAccumRef.current -= chipSpawnIntervalMs
-        // 현재 tool X, y 기준으로 칩 생성
-        const curToolX = (() => {
-          // prev state 가 아닌 최신을 참조하기 위해 함수형 setState 대신 ref 저장이 이상적이나,
-          // 한 번 setState 람다 재사용으로 최근 toolX 를 가져옴
-          return null as number | null
-        })()
-        void curToolX
         chipIdRef.current += 1
         const newChip: Chip = {
           id: chipIdRef.current,
-          x: 0, // 아래에서 setChips 내부에서 toolX 기준으로 세팅
+          x: toolXRef.current + (Math.random() * dPx - dPx / 2),
           y: BLOCK.y + 2 + Math.random() * (apPx * 0.4),
           vx: (Math.random() * 2 - 1) * 40 - 20, // -60 ~ +20 px/s (대부분 후방)
           vy: -(60 + Math.random() * 90),        // 위로 튐 (-60 ~ -150)
           spin: (Math.random() * 2 - 1) * 720,
-          bornAt: ts,
+          bornAt: simElapsedRef.current,
           hue: 35 + Math.random() * 25,          // amber/gold
         }
         setChips(prev => {
@@ -222,7 +227,7 @@ export function MachiningAnimation({
       }
 
       // 칩 수명 정리
-      setChips(prev => prev.filter(c => ts - c.bornAt < (CHIP_LIFETIME_MS / Math.max(0.5, speed / 4 + 0.5))))
+      setChips(prev => prev.filter(c => simElapsedRef.current - c.bornAt < (CHIP_LIFETIME_MS / Math.max(0.5, speed / 4 + 0.5))))
 
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -237,19 +242,12 @@ export function MachiningAnimation({
     }
   }, [playing, speed, rpsEffective, feedPxPerSecEffective, chipSpawnIntervalMs, apPx, feedEndX, feedStartX])
 
-  // 새로 스폰된 칩에 현재 toolX 를 반영 (effect 분리)
-  useEffect(() => {
-    setChips(prev =>
-      prev.map(c => (c.x === 0 ? { ...c, x: toolX + (Math.random() * dPx - dPx / 2) } : c)),
-    )
-    // 의도적으로 toolX 에는 react 하지 않음 — 최초 한 번만 x=0 인 칩에 위치 주입
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chips.length])
-
   // ─── 리셋 ──────────────────────────────
   const handleReset = useCallback(() => {
     setSimElapsedMs(0)
+    simElapsedRef.current = 0
     setToolX(feedStartX)
+    toolXRef.current = feedStartX
     setSpinDeg(0)
     setChips([])
     chipSpawnAccumRef.current = 0
@@ -536,8 +534,7 @@ export function MachiningAnimation({
           <AnimatePresence>
             {chips.map(chip => {
               // 칩 진행률 (0..1)
-              const now = performance.now()
-              const age = now - chip.bornAt
+              const age = simElapsedMs - chip.bornAt
               const lifetime = CHIP_LIFETIME_MS / Math.max(0.5, speed / 4 + 0.5)
               const t = clamp(age / lifetime, 0, 1)
               // 중력: vy increases downward over time

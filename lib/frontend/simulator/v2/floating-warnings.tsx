@@ -20,6 +20,8 @@ import FeatureExplainer from "./feature-explainer"
 
 const PULSE_DURATION_MS = 500
 const SHAKE_DURATION_MS = 500
+const PREVIEW_WARN_MS = 3200
+const PREVIEW_ERROR_MS = 5200
 
 export interface FloatingWarningsProps {
   warnings: SimWarning[]
@@ -61,6 +63,7 @@ export default function FloatingWarnings({
   onDetailClick,
 }: FloatingWarningsProps) {
   const [expanded, setExpanded] = useState(false)
+  const [previewVisible, setPreviewVisible] = useState(false)
   const [pulse, setPulse] = useState(false)
   const [shake, setShake] = useState(false)
 
@@ -68,6 +71,7 @@ export default function FloatingWarnings({
   const prevErrorCountRef = useRef<number>(0)
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const counts = useMemo(() => countByLevel(warnings), [warnings])
   const groups = useMemo(() => groupByLevel(warnings), [warnings])
@@ -82,14 +86,24 @@ export default function FloatingWarnings({
 
     if (warnings.length > prevLen) {
       setPulse(true)
+      setPreviewVisible(true)
       if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current)
       pulseTimerRef.current = setTimeout(() => setPulse(false), PULSE_DURATION_MS)
     }
 
     if (counts.error > prevErrors) {
       setShake(true)
+      setPreviewVisible(true)
       if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current)
       shakeTimerRef.current = setTimeout(() => setShake(false), SHAKE_DURATION_MS)
+    }
+
+    if (warnings.length !== prevLen || counts.error !== prevErrors) {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      previewTimerRef.current = setTimeout(
+        () => setPreviewVisible(false),
+        counts.error > 0 ? PREVIEW_ERROR_MS : PREVIEW_WARN_MS,
+      )
     }
 
     prevLenRef.current = warnings.length
@@ -100,6 +114,7 @@ export default function FloatingWarnings({
     return () => {
       if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current)
       if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current)
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     }
   }, [])
 
@@ -157,6 +172,7 @@ export default function FloatingWarnings({
   const detailBtn = darkMode
     ? "bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700"
     : "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300"
+  const previewItems = warnings.slice(0, 2)
 
   const animClass = [
     pulse ? "animate-pulse" : "",
@@ -167,7 +183,7 @@ export default function FloatingWarnings({
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-[90] flex flex-col items-end"
+      className="fixed bottom-4 right-4 z-[90] flex flex-col items-end sm:bottom-5 sm:right-5"
       role="status"
       aria-live="polite"
     >
@@ -185,7 +201,7 @@ export default function FloatingWarnings({
 
       {expanded ? (
         <div
-          className={`w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[60vh] overflow-hidden rounded-xl border shadow-2xl flex flex-col ${cardBg} ${animClass}`}
+          className={`w-[min(26rem,calc(100vw-1rem))] max-h-[70vh] overflow-hidden rounded-xl border shadow-2xl flex flex-col ${cardBg} ${animClass}`}
         >
           {/* 헤더 */}
           <div
@@ -254,18 +270,77 @@ export default function FloatingWarnings({
 
           {/* 하단 "자세히 보기" */}
           {onDetailClick && (
-            <div className={`border-t px-3 py-2 ${headerBorder}`}>
+            <div className={`shrink-0 border-t px-3 py-3 ${headerBorder}`}>
               <button
                 type="button"
                 onClick={() => {
                   onDetailClick()
                 }}
-                className={`w-full rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${detailBtn}`}
+                className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition-colors ${detailBtn}`}
               >
                 자세히 보기 →
               </button>
             </div>
           )}
+        </div>
+      ) : previewVisible ? (
+        <div
+          className={`w-[min(24rem,calc(100vw-1rem))] rounded-xl border shadow-2xl ${cardBg} ${animClass}`}
+        >
+          <div className={`flex items-start justify-between gap-3 border-b px-3 py-2 ${headerBorder}`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">
+                  <span aria-hidden="true">⚠</span> 실시간 검증
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${badgeBg}`}>
+                  {badgeLabel}
+                </span>
+                <span className={`text-xs tabular-nums ${subText}`}>Σ {total}건</span>
+              </div>
+              <div className={`mt-1 text-[11px] ${subText}`}>새 경고가 감지되어 잠깐 표시됩니다.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewVisible(false)}
+              aria-label="경고 미리보기 닫기"
+              className={`rounded-md px-1.5 py-0.5 text-sm leading-none ${subText} hover:opacity-80`}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1.5 px-3 py-2">
+            {previewItems.map((w, idx) => (
+              <div key={`preview-${idx}`} className={`flex items-start gap-2 rounded-md px-2 py-1.5 text-xs ${w.level === "error" ? errorRow : w.level === "warn" ? warnRow : infoRow} ${darkMode ? "bg-slate-800/70" : "bg-slate-50"}`}>
+                <span aria-hidden="true" className="shrink-0 pt-0.5">{LEVEL_ICON[w.level]}</span>
+                <span className="min-w-0 break-words">{w.message}</span>
+              </div>
+            ))}
+          </div>
+          <div className={`flex items-center gap-2 border-t px-3 py-2 ${headerBorder}`}>
+            <button
+              type="button"
+              onClick={() => {
+                setPreviewVisible(false)
+                setExpanded(true)
+              }}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${detailBtn}`}
+            >
+              경고 열기
+            </button>
+            {onDetailClick && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewVisible(false)
+                  onDetailClick()
+                }}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${detailBtn}`}
+              >
+                자세히 보기 →
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <button

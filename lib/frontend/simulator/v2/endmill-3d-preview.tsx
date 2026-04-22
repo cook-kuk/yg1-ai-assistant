@@ -110,6 +110,9 @@ export function Endmill3DPreview({
   const bodyHeight = 120
   const shankWidth = bodyWidth * 0.85
   const shankHeight = 70
+  const helixLean = Math.max(16, Math.min(helixAngle, 52))
+  const sliceCount = 8
+  const depthShift = Math.max(8, Math.min(18, bodyWidth * 0.16))
 
   // 나선 stripe 위치 (flutes 수만큼)
   const fluteCount = Math.max(2, Math.min(6, flutes || 4))
@@ -117,6 +120,7 @@ export function Endmill3DPreview({
     offset: (i / fluteCount) * 100,
     key: i,
   }))
+  const bodySlices = Array.from({ length: sliceCount }, (_, i) => i)
 
   // tip 렌더링
   const tipHeight = shape === "ball" ? bodyWidth / 2 : shape === "chamfer" ? 14 : 10
@@ -220,6 +224,25 @@ export function Endmill3DPreview({
         {(rpm || 0).toLocaleString()} rpm
       </motion.div>
 
+      <div
+        style={{
+          position: "absolute",
+          top: 38,
+          right: 8,
+          fontSize: 11,
+          fontWeight: 600,
+          padding: "3px 8px",
+          borderRadius: 999,
+          background: labelBg,
+          color: textColor,
+          border: `1px solid ${darkMode ? "#2a2f3a" : "#d1d5db"}`,
+          zIndex: 3,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        helix {helixAngle}°
+      </div>
+
       {/* 3D 스테이지 */}
       <div
         onPointerDown={onPointerDown}
@@ -274,25 +297,45 @@ export function Endmill3DPreview({
               position: "relative",
               width: bodyWidth,
               height: bodyHeight,
-              background: `linear-gradient(90deg, ${tint.edge} 0%, ${tint.body} 45%, ${tint.highlight} 52%, ${tint.body} 60%, ${tint.edge} 100%)`,
+              background: `linear-gradient(90deg, ${tint.edge} 0%, ${tint.body} 32%, ${tint.highlight} 50%, ${tint.body} 68%, ${tint.edge} 100%)`,
               overflow: "hidden",
+              borderRadius: 8,
               boxShadow:
                 "inset 0 2px 4px rgba(255,255,255,0.2), inset 0 -2px 4px rgba(0,0,0,0.3)",
             }}
           >
+            {bodySlices.map((slice) => {
+              const depthPct = slice / (sliceCount - 1)
+              return (
+                <div
+                  key={`slice-${slice}`}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: 8,
+                    transform: `translate3d(${(depthPct - 0.5) * depthShift}px, 0, ${-slice * 4}px) scaleX(${1 - depthPct * 0.04})`,
+                    background: `linear-gradient(90deg, rgba(0,0,0,${0.26 - depthPct * 0.16}), transparent 28%, rgba(255,255,255,${0.16 - depthPct * 0.08}) 52%, transparent 74%, rgba(0,0,0,${0.18 - depthPct * 0.1}))`,
+                    mixBlendMode: "overlay",
+                    pointerEvents: "none",
+                  }}
+                />
+              )
+            })}
             {stripes.map((s) => (
               <div
                 key={s.key}
                 style={{
                   position: "absolute",
-                  top: -20,
-                  left: `${s.offset}%`,
-                  width: 2,
-                  height: bodyHeight + 40,
-                  background: `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(255,255,255,0.15))`,
-                  transform: `rotate(${helixAngle}deg)`,
+                  top: -28,
+                  left: `calc(${s.offset}% - ${Math.max(3, bodyWidth * 0.06)}px)`,
+                  width: Math.max(6, bodyWidth * 0.12),
+                  height: bodyHeight + 56,
+                  borderRadius: 999,
+                  background: `linear-gradient(180deg, rgba(0,0,0,0.72), rgba(255,255,255,0.12) 18%, rgba(0,0,0,0.82) 58%, rgba(255,255,255,0.08))`,
+                  transform: `rotate(${helixLean}deg) translateZ(12px)`,
                   transformOrigin: "top center",
-                  opacity: 0.85,
+                  opacity: 0.88,
+                  boxShadow: "inset 1px 0 0 rgba(255,255,255,0.16), inset -1px 0 0 rgba(0,0,0,0.35)",
                 }}
               />
             ))}
@@ -306,6 +349,14 @@ export function Endmill3DPreview({
                 height: "100%",
                 background: "linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.15))",
                 filter: "blur(1px)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "linear-gradient(180deg, rgba(255,255,255,0.16), transparent 26%, transparent 74%, rgba(0,0,0,0.18))",
+                pointerEvents: "none",
               }}
             />
           </div>

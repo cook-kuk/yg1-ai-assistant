@@ -320,12 +320,7 @@ export function BeginnerLessonCards({
   rotateInterval = DEFAULT_ROTATE_MS,
   onClose,
 }: BeginnerLessonCardsProps) {
-  // 마운트 시 저장된 index 읽어 "다음" 레슨부터 시작
-  const [index, setIndex] = useState<number>(() => {
-    const last = readStoredIndex()
-    if (last < 0) return 0
-    return (last + 1) % LESSONS.length
-  })
+  const [index, setIndex] = useState<number>(0)
   const [playing, setPlaying] = useState<boolean>(true)
   const [hovering, setHovering] = useState<boolean>(false)
   const [visible, setVisible] = useState<boolean>(true)
@@ -334,6 +329,12 @@ export function BeginnerLessonCards({
   const total = LESSONS.length
   const lesson = useMemo(() => LESSONS[index] ?? LESSONS[0], [index])
   const c = resolveColor(lesson.color)
+
+  useEffect(() => {
+    const last = readStoredIndex()
+    if (last < 0) return
+    setIndex((last + 1) % LESSONS.length)
+  }, [])
 
   // index 바뀔 때마다 localStorage 갱신
   useEffect(() => {

@@ -495,9 +495,12 @@ function Gauge({
                   // initial sweep은 framer가 initial→animate로 처리
                 })
           }
-          style={{ originX: `${CX}px`, originY: `${CY}px`, transformBox: "fill-box" as const }}
-          // transformOrigin 호환용 (transformBox 사용)
-          transform-origin={`${CX} ${CY}`}
+          style={{
+            originX: `${CX}px`,
+            originY: `${CY}px`,
+            transformBox: "fill-box" as const,
+            transformOrigin: `${CX}px ${CY}px`,
+          }}
         >
           <path
             d={`M ${CX} ${CY + NEEDLE_BACK_Y}
@@ -887,8 +890,12 @@ function SemiGauge({
               ? { duration: 0.4, repeat: Infinity, ease: "easeInOut" as const }
               : SPRING
           }
-          style={{ originX: `${scx}px`, originY: `${scy}px`, transformBox: "fill-box" as const }}
-          transform-origin={`${scx} ${scy}`}
+          style={{
+            originX: `${scx}px`,
+            originY: `${scy}px`,
+            transformBox: "fill-box" as const,
+            transformOrigin: `${scx}px ${scy}px`,
+          }}
         >
           <path
             d={`M ${scx} ${scy + 6}

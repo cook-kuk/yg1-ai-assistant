@@ -18,11 +18,15 @@ interface CuttingActionProps {
 export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae, toolPath, className }: CuttingActionProps) {
   const W = 200
   const H = 260
+  const MIN_VISUAL_AP_PX = 4
+  const MIN_VISUAL_AE_PX = 4
   const scale = 40 / Math.max(D, 1)
   const dPx = D * scale
   const locPx = Math.min(LOC * scale, H * 0.5)
   const apPx = Math.min(ap * scale, locPx)
   const aePx = Math.min(ae * scale, dPx)
+  const apPxVisual = ap > 0 ? Math.max(apPx, MIN_VISUAL_AP_PX) : 0
+  const aePxVisual = ae > 0 ? Math.max(aePx, MIN_VISUAL_AE_PX) : 0
 
   const blockW = 120
   const blockH = 100
@@ -31,13 +35,13 @@ export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae
 
   const toolCx = W / 2
   const toolTop = 20
-  const toolBottom = blockY + apPx
+  const toolBottom = blockY + apPxVisual
   const shankW = dPx * 0.6
 
   // engagement shown as green overlay where tool meets block
   const isSlotting = toolPath === "full-slotting" || toolPath === "slotting"
-  const engagementX = toolCx - (isSlotting ? dPx / 2 : aePx / 2 - dPx / 2)
-  const engagementW = isSlotting ? dPx : aePx
+  const engagementX = toolCx - (isSlotting ? dPx / 2 : aePxVisual / 2 - dPx / 2)
+  const engagementW = isSlotting ? dPx : aePxVisual
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={className} role="img" aria-label="cutting action">
@@ -86,7 +90,7 @@ export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae
 
       {/* Engagement 녹색 영역 (절삭 중인 부분) */}
       <rect x={engagementX} y={blockY}
-        width={engagementW} height={apPx}
+        width={engagementW} height={apPxVisual}
         fill="#10b981" fillOpacity={0.35}
         stroke="#059669" strokeWidth={1} strokeDasharray="2 2" />
 
@@ -99,20 +103,20 @@ export const CuttingAction = memo(function CuttingAction({ shape, D, LOC, ap, ae
       ))}
 
       {/* 치수 라벨 */}
-      <text x={blockX - 4} y={blockY + apPx / 2} textAnchor="end" fontSize={9} fill="#dc2626" fontWeight="bold">ap={ap.toFixed(1)}</text>
+      <text x={blockX - 4} y={blockY + apPxVisual / 2} textAnchor="end" fontSize={9} fill="#dc2626" fontWeight="bold">ap={ap.toFixed(1)}</text>
       <text x={toolCx} y={blockY + blockH + 18} textAnchor="middle" fontSize={9} fill="#dc2626" fontWeight="bold">ae={ae.toFixed(1)}mm</text>
       <text x={W - 4} y={toolBottom - locPx / 2} textAnchor="end" fontSize={8} fill="#6b7280">⌀{D.toFixed(1)}</text>
 
       {/* Feed 방향 화살표 */}
-      <line x1={blockX + blockW + 5} y1={blockY + apPx / 2}
-        x2={blockX + blockW + 25} y2={blockY + apPx / 2}
+      <line x1={blockX + blockW + 5} y1={blockY + apPxVisual / 2}
+        x2={blockX + blockW + 25} y2={blockY + apPxVisual / 2}
         stroke="#2563eb" strokeWidth={1.5} markerEnd="url(#arrow)" />
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
           <path d="M 0 0 L 10 5 L 0 10 Z" fill="#2563eb" />
         </marker>
       </defs>
-      <text x={blockX + blockW + 30} y={blockY + apPx / 2 + 3} fontSize={8} fill="#2563eb">Feed</text>
+      <text x={blockX + blockW + 30} y={blockY + apPxVisual / 2 + 3} fontSize={8} fill="#2563eb">Feed</text>
 
       {/* 스핀들 회전 방향 */}
       <text x={toolCx} y={toolTop - 10} textAnchor="middle" fontSize={10} fill="#2563eb">↻ n</text>

@@ -87,9 +87,10 @@ import { CornerFeedPanelV2 } from "./corner-panel-v2"
 import { WorkholdingSlider } from "./workholding-slider"
 import { AiCoachPanel } from "./ai-coach-panel"
 import { ToolLifeScenario } from "./tool-life-scenario"
-import { MultiToolCompare } from "./multi-tool-compare"
+import { HARVEY_REPLACEMENT_PRESETS, MultiToolCompare, getToolOptionById, type ToolOption } from "./multi-tool-compare"
 import { LearningMode } from "./learning-mode"
 import { CompetitorLiveCompare } from "./competitor-live-compare"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
@@ -298,7 +299,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showBlueprint, setShowBlueprint] = useState(false)
   const [showBlueprintGallery, setShowBlueprintGallery] = useState(false)
   const [showAnalogGauges, setShowAnalogGauges] = useState(false)
-  const [showHeroDisplay, setShowHeroDisplay] = useState(true)
+  const [showHeroDisplay, setShowHeroDisplay] = useState(false)
   const [showToolPath, setShowToolPath] = useState(false)
   const [showVibration, setShowVibration] = useState(false)
   const [showTempHeatmap, setShowTempHeatmap] = useState(false)
@@ -313,6 +314,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [beforeAfterData, setBeforeAfterData] = useState<{ before: any; after: any; reasoning?: string } | null>(null)
   const [showFavorites, setShowFavorites] = useState(false)
   const [show3DScene, setShow3DScene] = useState(false)
+  const [liveCorrelationOpen, setLiveCorrelationOpen] = useState(false)
+  const [showPrimaryParameterMap, setShowPrimaryParameterMap] = useState(true)
+  const [selectedHarveyReplacementId, setSelectedHarveyReplacementId] = useState(HARVEY_REPLACEMENT_PRESETS[0]?.id ?? "")
+  const [replacementVisualMode, setReplacementVisualMode] = useState<"split" | "flutes" | "live">("split")
   const [operationType, setOperationType] = useState<OperationType>("endmill-general")
   const [confettiTrigger, setConfettiTrigger] = useState(0)
   const simMode = useSimulatorMode()
@@ -342,6 +347,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [panelInstance, setPanelInstance] = useState(0)
   // 패널 single-toggle + RAF로 unmount/mount 분리 + 맨 위 스크롤 + 강제 remount 키
   const activatePanel = useCallback((panelKey: string | null) => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
     // 1) 모든 비주얼 패널 먼저 OFF (react가 완전 unmount 하도록)
     setShowLiveScene(false); setShow3DPreview(false); setShowBlueprint(false)
     setShowAnalogGauges(false); setShowToolPath(false); setShowVibration(false)
@@ -381,6 +387,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         const HEADER_OFFSET = 80
         const top = window.scrollY + el.getBoundingClientRect().top - HEADER_OFFSET
         window.scrollTo({ top, behavior: "smooth" })
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" })
       }
     }, 240)
   }, [])
@@ -879,6 +887,72 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     return ENDMILL_EXAMPLES.filter(ex => ex.shape === endmillShape)
   }, [endmillShape])
 
+  const harveyReplacementPair = useMemo(() => {
+    const preset = HARVEY_REPLACEMENT_PRESETS.find(item => item.id === selectedHarveyReplacementId) ?? HARVEY_REPLACEMENT_PRESETS[0]
+    if (!preset) return null
+    const harvey = getToolOptionById(preset.harveyId)
+    const sandvik = getToolOptionById(preset.sandvikId)
+    const yg1 = getToolOptionById(preset.yg1Id)
+    if (!harvey || !sandvik || !yg1) return null
+    return { preset, harvey, sandvik, yg1 }
+  }, [selectedHarveyReplacementId])
+
+  const harveyReplacementCards = useMemo(() => {
+    if (!harveyReplacementPair) return []
+    const opDef = OPERATION_DEFAULTS[operation] ?? { apRatio: 0.5, aeRatio: 0.2 }
+    const buildCard = (tool: ToolOption) => {
+      const pairAp = Math.min(tool.LOC, parseFloat((opDef.apRatio * tool.D).toFixed(1)))
+      const pairAe = Math.min(tool.D, parseFloat((opDef.aeRatio * tool.D).toFixed(1)))
+      const cutting = calculateCutting({
+        Vc: tool.Vc,
+        fz: tool.fz,
+        ap: pairAp,
+        ae: pairAe,
+        D: tool.D,
+        Z: tool.Z,
+        isoGroup: tool.iso,
+      })
+      const adv = computeAdvanced({
+        Pc: cutting.Pc,
+        n: cutting.n,
+        D: tool.D,
+        shaft: { stickoutMm: tool.D * DEFAULT_STICKOUT_RATIO, youngModulusGPa: 600 },
+      })
+      const toolLife = estimateToolLifeMin({
+        Vc: tool.Vc,
+        VcReference: tool.Vc,
+        coatingMult: tool.coatingMult,
+        isoGroup: tool.iso,
+        toolMaterialE: 600,
+      })
+      const ra = estimateRaUm({
+        fz: tool.fz,
+        D: tool.D,
+        shape: tool.shape,
+        cornerR: tool.cornerR,
+        ae: pairAe,
+      })
+      return {
+        tool,
+        ap: pairAp,
+        ae: pairAe,
+        n: cutting.n,
+        Vf: cutting.Vf,
+        MRR: cutting.MRR,
+        Pc: cutting.Pc,
+        torque: adv.torque,
+        deflection: adv.deflection,
+        toolLifeMin: toolLife,
+        raUm: ra,
+      }
+    }
+    return [
+      buildCard(harveyReplacementPair.harvey),
+      buildCard(harveyReplacementPair.sandvik),
+      buildCard(harveyReplacementPair.yg1),
+    ]
+  }, [harveyReplacementPair, operation])
+
   const activeSubgroups = useMemo(() => MATERIAL_SUBGROUPS.filter(m => m.iso === isoGroup), [isoGroup])
   const currentSubgroup = MATERIAL_SUBGROUPS.find(m => m.key === subgroupKey)
 
@@ -999,6 +1073,52 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     else if (slot === "C") saveC()
     else saveD()
   }
+
+  const loadHarveyReplacementPairToSnapshots = useCallback(() => {
+    if (harveyReplacementCards.length < 3) return
+    const [harveyCard, sandvikCard, yg1Card] = harveyReplacementCards
+    setSnapshotA({
+      label: `${harveyCard.tool.brand} ${harveyCard.tool.series}`,
+      Vc: harveyCard.tool.Vc,
+      fz: harveyCard.tool.fz,
+      ap: harveyCard.ap,
+      ae: harveyCard.ae,
+      n: harveyCard.n,
+      Vf: harveyCard.Vf,
+      MRR: harveyCard.MRR,
+      Pc: harveyCard.Pc,
+      torque: harveyCard.torque,
+      deflection: harveyCard.deflection,
+    })
+    setSnapshotB({
+      label: `${sandvikCard.tool.brand} ${sandvikCard.tool.series}`,
+      Vc: sandvikCard.tool.Vc,
+      fz: sandvikCard.tool.fz,
+      ap: sandvikCard.ap,
+      ae: sandvikCard.ae,
+      n: sandvikCard.n,
+      Vf: sandvikCard.Vf,
+      MRR: sandvikCard.MRR,
+      Pc: sandvikCard.Pc,
+      torque: sandvikCard.torque,
+      deflection: sandvikCard.deflection,
+    })
+    setSnapshotC({
+      label: `${yg1Card.tool.brand} ${yg1Card.tool.series}`,
+      Vc: yg1Card.tool.Vc,
+      fz: yg1Card.tool.fz,
+      ap: yg1Card.ap,
+      ae: yg1Card.ae,
+      n: yg1Card.n,
+      Vf: yg1Card.Vf,
+      MRR: yg1Card.MRR,
+      Pc: yg1Card.Pc,
+      torque: yg1Card.torque,
+      deflection: yg1Card.deflection,
+    })
+    document.querySelector('[data-section="dual-replacement-sim"]')?.scrollIntoView({ behavior: "smooth", block: "start" })
+    toast.success("Harvey 대체 듀얼 시뮬레이션을 A/B 비교로 올렸습니다")
+  }, [harveyReplacementCards])
 
   const downloadShopfloorCard = useCallback(async () => {
     try {
@@ -1424,15 +1544,491 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
       {/* 상관관계 라이브 스트립 — 현재 적용되는 multiplier 투명하게 공개 */}
       {autoCorrelate && (
-        <div className="rounded-lg border border-purple-200 bg-purple-50/40 px-3 py-2 flex flex-wrap gap-2 text-[10px]">
-          <span className="font-semibold text-purple-800">🔗 LIVE 상관관계:</span>
-          <CorrChip label="Coolant" value={`×${coolantMult}`} active={coolantMult !== 1} />
-          <CorrChip label="Coating" value={`×${coatingMult}`} active={coatingMult !== 1} />
-          <CorrChip label="Hardness" value={`×${hardDerate.toFixed(2)}`} active={hardDerate !== 1} />
-          <CorrChip label="Stickout" value={`Vc×${stickoutD.vc} fz×${stickoutD.fz}`} active={stickoutD.vc !== 1} />
-          <CorrChip label="Workholding" value={`ap≤${whCap.apMax.toFixed(1)} ae≤${whCap.aeMax.toFixed(1)}`} active={true} />
-          <CorrChip label="Climb" value={climb ? `Ra×0.8 F×0.9 Life×1.15` : `baseline`} active={climb} />
-          <span className="ml-auto text-purple-700 font-mono">Vc_eff = {Vc.toFixed(0)} × {((1 + speedPct/100) * coolantMult * coatingMult * hardDerate * stickoutD.vc).toFixed(2)} = <b>{VcEff.toFixed(0)}</b> m/min</span>
+        <>
+          <button
+            type="button"
+            data-testid="live-correlation-trigger"
+            onClick={() => setLiveCorrelationOpen(true)}
+            className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-purple-200 bg-purple-50/40 px-3 py-2 text-left text-[10px] transition hover:border-purple-300 hover:bg-purple-50/70"
+          >
+            <span className="font-semibold text-purple-800">🔗 LIVE 상관관계:</span>
+            <CorrChip label="Coolant" value={`×${coolantMult}`} active={coolantMult !== 1} />
+            <CorrChip label="Coating" value={`×${coatingMult}`} active={coatingMult !== 1} />
+            <CorrChip label="Hardness" value={`×${hardDerate.toFixed(2)}`} active={hardDerate !== 1} />
+            <CorrChip label="Stickout" value={`Vc×${stickoutD.vc} fz×${stickoutD.fz}`} active={stickoutD.vc !== 1} />
+            <CorrChip label="Workholding" value={`ap≤${whCap.apMax.toFixed(1)} ae≤${whCap.aeMax.toFixed(1)}`} active />
+            <CorrChip label="Climb" value={climb ? `Ra×0.8 F×0.9 Life×1.15` : `baseline`} active={climb} />
+            <span className="rounded-full border border-purple-200 bg-white/80 px-2 py-0.5 font-semibold text-purple-700">상세 팝업</span>
+            <span className="ml-auto text-purple-700 font-mono">Vc_eff = {Vc.toFixed(0)} × {((1 + speedPct/100) * coolantMult * coatingMult * hardDerate * stickoutD.vc).toFixed(2)} = <b>{VcEff.toFixed(0)}</b> m/min</span>
+          </button>
+          <Dialog open={liveCorrelationOpen} onOpenChange={setLiveCorrelationOpen}>
+            <DialogContent data-testid="live-correlation-popover" className="max-w-2xl border-purple-200 bg-white p-0">
+              <DialogHeader className="border-b border-purple-100 bg-gradient-to-r from-purple-50 via-white to-fuchsia-50 px-6 py-4">
+                <DialogTitle className="text-purple-900">LIVE 상관관계 상세</DialogTitle>
+                <DialogDescription className="text-purple-700">
+                  지금 적용 중인 multiplier와 clamp를 팝업으로 고정해서 확인합니다.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 px-6 py-5">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CorrelationDetailCard label="Coolant" value={`×${coolantMult}`} note="절삭속도 보정" />
+                  <CorrelationDetailCard label="Coating" value={`×${coatingMult}`} note="절삭속도 보정" />
+                  <CorrelationDetailCard label="Hardness" value={`×${hardDerate.toFixed(2)}`} note="경도 derate" />
+                  <CorrelationDetailCard label="Stickout" value={`Vc ×${stickoutD.vc} / fz ×${stickoutD.fz}`} note="돌출 길이 영향" />
+                  <CorrelationDetailCard label="Workholding" value={`ap ≤ ${whCap.apMax.toFixed(1)} / ae ≤ ${whCap.aeMax.toFixed(1)}`} note="고정 조건 clamp" />
+                  <CorrelationDetailCard label="Climb" value={climb ? "Ra ×0.8 / Feed ×0.9 / Life ×1.15" : "baseline"} note="절삭 방향 영향" />
+                </div>
+                <div className="rounded-xl border border-purple-100 bg-purple-50 px-4 py-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-purple-700">Effective Formula</div>
+                  <div className="mt-1 font-mono text-sm text-purple-900">
+                    Vc_eff = {Vc.toFixed(0)} × {((1 + speedPct / 100) * coolantMult * coatingMult * hardDerate * stickoutD.vc).toFixed(2)} = {VcEff.toFixed(0)} m/min
+                  </div>
+                  <div className="mt-2 text-[11px] text-purple-700">
+                    Feed 보정은 fz × {stickoutD.fz} 와 hardness derate를 기준으로 동작합니다.
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+      <div
+        data-testid="primary-parameter-map"
+        className="sticky top-3 z-30 rounded-xl border border-blue-200 bg-white/92 p-3 shadow-lg backdrop-blur"
+      >
+        <button
+          type="button"
+          onClick={() => setShowPrimaryParameterMap(v => !v)}
+          className="mb-2 flex w-full items-center justify-between gap-2 text-left"
+        >
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-800">핵심 파라미터 맵</div>
+            <div className="text-[10px] text-blue-600">상단 고정 상태로 따라다니며 모든 계산에 즉시 연동됩니다.</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-mono text-blue-700">
+              Vc {Vc.toFixed(0)} / fz {fz.toFixed(4)} / ap {ap.toFixed(1)} / ae {ae.toFixed(1)} / Stick {stickoutMm.toFixed(1)}
+            </span>
+            <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+              {showPrimaryParameterMap ? "접기" : "펼치기"}
+            </span>
+          </div>
+        </button>
+        {showPrimaryParameterMap && (
+          <>
+            <div className="mb-3 grid grid-cols-2 gap-2 xl:grid-cols-5">
+              <MiniGaugeControl label="Vc" unit="m/min" value={Vc} min={Math.round(range.VcMin)} max={Math.round(range.VcMax)} step={1} decimals={0} color="sky" onChange={v => setVc(Math.round(v))} />
+              <MiniGaugeControl label="fz" unit="mm/t" value={fz} min={range.fzMin} max={range.fzMax} step={0.001} decimals={4} color="emerald" onChange={v => setFz(parseFloat(v.toFixed(4)))} />
+              <MiniGaugeControl label="ap" unit="mm" value={ap} min={0.1} max={range.apMax} step={0.1} decimals={1} color="amber" disabled={apLocked} onChange={v => !apLocked && setAp(parseFloat(v.toFixed(1)))} />
+              <MiniGaugeControl label="ae" unit="mm" value={ae} min={0.1} max={range.aeMax} step={0.1} decimals={1} color="violet" disabled={aeLocked} onChange={v => !aeLocked && setAe(parseFloat(v.toFixed(1)))} />
+              <MiniGaugeControl label="Stick" unit="mm" value={stickoutMm} min={3} max={diameter * 10} step={0.5} decimals={1} color="sky" onChange={v => { setStickoutMm(v); setStickoutManual(true) }} />
+            </div>
+            <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-lg border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3">
+                <ADOCRDOCAdjuster
+                  apPct={Math.min(100, (ap / diameter) * 100)}
+                  aePct={Math.min(100, (ae / diameter) * 100)}
+                  onChange={(apP, aeP) => {
+                    if (!apLocked) setAp(parseFloat(((apP / 100) * diameter).toFixed(1)))
+                    if (!aeLocked) setAe(parseFloat(((aeP / 100) * diameter).toFixed(1)))
+                  }}
+                  className="w-full"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50/70 p-2">
+                  <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Engagement</div>
+                  <EngagementCircle ae={ae} D={diameter} className="w-full h-16" />
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-50/70 p-2">
+                  <div className="text-[9px] uppercase tracking-wider text-gray-500 font-semibold">Cutting Action</div>
+                  <CuttingAction shape={activeShape} D={diameter} LOC={LOC} ap={ap} ae={ae} toolPath={toolPath} className="w-full" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || beforeAfterData) && (
+        <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-cyan-50/60 p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-800">비주얼 스테이지</div>
+              <div className="text-[11px] text-violet-700">토글한 패널이 스트립 바로 아래에서 바로 열립니다.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => activatePanel(null)}
+              className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50"
+            >
+              모두 닫기
+            </button>
+          </div>
+
+          {show3DScene && (
+            <div key={`3d-${panelInstance}`} data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
+              <OperationPicker value={operationType} onChange={setOperationType} darkMode={darkMode} />
+              <HolographicFrame accent="violet" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
+                <div className="p-2">
+                  <Cutting3DScene
+                    operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
+                    shape={activeShape}
+                    diameter={diameter}
+                    flutes={fluteCount}
+                    LOC={LOC}
+                    OAL={OAL}
+                    rpm={result.n}
+                    Vf={result.Vf}
+                    ap={ap}
+                    ae={ae}
+                    stockL={stockL}
+                    stockW={stockW}
+                    stockH={stockH}
+                    coating={coating}
+                    darkMode={darkMode}
+                    height={480}
+                  />
+                </div>
+              </HolographicFrame>
+            </div>
+          )}
+
+          {showFavorites && (
+            <div data-visual-panel="favorites" className="scroll-mt-20">
+              <FavoritesPanel
+                darkMode={darkMode}
+                currentState={{
+                  isoGroup, subgroupKey, operation, coating,
+                  Vc: VcEff, fz: fzEff, ap, ae,
+                  diameter, fluteCount, activeShape,
+                }}
+                onApply={(entry) => {
+                  setIsoGroup(entry.isoGroup)
+                  setSubgroupKey(entry.subgroupKey)
+                  setOperation(entry.operation)
+                  setCoating(entry.coating)
+                  setVc(entry.Vc); setFz(entry.fz); setAp(entry.ap); setAe(entry.ae)
+                  setDiameter(entry.diameter); setFluteCount(entry.fluteCount)
+                  setActiveShape(entry.activeShape as Exclude<EndmillShape, "all">)
+                  toast.success(`⭐ "${entry.name}" 적용`)
+                }}
+              />
+            </div>
+          )}
+
+          {showCheatSheet && (
+            <div data-visual-panel="cheat" className="scroll-mt-20">
+              <CheatSheetPanel
+                currentIsoGroup={isoGroup}
+                currentCoating={coating}
+                currentVc={VcEff}
+                currentFz={fzEff}
+                darkMode={darkMode}
+                expanded={showCheatSheet}
+                onToggle={() => setShowCheatSheet(v => !v)}
+              />
+            </div>
+          )}
+
+          {showAnalogGauges && (
+            <div data-visual-panel="gauges" className="scroll-mt-20">
+              <HolographicFrame accent="rose" intensity="medium" scanlines darkMode={darkMode}>
+                <div className="p-2">
+                  <AnalogGauges
+                    rpm={result.n}
+                    rpmMax={maxRpm}
+                    Vf={result.Vf}
+                    VfMax={maxIpm * 25.4}
+                    Pc={result.Pc}
+                    PcMax={maxKw}
+                    toolLifePct={Math.min(100, Math.max(0, (toolLifeMin / 120) * 100))}
+                    chatterRisk={chatter.risk}
+                    darkMode={darkMode}
+                  />
+                </div>
+              </HolographicFrame>
+            </div>
+          )}
+
+          {showVideoPanel && (
+            <div data-visual-panel="video" className="scroll-mt-20">
+              <Yg1VideoPanel isoGroup={isoGroup} operation={operation} darkMode={darkMode} />
+            </div>
+          )}
+
+          {showLeaderboard && (
+            <div data-visual-panel="leaderboard" className="scroll-mt-20">
+              <BenchmarkLeaderboard
+                darkMode={darkMode}
+                currentState={{
+                  isoGroup, operation, Vc: VcEff, fz: fzEff, ap, ae,
+                  diameter, fluteCount,
+                  MRR: result.MRR, toolLifeMin, Pc: result.Pc, Ra: raUm,
+                }}
+                onLoadEntry={(e) => {
+                  setVc(e.Vc); setFz(e.fz); setAp(e.ap); setAe(e.ae)
+                  setDiameter(e.diameter); setFluteCount(e.fluteCount)
+                  setIsoGroup(e.isoGroup)
+                  setOperation(e.operation)
+                  toast.success(`🏆 ${e.nickname || "익명"} 조건 로드`)
+                }}
+              />
+            </div>
+          )}
+
+          {showAutoAgent && (
+            <div data-visual-panel="auto-agent" className="scroll-mt-20">
+              <AiAutoAgentPanel
+                darkMode={darkMode}
+                currentState={{
+                  Vc, fz, ap, ae, diameter, fluteCount, activeShape,
+                  isoGroup, subgroupKey, operation, coating,
+                  workholding, stickoutMm, hardnessScale, hardnessValue,
+                }}
+                onApply={(opt) => {
+                  setBeforeAfterData({
+                    before: { Vc: VcEff, fz: fzEff, ap, ae, n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm },
+                    after: opt,
+                    reasoning: "AI 자율 에이전트가 여러 조건을 탐색한 결과 최고 점수 조합",
+                  })
+                  setVc(opt.Vc); setFz(opt.fz); setAp(opt.ap); setAe(opt.ae)
+                  toast.success("🏆 자율 AI 최고 조건 적용")
+                }}
+              />
+            </div>
+          )}
+
+          {beforeAfterData && (
+            <div data-visual-panel="before-after" className="scroll-mt-20">
+              <BeforeAfterCompare
+                before={beforeAfterData.before}
+                after={beforeAfterData.after}
+                reasoning={beforeAfterData.reasoning}
+                darkMode={darkMode}
+                onRevert={() => {
+                  const b = beforeAfterData.before
+                  setVc(b.Vc); setFz(b.fz); setAp(b.ap); setAe(b.ae)
+                  setBeforeAfterData(null)
+                  toast.info("↺ 원래 조건 복원")
+                }}
+              />
+            </div>
+          )}
+
+          {showLiveScene && (
+            <div data-section="live-scene" data-visual-panel="live" className="scroll-mt-20 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
+                  <FeatureExplainer featureId="live-scene" inline darkMode={darkMode} />
+                  {simMode.showVendorTags && <VendorTag featureId="real-time-warnings" size="xs" darkMode={darkMode} />}
+                </h4>
+                <button onClick={() => setShowLiveScene(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+              </div>
+              <LiveCuttingScene
+                shape={activeShape}
+                diameter={diameter}
+                flutes={fluteCount}
+                helixAngle={helixAngleDeg}
+                Vc={VcEff}
+                Vf={result.Vf}
+                rpm={result.n}
+                ap={ap}
+                ae={ae}
+                stickoutMm={stickoutMm}
+                materialGroup={isoGroup}
+                chatterRisk={chatter.level}
+                bueRisk={advBue.risk}
+                chipMorph={advChipMorph.type}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {(show3DPreview || showBlueprint) && (
+            <div data-visual-panel={show3DPreview ? "3d" : "blueprint"} className="grid grid-cols-1 lg:grid-cols-2 gap-3 scroll-mt-20">
+              {show3DPreview && (
+                <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">🔄 3D 엔드밀 프리뷰
+                      <FeatureExplainer featureId="3d-endmill" inline darkMode={darkMode} />
+                      {simMode.showVendorTags && <VendorTag featureId="shopfloor-card" size="xs" darkMode={darkMode} />}
+                    </h4>
+                    <button onClick={() => setShow3DPreview(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="flex justify-center">
+                    <Endmill3DPreview
+                      shape={activeShape}
+                      diameter={diameter}
+                      flutes={fluteCount}
+                      rpm={result.n}
+                      helixAngle={helixAngleDeg}
+                      cornerR={cornerR}
+                      coating={coating}
+                      darkMode={darkMode}
+                    />
+                  </div>
+                </div>
+              )}
+              {showBlueprint && (
+                <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">📐 YG-1 기술 도면
+                      <FeatureExplainer featureId="blueprint" inline darkMode={darkMode} />
+                      {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
+                    </h4>
+                    <button onClick={() => setShowBlueprint(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <ToolBlueprint
+                    shape={activeShape}
+                    diameter={diameter}
+                    shankDia={shankDia}
+                    LOC={LOC}
+                    OAL={OAL}
+                    flutes={fluteCount}
+                    helixAngle={helixAngleDeg}
+                    cornerR={cornerR}
+                    coating={coating}
+                    seriesCode={productCode || undefined}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {(showToolPath || showVibration) && (
+            <div data-visual-panel={showToolPath ? "tool-path" : "vibration"} className="grid grid-cols-1 lg:grid-cols-2 gap-3 scroll-mt-20">
+              {showToolPath && (
+                <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">🗺 가공 경로 애니메이션
+                      <FeatureExplainer featureId="tool-path" inline darkMode={darkMode} />
+                      {simMode.showVendorTags && <VendorTag featureId="beginner-matrix" size="xs" darkMode={darkMode} />}
+                    </h4>
+                    <button onClick={() => setShowToolPath(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <ToolPathScene
+                    strategy={(toolPath === "slot" ? "zigzag" : toolPath === "adaptive" ? "adaptive" : toolPath === "trochoidal" ? "trochoidal" : "zigzag") as "zigzag" | "spiral" | "trochoidal" | "adaptive"}
+                    stockWidth={stockW}
+                    stockLength={stockL}
+                    diameter={diameter}
+                    ae={ae}
+                    Vf={result.Vf}
+                    shape={activeShape}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
+              {showVibration && (
+                <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">📡 스핀들 진동 오실로스코프
+                      <FeatureExplainer featureId="vibration" inline darkMode />
+                      {simMode.showVendorTags && <VendorTag featureId="chatter-analyzer" size="xs" darkMode />}
+                    </h4>
+                    <button onClick={() => setShowVibration(false)} className="text-xs text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <VibrationOscilloscope
+                    rpm={result.n}
+                    chatterRisk={chatter.risk}
+                    chatterLevel={chatter.level === "med" ? "med" : chatter.level}
+                    flutes={fluteCount}
+                    stickoutMm={stickoutMm}
+                    diameter={diameter}
+                    darkMode
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {(showTempHeatmap || showForceVec) && (
+            <div data-visual-panel={showTempHeatmap ? "temp" : "force"} className="grid grid-cols-1 lg:grid-cols-2 gap-3 scroll-mt-20">
+              {showTempHeatmap && (
+                <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">🌡 절삭 온도 히트맵
+                      <FeatureExplainer featureId="temperature" inline darkMode={darkMode} />
+                      {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
+                    </h4>
+                    <button onClick={() => setShowTempHeatmap(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <TemperatureHeatmap
+                    chipTempC={advHeat.chipTempC}
+                    toolTempC={advHeat.toolTempC}
+                    workpieceTempC={advHeat.workpieceTempC}
+                    chipHeatPct={advHeat.chipHeatPct}
+                    Vc={VcEff}
+                    materialGroup={isoGroup}
+                    darkMode={darkMode}
+                  />
+                </div>
+              )}
+              {showForceVec && (
+                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold flex items-center gap-1.5">➡ 절삭력 벡터
+                      <FeatureExplainer featureId="force-vector" inline darkMode={darkMode} />
+                      {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
+                    </h4>
+                    <button onClick={() => setShowForceVec(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="flex justify-center">
+                    <ForceVectorDiagram
+                      tangentialForceN={advHelix.tangentialForceN}
+                      radialForceN={advHelix.radialForceN}
+                      axialForceN={advHelix.axialForceN}
+                      helixAngle={helixAngleDeg}
+                      liftRatio={advHelix.liftRatio}
+                      diameter={diameter}
+                      darkMode={darkMode}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showWearGauge && (
+            <div data-section="wear-gauge" data-visual-panel="wear" className="scroll-mt-20">
+              <WearGaugePanel
+                predictedLifeMin={toolLifeMin}
+                currentVc={VcEff}
+                vcRef={Vc}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          <div data-visual-panel="advanced" className="scroll-mt-20">
+            <AdvancedMetricsPanel
+              heat={advHeat}
+              runout={advRunout}
+              helix={advHelix}
+              monteCarlo={advMonteCarlo}
+              bue={advBue}
+              chipMorph={advChipMorph}
+              darkMode={darkMode}
+              expanded={advancedMetricsOpen}
+              onToggle={() => setAdvancedMetricsOpen(v => !v)}
+            />
+          </div>
+
+          {showBreakEven && (
+            <div data-visual-panel="break-even" className="scroll-mt-20">
+              <BreakEvenChart
+                currentVc={VcEff}
+                taylorVcRef={Vc}
+                toolCostKrw={toolCostKrw}
+                machineCostPerHourKrw={machineCostPerHourKrw}
+                taylorN={0.25}
+                cycleTimeMin={cycleTimeMin}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1498,6 +2094,107 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
         )}
       </div>
+
+      {harveyReplacementPair && harveyReplacementCards.length === 3 && (
+        <div
+          data-section="dual-replacement-sim"
+          data-testid="dual-replacement-sim"
+          className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800">Harvey · Sandvik · YG-1 3자 시뮬레이션</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{harveyReplacementPair.preset.title}</div>
+              <div className="text-[12px] text-slate-600">{harveyReplacementPair.preset.subtitle} · 현재 op {operation}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {HARVEY_REPLACEMENT_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setSelectedHarveyReplacementId(preset.id)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    preset.id === harveyReplacementPair.preset.id
+                      ? "border-amber-500 bg-amber-500 text-white"
+                      : "border-amber-200 bg-white text-amber-800 hover:bg-amber-50"
+                  }`}
+                >
+                  {preset.title}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={loadHarveyReplacementPairToSnapshots}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                A/B/C 비교로 올리기
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              { key: "split", label: "분할 보기" },
+              { key: "flutes", label: "날수 보기" },
+              { key: "live", label: "LIVE 보기" },
+            ].map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => setReplacementVisualMode(mode.key as "split" | "flutes" | "live")}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                  replacementVisualMode === mode.key
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-3 rounded-xl border border-dashed border-amber-200 bg-white/70 px-3 py-2 text-[12px] text-amber-900">
+            3자 시각화 분할 화면입니다. Harvey, Sandvik, YG-1 대체품을 같은 조건 축으로 바로 비교합니다.
+          </div>
+          <div data-testid="ab-visual-split" className="mt-4 grid gap-3 lg:grid-cols-3">
+            {harveyReplacementCards.map((card, index) => (
+              <ReplacementSimCard
+                key={card.tool.id}
+                title={index === 0 ? "A · Harvey 기준" : index === 1 ? "B · Sandvik 비교" : "C · YG-1 대체품"}
+                card={card}
+                visualMode={replacementVisualMode}
+                onApply={index === 1 ? () => {
+                  setProductCode(card.tool.series)
+                  setDiameter(card.tool.D)
+                  setFluteCount(card.tool.Z)
+                  setActiveShape(card.tool.shape)
+                  setLOC(card.tool.LOC)
+                  setVc(Math.round(card.tool.Vc))
+                  setFz(card.tool.fz)
+                  setAp(card.ap)
+                  setAe(card.ae)
+                  setIsoGroup(card.tool.iso)
+                  setEverInteracted(true)
+                  toast.success(`${card.tool.brand} ${card.tool.series} 조건을 메인 시뮬레이터에 반영했습니다`)
+                } : index === 2 ? () => {
+                  setProductCode(card.tool.series)
+                  setDiameter(card.tool.D)
+                  setFluteCount(card.tool.Z)
+                  setActiveShape(card.tool.shape)
+                  setLOC(card.tool.LOC)
+                  setVc(Math.round(card.tool.Vc))
+                  setFz(card.tool.fz)
+                  setAp(card.ap)
+                  setAe(card.ae)
+                  setIsoGroup(card.tool.iso)
+                  setEverInteracted(true)
+                  toast.success(`${card.tool.brand} ${card.tool.series} 조건을 메인 시뮬레이터에 반영했습니다`)
+                } : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tool Recommender — DB 연동 */}
       <ToolRecommender
@@ -1770,7 +2467,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Sliders with % */}
           <div className="space-y-3 md:col-span-2">
-            <PctSlider label="Stick Out L" unit="mm" value={stickoutMm} pct={(stickoutMm / diameter) * 100} pctLabel="·D"
+            <PctSlider label="넥 직경" unit="mm" value={stickoutMm} pct={(stickoutMm / diameter) * 100} pctLabel="·D"
               min={3} max={diameter * 10} step={0.5}
               onChange={v => { setStickoutMm(v); setStickoutManual(true) }}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(stickoutMm), unit: "in", decimals: 3 } : undefined}
@@ -1800,9 +2497,18 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               warnings={warnings} paramKey="ae" darkMode={darkMode} />
           </div>
 
-          {/* 2D ADOC/RDOC adjuster + Engagement circle + Cutting Action */}
-          <div className="flex flex-col gap-3">
-            <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-3">
+          {/* 주요 파라미터 맵: 스크롤 중에도 따라다니는 시각 패널 */}
+          <div className="flex flex-col gap-3 self-start">
+            <div className="rounded-lg border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-800">가공 단면 맵</div>
+                  <div className="text-[10px] text-blue-600">상단 핵심 파라미터 맵과 동일 상태를 시각적으로 보여줍니다.</div>
+                </div>
+                <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[9px] font-mono text-blue-700">
+                  ap {ap.toFixed(1)} / ae {ae.toFixed(1)}
+                </span>
+              </div>
               <ADOCRDOCAdjuster
                 apPct={Math.min(100, (ap / diameter) * 100)}
                 aePct={Math.min(100, (ae / diameter) * 100)}
@@ -2325,59 +3031,6 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </div>
       )}
 
-      {/* 🎮 진짜 3D WebGL 가공 씬 (react-three-fiber) — key remount로 WebGL context 완전 해제 */}
-      {show3DScene && (
-        <div key={`3d-${panelInstance}`} data-visual-panel="3d-scene" className="scroll-mt-20 space-y-3">
-          <OperationPicker value={operationType} onChange={setOperationType} darkMode={darkMode} />
-          <HolographicFrame accent="violet" intensity="strong" scanlines cornerBrackets darkMode={darkMode}>
-            <div className="p-2">
-              <Cutting3DScene
-                operationType={(operationType === "finishing" || operationType === "profiling" || operationType === "pocketing") ? "endmill-general" : operationType as "endmill-general" | "roughing" | "turning" | "drilling" | "slotting"}
-                shape={activeShape}
-                diameter={diameter}
-                flutes={fluteCount}
-                LOC={LOC}
-                OAL={OAL}
-                rpm={result.n}
-                Vf={result.Vf}
-                ap={ap}
-                ae={ae}
-                stockL={stockL}
-                stockW={stockW}
-                stockH={stockH}
-                coating={coating}
-                darkMode={darkMode}
-                height={480}
-              />
-            </div>
-          </HolographicFrame>
-        </div>
-      )}
-
-      {/* ⭐ 즐겨찾기 패널 */}
-      {showFavorites && (
-        <div data-visual-panel="favorites" className="scroll-mt-20">
-          <FavoritesPanel
-            darkMode={darkMode}
-            currentState={{
-              isoGroup, subgroupKey, operation, coating,
-              Vc: VcEff, fz: fzEff, ap, ae,
-              diameter, fluteCount, activeShape,
-            }}
-            onApply={(entry) => {
-              setIsoGroup(entry.isoGroup)
-              setSubgroupKey(entry.subgroupKey)
-              setOperation(entry.operation)
-              setCoating(entry.coating)
-              setVc(entry.Vc); setFz(entry.fz); setAp(entry.ap); setAe(entry.ae)
-              setDiameter(entry.diameter); setFluteCount(entry.fluteCount)
-              setActiveShape(entry.activeShape as Exclude<EndmillShape, "all">)
-              toast.success(`⭐ "${entry.name}" 적용`)
-            }}
-          />
-        </div>
-      )}
-
       {/* 💬 AI 채팅 사이드바 (persistent FAB) */}
       <AiChatSidebar
         darkMode={darkMode}
@@ -2407,19 +3060,6 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         darkMode={darkMode}
       />
 
-      {/* 📋 CNC 치트시트 */}
-      {showCheatSheet && (
-        <CheatSheetPanel
-          currentIsoGroup={isoGroup}
-          currentCoating={coating}
-          currentVc={VcEff}
-          currentFz={fzEff}
-          darkMode={darkMode}
-          expanded={showCheatSheet}
-          onToggle={() => setShowCheatSheet(v => !v)}
-        />
-      )}
-
       {/* 🛡 플로팅 실시간 경고 HUD (우하단 sticky) */}
       <FloatingWarnings
         warnings={warnings}
@@ -2446,27 +3086,6 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         onJumpToSection={jumpToSection}
         onOpenHelp={() => setShortcutsHelpOpen(true)}
       />
-
-      {/* 🎛 아날로그 계기판 */}
-      {showAnalogGauges && (
-        <div data-visual-panel="gauges" className="scroll-mt-20">
-        <HolographicFrame accent="rose" intensity="medium" scanlines darkMode={darkMode}>
-          <div className="p-2">
-            <AnalogGauges
-              rpm={result.n}
-              rpmMax={maxRpm}
-              Vf={result.Vf}
-              VfMax={maxIpm * 25.4}
-              Pc={result.Pc}
-              PcMax={maxKw}
-              toolLifePct={Math.min(100, Math.max(0, (toolLifeMin / 120) * 100))}
-              chatterRisk={chatter.risk}
-              darkMode={darkMode}
-            />
-          </div>
-        </HolographicFrame>
-        </div>
-      )}
 
       {/* 🖼 도면 갤러리 6종 (모달) */}
       {showBlueprintGallery && (
@@ -2500,290 +3119,6 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             />
           </div>
         </div>
-      )}
-
-      {/* 🎥 YG-1 실가공 영상 */}
-      {showVideoPanel && (
-        <div data-visual-panel="video" className="scroll-mt-20">
-          <Yg1VideoPanel isoGroup={isoGroup} operation={operation} darkMode={darkMode} />
-        </div>
-      )}
-
-      {/* 🏆 벤치마크 리더보드 */}
-      {showLeaderboard && (
-        <div data-visual-panel="leaderboard" className="scroll-mt-20">
-          <BenchmarkLeaderboard
-            darkMode={darkMode}
-            currentState={{
-              isoGroup, operation, Vc: VcEff, fz: fzEff, ap, ae,
-              diameter, fluteCount,
-              MRR: result.MRR, toolLifeMin, Pc: result.Pc, Ra: raUm,
-            }}
-            onLoadEntry={(e) => {
-              setVc(e.Vc); setFz(e.fz); setAp(e.ap); setAe(e.ae)
-              setDiameter(e.diameter); setFluteCount(e.fluteCount)
-              setIsoGroup(e.isoGroup)
-              setOperation(e.operation)
-              toast.success(`🏆 ${e.nickname || "익명"} 조건 로드`)
-            }}
-          />
-        </div>
-      )}
-
-      {/* 🤖 AI 자율 에이전트 */}
-      {showAutoAgent && (
-        <div data-visual-panel="auto-agent" className="scroll-mt-20">
-          <AiAutoAgentPanel
-            darkMode={darkMode}
-            currentState={{
-              Vc, fz, ap, ae, diameter, fluteCount, activeShape,
-              isoGroup, subgroupKey, operation, coating,
-              workholding, stickoutMm, hardnessScale, hardnessValue,
-            }}
-            onApply={(opt) => {
-              setBeforeAfterData({
-                before: { Vc: VcEff, fz: fzEff, ap, ae, n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, toolLifeMin, Ra: raUm },
-                after: opt,
-                reasoning: "AI 자율 에이전트가 여러 조건을 탐색한 결과 최고 점수 조합",
-              })
-              setVc(opt.Vc); setFz(opt.fz); setAp(opt.ap); setAe(opt.ae)
-              toast.success("🏆 자율 AI 최고 조건 적용")
-            }}
-          />
-        </div>
-      )}
-
-      {/* 📊 Before/After 비교 (AI 최적화 후 자동 표시) */}
-      {beforeAfterData && (
-        <div data-visual-panel="before-after" className="scroll-mt-20">
-          <BeforeAfterCompare
-            before={beforeAfterData.before}
-            after={beforeAfterData.after}
-            reasoning={beforeAfterData.reasoning}
-            darkMode={darkMode}
-            onRevert={() => {
-              const b = beforeAfterData.before
-              setVc(b.Vc); setFz(b.fz); setAp(b.ap); setAe(b.ae)
-              setBeforeAfterData(null)
-              toast.info("↺ 원래 조건 복원")
-            }}
-          />
-        </div>
-      )}
-
-      {/* 🎬 실시간 절삭 시뮬레이션 씬 */}
-      {showLiveScene && (
-        <div data-section="live-scene" data-visual-panel="live" className="scroll-mt-20 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold flex items-center gap-1.5">🎬 실시간 절삭 시뮬레이션
-              <FeatureExplainer featureId="live-scene" inline darkMode={darkMode} />
-              {simMode.showVendorTags && <VendorTag featureId="real-time-warnings" size="xs" darkMode={darkMode} />}
-            </h4>
-            <button onClick={() => setShowLiveScene(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-          </div>
-          <LiveCuttingScene
-            shape={activeShape}
-            diameter={diameter}
-            flutes={fluteCount}
-            Vc={VcEff}
-            Vf={result.Vf}
-            rpm={result.n}
-            ap={ap}
-            ae={ae}
-            stickoutMm={stickoutMm}
-            materialGroup={isoGroup}
-            chatterRisk={chatter.level}
-            bueRisk={advBue.risk}
-            chipMorph={advChipMorph.type}
-            darkMode={darkMode}
-          />
-        </div>
-      )}
-
-      {/* 🔄 3D 엔드밀 + 📐 도면 (양쪽 배치) */}
-      {(show3DPreview || showBlueprint) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {show3DPreview && (
-            <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">🔄 3D 엔드밀 프리뷰
-                  <FeatureExplainer featureId="3d-endmill" inline darkMode={darkMode} />
-                  {simMode.showVendorTags && <VendorTag featureId="shopfloor-card" size="xs" darkMode={darkMode} />}
-                </h4>
-                <button onClick={() => setShow3DPreview(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <div className="flex justify-center">
-                <Endmill3DPreview
-                  shape={activeShape}
-                  diameter={diameter}
-                  flutes={fluteCount}
-                  rpm={result.n}
-                  helixAngle={helixAngleDeg}
-                  cornerR={cornerR}
-                  coating={coating}
-                  darkMode={darkMode}
-                />
-              </div>
-            </div>
-          )}
-          {showBlueprint && (
-            <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">📐 YG-1 기술 도면
-                  <FeatureExplainer featureId="blueprint" inline darkMode={darkMode} />
-                  {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
-                </h4>
-                <button onClick={() => setShowBlueprint(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <ToolBlueprint
-                shape={activeShape}
-                diameter={diameter}
-                shankDia={shankDia}
-                LOC={LOC}
-                OAL={OAL}
-                flutes={fluteCount}
-                helixAngle={helixAngleDeg}
-                cornerR={cornerR}
-                coating={coating}
-                seriesCode={productCode || undefined}
-                darkMode={darkMode}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 🗺 툴패스 + 📡 진동 (2-col) */}
-      {(showToolPath || showVibration) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {showToolPath && (
-            <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">🗺 가공 경로 애니메이션
-                  <FeatureExplainer featureId="tool-path" inline darkMode={darkMode} />
-                  {simMode.showVendorTags && <VendorTag featureId="beginner-matrix" size="xs" darkMode={darkMode} />}
-                </h4>
-                <button onClick={() => setShowToolPath(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <ToolPathScene
-                strategy={(toolPath === "slot" ? "zigzag" : toolPath === "adaptive" ? "adaptive" : toolPath === "trochoidal" ? "trochoidal" : "zigzag") as "zigzag" | "spiral" | "trochoidal" | "adaptive"}
-                stockWidth={stockW}
-                stockLength={stockL}
-                diameter={diameter}
-                ae={ae}
-                Vf={result.Vf}
-                shape={activeShape}
-                darkMode={darkMode}
-              />
-            </div>
-          )}
-          {showVibration && (
-            <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">📡 스핀들 진동 오실로스코프
-                  <FeatureExplainer featureId="vibration" inline darkMode />
-                  {simMode.showVendorTags && <VendorTag featureId="chatter-analyzer" size="xs" darkMode />}
-                </h4>
-                <button onClick={() => setShowVibration(false)} className="text-xs text-slate-400 hover:text-rose-400"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <VibrationOscilloscope
-                rpm={result.n}
-                chatterRisk={chatter.risk}
-                chatterLevel={chatter.level === "med" ? "med" : chatter.level}
-                flutes={fluteCount}
-                stickoutMm={stickoutMm}
-                diameter={diameter}
-                darkMode
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 🌡 온도 + ➡ 힘 벡터 (2-col) */}
-      {(showTempHeatmap || showForceVec) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {showTempHeatmap && (
-            <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">🌡 절삭 온도 히트맵
-                  <FeatureExplainer featureId="temperature" inline darkMode={darkMode} />
-                  {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
-                </h4>
-                <button onClick={() => setShowTempHeatmap(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <TemperatureHeatmap
-                chipTempC={advHeat.chipTempC}
-                toolTempC={advHeat.toolTempC}
-                workpieceTempC={advHeat.workpieceTempC}
-                chipHeatPct={advHeat.chipHeatPct}
-                Vc={VcEff}
-                materialGroup={isoGroup}
-                darkMode={darkMode}
-              />
-            </div>
-          )}
-          {showForceVec && (
-            <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">➡ 절삭력 벡터
-                  <FeatureExplainer featureId="force-vector" inline darkMode={darkMode} />
-                  {simMode.showVendorTags && <VendorTag featureId="heat-estimation" size="xs" darkMode={darkMode} />}
-                </h4>
-                <button onClick={() => setShowForceVec(false)} className="text-xs text-gray-400 hover:text-rose-600"><X className="h-3.5 w-3.5" /></button>
-              </div>
-              <div className="flex justify-center">
-                <ForceVectorDiagram
-                  tangentialForceN={advHelix.tangentialForceN}
-                  radialForceN={advHelix.radialForceN}
-                  axialForceN={advHelix.axialForceN}
-                  helixAngle={helixAngleDeg}
-                  liftRatio={advHelix.liftRatio}
-                  diameter={diameter}
-                  darkMode={darkMode}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 🔧 공구 마모 게이지 */}
-      {showWearGauge && (
-        <div data-section="wear-gauge">
-          <WearGaugePanel
-            predictedLifeMin={toolLifeMin}
-            currentVc={VcEff}
-            vcRef={Vc}
-            darkMode={darkMode}
-          />
-        </div>
-      )}
-
-      {/* 🔬 고급 엔지니어링 지표 패널 (연구소장 모드) */}
-      <AdvancedMetricsPanel
-        heat={advHeat}
-        runout={advRunout}
-        helix={advHelix}
-        monteCarlo={advMonteCarlo}
-        bue={advBue}
-        chipMorph={advChipMorph}
-        darkMode={darkMode}
-        expanded={advancedMetricsOpen}
-        onToggle={() => setAdvancedMetricsOpen(v => !v)}
-      />
-
-      {/* Break-Even Vc × Cost 차트 */}
-      {showBreakEven && (
-        <BreakEvenChart
-          currentVc={VcEff}
-          taylorVcRef={Vc}
-          toolCostKrw={toolCostKrw}
-          machineCostPerHourKrw={machineCostPerHourKrw}
-          taylorN={0.25}
-          cycleTimeMin={cycleTimeMin}
-          darkMode={darkMode}
-        />
       )}
 
       {/* ═══ 단축키 도움말 모달 (Glassmorphism + 카테고리) ═══ */}
@@ -2966,6 +3301,214 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
 // ══════════ Helper components ══════════
 
+const ReplacementSimCard = memo(function ReplacementSimCard({
+  title,
+  card,
+  visualMode,
+  onApply,
+}: {
+  title: string
+  card: {
+    tool: ToolOption
+    ap: number
+    ae: number
+    n: number
+    Vf: number
+    MRR: number
+    Pc: number
+    torque: number
+    deflection: number
+    toolLifeMin: number
+    raUm: number
+  }
+  visualMode: "split" | "flutes" | "live"
+  onApply?: () => void
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</div>
+          <div className="mt-1 text-base font-semibold text-slate-900">{card.tool.brand} {card.tool.series}</div>
+          <div className="text-[12px] text-slate-600">{card.tool.label}</div>
+        </div>
+        <div className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${card.tool.kind === "yg1" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"}`}>
+          ISO {card.tool.iso}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Spec</div>
+          <div className="mt-1 space-y-1 text-[12px] text-slate-700">
+            <div>D {card.tool.D}mm · Z {card.tool.Z} · LOC {card.tool.LOC}mm</div>
+            <div>{card.tool.shape}{card.tool.cornerR ? ` · R ${card.tool.cornerR}` : ""}</div>
+            <div>단가 ₩{card.tool.priceKrw.toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cutting</div>
+          <div className="mt-1 space-y-1 text-[12px] text-slate-700">
+            <div>Vc {card.tool.Vc} · fz {card.tool.fz.toFixed(3)}</div>
+            <div>ap {card.ap.toFixed(1)} · ae {card.ae.toFixed(1)}</div>
+            <div>RPM {Math.round(card.n).toLocaleString()} · Vf {Math.round(card.Vf).toLocaleString()}</div>
+          </div>
+        </div>
+      </div>
+
+      {visualMode === "split" && (
+        <div className="mt-3 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">3D Tool View</div>
+            <div className="flex justify-center">
+              <Endmill3DPreview
+                shape={card.tool.shape}
+                diameter={card.tool.D}
+                flutes={card.tool.Z}
+                rpm={card.n}
+                helixAngle={38}
+                cornerR={card.tool.cornerR}
+                darkMode={false}
+              />
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">LIVE Cutting View</div>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <LiveCuttingScene
+                shape={card.tool.shape}
+                diameter={card.tool.D}
+                flutes={card.tool.Z}
+                helixAngle={38}
+                Vc={card.tool.Vc}
+                Vf={card.Vf}
+                rpm={card.n}
+                ap={card.ap}
+                ae={card.ae}
+                stickoutMm={card.tool.D * DEFAULT_STICKOUT_RATIO}
+                materialGroup={card.tool.iso}
+                chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
+                chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+                darkMode={false}
+                width={320}
+                height={220}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {visualMode === "flutes" && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">날수 보기 전용 시뮬레이션</div>
+          <div className="flex justify-center">
+            <Endmill3DPreview
+              shape={card.tool.shape}
+              diameter={card.tool.D}
+              flutes={card.tool.Z}
+              rpm={card.n}
+              helixAngle={46}
+              cornerR={card.tool.cornerR}
+              darkMode={false}
+            />
+          </div>
+          <div className="mt-2 text-center text-[12px] text-slate-700">
+            Z {card.tool.Z}날이 보이도록 공구 형상만 강조해서 보여줍니다.
+          </div>
+        </div>
+      )}
+
+      {visualMode === "live" && (
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">LIVE Cutting Only</div>
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <LiveCuttingScene
+              shape={card.tool.shape}
+              diameter={card.tool.D}
+              flutes={card.tool.Z}
+              helixAngle={38}
+              Vc={card.tool.Vc}
+              Vf={card.Vf}
+              rpm={card.n}
+              ap={card.ap}
+              ae={card.ae}
+              stickoutMm={card.tool.D * DEFAULT_STICKOUT_RATIO}
+              materialGroup={card.tool.iso}
+              chatterRisk={card.deflection > 50 ? "high" : card.deflection > 20 ? "med" : "low"}
+              chipMorph={card.tool.iso === "H" ? "segmented" : card.tool.iso === "N" ? "continuous" : "discontinuous"}
+              darkMode={false}
+              width={360}
+              height={240}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <MiniStatChip label="MRR" value={`${card.MRR.toFixed(1)} cm3/min`} tone="emerald" />
+        <MiniStatChip label="Life" value={`${card.toolLifeMin.toFixed(0)} min`} tone="sky" />
+        <MiniStatChip label="Power" value={`${card.Pc.toFixed(2)} kW`} tone="amber" />
+        <MiniStatChip label="Defl." value={`${card.deflection.toFixed(1)} um`} tone="violet" />
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Engagement / Action</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+              <EngagementCircle ae={card.ae} D={card.tool.D} className="h-16 w-full" />
+            </div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-2">
+              <CuttingAction shape={card.tool.shape} D={card.tool.D} LOC={card.tool.LOC} ap={card.ap} ae={card.ae} toolPath="conventional" className="w-full" />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Quick Result</div>
+          <div className="mt-2 space-y-1.5 text-[12px] text-slate-700">
+            <div>Torque {card.torque.toFixed(2)} N·m</div>
+            <div>Ra {card.raUm.toFixed(2)} um</div>
+            <div>Coating Factor x{card.tool.coatingMult.toFixed(2)}</div>
+          </div>
+          {onApply && (
+            <button
+              type="button"
+              onClick={onApply}
+              className="mt-3 w-full rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+            >
+              이 조건을 메인 시뮬레이터에 반영
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+})
+
+const MiniStatChip = memo(function MiniStatChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: "emerald" | "sky" | "amber" | "violet"
+}) {
+  const toneClass = tone === "emerald"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : tone === "sky"
+      ? "border-sky-200 bg-sky-50 text-sky-800"
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-violet-200 bg-violet-50 text-violet-800"
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${toneClass}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</div>
+      <div className="mt-1 text-[12px] font-semibold">{value}</div>
+    </div>
+  )
+})
+
 const SectionHeader = memo(function SectionHeader({ icon, title, subtitle, tone }: { icon: React.ReactNode; title: string; subtitle: string; tone: "blue" | "violet" | "emerald" }) {
   const toneMap: Record<string, string> = {
     blue: "from-blue-600 to-blue-500", violet: "from-violet-600 to-violet-500", emerald: "from-emerald-600 to-emerald-500",
@@ -3086,6 +3629,85 @@ const PctSlider = memo(function PctSlider({ label, unit, value, pct, pctLabel = 
       <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
         <span>{decimals ? min.toFixed(decimals) : Math.round(min)}</span>
         <span>{decimals ? max.toFixed(decimals) : Math.round(max)}</span>
+      </div>
+    </div>
+  )
+})
+
+const CorrelationDetailCard = memo(function CorrelationDetailCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+      <div className="mt-1 text-sm font-mono font-bold text-slate-900">{value}</div>
+      <div className="mt-1 text-[11px] text-slate-500">{note}</div>
+    </div>
+  )
+})
+
+const MiniGaugeControl = memo(function MiniGaugeControl({
+  label,
+  unit,
+  value,
+  min,
+  max,
+  step,
+  decimals = 0,
+  color,
+  onChange,
+  disabled,
+}: {
+  label: string
+  unit: string
+  value: number
+  min: number
+  max: number
+  step: number
+  decimals?: number
+  color: "sky" | "emerald" | "amber" | "violet"
+  onChange: (v: number) => void
+  disabled?: boolean
+}) {
+  const pct = Math.max(0, Math.min(100, ((value - min) / Math.max(max - min, step)) * 100))
+  const tone = color === "sky"
+    ? { ring: "#0ea5e9", track: "#dbeafe", text: "text-sky-700", bg: "bg-sky-50", accent: "accent-sky-600" }
+    : color === "emerald"
+      ? { ring: "#10b981", track: "#d1fae5", text: "text-emerald-700", bg: "bg-emerald-50", accent: "accent-emerald-600" }
+      : color === "amber"
+        ? { ring: "#f59e0b", track: "#fef3c7", text: "text-amber-700", bg: "bg-amber-50", accent: "accent-amber-600" }
+        : { ring: "#8b5cf6", track: "#ede9fe", text: "text-violet-700", bg: "bg-violet-50", accent: "accent-violet-600" }
+
+  return (
+    <div className={`rounded-xl border border-white/80 ${tone.bg} px-3 py-2 shadow-sm ${disabled ? "opacity-60" : ""}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</span>
+        <span className={`text-[10px] font-mono font-bold ${tone.text}`}>{pct.toFixed(0)}%</span>
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <div
+          className="flex h-14 w-14 items-center justify-center rounded-full"
+          style={{ background: `conic-gradient(from 220deg, ${tone.ring} 0 ${pct}%, ${tone.track} ${pct}% 100%)` }}
+        >
+          <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-white text-center ${tone.text}`}>
+            <span className="text-[10px] font-mono font-bold">{decimals ? value.toFixed(decimals) : value.toFixed(0)}</span>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] text-slate-500">{unit}</div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            disabled={disabled}
+            onChange={e => onChange(parseFloat(e.target.value))}
+            className={`mt-1 w-full cursor-pointer ${tone.accent}`}
+          />
+          <div className="mt-1 flex justify-between text-[9px] font-mono text-slate-400">
+            <span>{decimals ? min.toFixed(decimals) : min.toFixed(0)}</span>
+            <span>{decimals ? max.toFixed(decimals) : max.toFixed(0)}</span>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -3224,8 +3846,8 @@ const WarningRow = memo(function WarningRow({ w }: { w: SimWarning }) {
     info: "text-blue-700 bg-blue-50 border-blue-200",
   }
   return (
-    <li className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${colorMap[w.level]}`}>
+    <div className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${colorMap[w.level]}`}>
       <Icon className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" /><span>{w.message}</span>
-    </li>
+    </div>
   )
 })

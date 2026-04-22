@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
+const DEFAULT_CONFETTI_COLORS = ["#f59e0b", "#10b981", "#3b82f6", "#ec4899"] as const
+
 interface RippleButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   rippleColor?: string
 }
@@ -85,18 +87,19 @@ interface ConfettiBurstProps {
 export function ConfettiBurst({
   trigger,
   count = 14,
-  colors = ["#f59e0b", "#10b981", "#3b82f6", "#ec4899"],
+  colors,
 }: ConfettiBurstProps) {
   const [particles, setParticles] = useState<
     Array<{ id: number; angle: number; distance: number; color: string; rotate: number }>
   >([])
   useEffect(() => {
     if (trigger === 0) return
+    const palette = colors && colors.length > 0 ? colors : DEFAULT_CONFETTI_COLORS
     const arr = Array.from({ length: count }, (_, i) => ({
       id: Date.now() + i,
       angle: (i / count) * 360 + Math.random() * 20,
       distance: 40 + Math.random() * 40,
-      color: colors[i % colors.length],
+      color: palette[i % palette.length],
       rotate: Math.random() * 720 - 360,
     }))
     setParticles(arr)

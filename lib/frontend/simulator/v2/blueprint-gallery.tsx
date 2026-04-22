@@ -71,6 +71,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "50~60 HRC 경화강용 · 금형 피니싱",
     bestFor: "정밀 금형, 하드밀링",
     pricePoint: "₩32,000",
+    hoverTip: "GNX98 시리즈는 고경도 경화강 (50~60 HRC) 전용. 소형 D3mm · 정밀 피니싱. Vc 80m/min 저속 권장.",
   },
   {
     seriesCode: "SEM813",
@@ -93,6 +94,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "S45C 측면 가공 · 고속",
     bestFor: "일반 기계 부품",
     pricePoint: "₩48,000",
+    hoverTip: "SEM813은 일반 탄소강 (S45C 등) 측면 가공 범용. 4날 D8 · Vc 180 고속. ap 0.5D 표준.",
   },
   {
     seriesCode: "EHD84",
@@ -115,6 +117,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "스테인리스 범용 · 고나선",
     bestFor: "SUS304/316",
     pricePoint: "₩68,000",
+    hoverTip: "EHD84는 스테인리스 범용. 고나선 45°로 가공경화 최소. Vc 120 안전 범위. ae/D ≥ 30% 유지 필수.",
   },
   {
     seriesCode: "SEM846",
@@ -138,6 +141,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "55~65 HRC · 롱넥 볼",
     bestFor: "복잡 3D 금형",
     pricePoint: "₩55,000",
+    hoverTip: "SEM846 4G MILLS · 55~65 HRC 극경도 하드밀링 전용. 2날 볼 R3 롱넥. AlCrN 코팅. Vc 60 극저속.",
   },
   {
     seriesCode: "GMH61",
@@ -161,6 +165,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "Inconel 718 마감 · AlCrN",
     bestFor: "항공 초내열합금",
     pricePoint: "₩92,000",
+    hoverTip: "GMH61 초내열합금 전용. Inconel/Ti 마감. R1 코너라디우스 4날 · AlCrN 내열 코팅. Vc 45 필수 저속.",
   },
   {
     seriesCode: "EQ480",
@@ -184,6 +189,7 @@ const GALLERY_TOOLS: GalleryToolDisplay[] = [
     description: "Al6061/7075 고속 볼 · 무코팅",
     bestFor: "알루미늄 부품",
     pricePoint: "₩38,000",
+    hoverTip: "EQ480 알루미늄 전용. 2날 볼 R5 · 무코팅 (Al에 AlTiN 안 됨). Vc 500+ 초고속. 칩 배출 우수.",
   },
 ]
 
