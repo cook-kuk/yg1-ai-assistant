@@ -91,8 +91,45 @@ test.describe("YG-1 Simulator v3 스모크", () => {
     await expect(dual.getByText("ae", { exact: true })).toBeVisible()
     await expect(dual.getByText("Stick", { exact: true })).toBeVisible()
     await expect(dual.getByText("Top-Down Stock View").first()).toBeVisible()
-    await expect(dual.getByText("zigzag scan").first()).toBeVisible()
+    await expect(dual.getByText(/^LIVE · TOP$/).first()).toBeVisible()
     await expect(page.getByTestId("ab-visual-split")).toBeVisible()
+  })
+
+  test("3자 비교 LIVE 카드는 축약 오버레이만 보여주고 중복 설명을 숨긴다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+
+    const dual = page.getByTestId("dual-replacement-sim")
+    await expect(dual).toBeVisible()
+    await dual.scrollIntoViewIfNeeded()
+
+    await expect(dual.getByText("🎬 실시간 가공 시뮬레이션 · 슬라이더를 움직여보세요")).toHaveCount(0)
+    await expect(dual.getByLabel("일시정지")).toHaveCount(0)
+    await expect(dual.getByText(/^LIVE · SIDE$/).first()).toBeVisible()
+    await expect(dual.getByText(/^LIVE · TOP$/).first()).toBeVisible()
+  })
+
+  test("경쟁사 대체 추천은 검색 후 대표 추천과 시뮬레이터 이동을 제공한다", async ({ page }) => {
+    await page.goto("/simulator_v2")
+    const firstVisitDismiss = page.getByRole("button", { name: /나중에/ })
+    if (await firstVisitDismiss.count()) {
+      await firstVisitDismiss.first().click().catch(() => {})
+    }
+
+    await page.getByRole("button", { name: "경쟁사 대체 추천" }).click()
+    const tab = page.getByTestId("competitor-tab")
+    await expect(tab).toBeVisible()
+
+    await tab.getByTestId("competitor-query-input").fill("AE-VMS")
+    await tab.getByTestId("competitor-search-button").click()
+
+    await expect(tab.getByTestId("competitor-featured-recommendation")).toBeVisible()
+    await expect(tab.getByTestId("competitor-result-card").first()).toContainText("AE-VMS")
+
+    await tab.getByTestId("competitor-open-simulator").click()
+    await expect(page).toHaveURL(/\/simulator_v2\?/)
+    await expect(page).toHaveURL(/isoGroup=P/)
+    await expect(page).toHaveURL(/operation=Side_Milling/)
+    await expect(page.getByRole("heading", { name: "가공조건 시뮬레이터" })).toBeVisible()
   })
 
   test("3자 비교 날수 선택은 카드 스펙과 시각화 상태에 즉시 반영됨", async ({ page }) => {

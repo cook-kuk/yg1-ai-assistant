@@ -90,6 +90,7 @@ export interface LiveCuttingSceneProps {
   darkMode?: boolean
   width?: number
   height?: number
+  compact?: boolean
 }
 
 interface Chip {
@@ -230,6 +231,7 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
     darkMode = false,
     width = DEFAULT_W,
     height = DEFAULT_H,
+    compact = false,
   } = props
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -779,12 +781,17 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
 
   const overlayTopLeft = useMemo(
     () =>
-      `🎬 LIVE · Vc=${Math.round(Vc)}m/min · RPM=${Math.round(rpm)} · Vf=${Math.round(Vf)}mm/min`,
-    [Vc, rpm, Vf],
+      compact
+        ? `LIVE · ${viewMode === "top" ? "TOP" : "SIDE"}`
+        : `🎬 LIVE · Vc=${Math.round(Vc)}m/min · RPM=${Math.round(rpm)} · Vf=${Math.round(Vf)}mm/min`,
+    [Vc, rpm, Vf, compact, viewMode],
   )
   const overlayBottomRight = useMemo(
-    () => `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°${viewMode === "top" ? " · zigzag scan" : ""}`,
-    [chipMorph, chatterRisk, helixAngle, viewMode],
+    () =>
+      compact
+        ? `Z${Math.round(flutes)} · helix ${Math.round(helixAngle)}°`
+        : `chip=${chipMorph} · chatter=${chatterRisk} · helix=${Math.round(helixAngle)}°${viewMode === "top" ? " · zigzag scan" : ""}`,
+    [chipMorph, chatterRisk, helixAngle, viewMode, compact, flutes],
   )
   const overlayBottomLeft = useMemo(
     () => `Z${Math.round(flutes)} · ${Math.round(helixAngle)}° · ${Math.round(stickoutMm)}mm`,
@@ -835,11 +842,11 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       <div
         style={{
           position: "absolute",
-          left: 16,
-          top: 16,
-          padding: "4px 10px",
+          left: compact ? 10 : 16,
+          top: compact ? 10 : 16,
+          padding: compact ? "3px 8px" : "4px 10px",
           borderRadius: 999,
-          fontSize: 12,
+          fontSize: compact ? 10 : 12,
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           background: chipBadgeBg,
           color: textColor,
@@ -847,7 +854,9 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
           pointerEvents: "none",
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: compact ? 4 : 6,
+          maxWidth: compact ? "44%" : undefined,
+          whiteSpace: compact ? "nowrap" : undefined,
         }}
       >
         <LiveIndicator watch={[rpm, Vf, Vc, ap, ae]} color="emerald" darkMode={darkMode} />
@@ -858,82 +867,89 @@ export function LiveCuttingScene(props: LiveCuttingSceneProps) {
       <div
         style={{
           position: "absolute",
-          right: 16,
-          bottom: 40,
-          padding: "4px 10px",
+          right: compact ? 10 : 16,
+          top: compact ? 10 : undefined,
+          bottom: compact ? undefined : 40,
+          padding: compact ? "3px 8px" : "4px 10px",
           borderRadius: 999,
-          fontSize: 12,
+          fontSize: compact ? 10 : 12,
           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           background: chipBadgeBg,
           color: textColor,
           border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
           pointerEvents: "none",
+          maxWidth: compact ? "44%" : undefined,
+          whiteSpace: compact ? "nowrap" : undefined,
         }}
       >
         {overlayBottomRight}
       </div>
 
-      {/* Pause button — bottom-left */}
-      <button
-        type="button"
-        onClick={() => setPaused((prev) => !prev)}
-        aria-label={paused ? "재생" : "일시정지"}
-        style={{
-          position: "absolute",
-          left: 16,
-          bottom: 40,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "4px 10px",
-          borderRadius: 999,
-          fontSize: 12,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          background: chipBadgeBg,
-          color: textColor,
-          border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
-          cursor: "pointer",
-        }}
-      >
-        {paused ? <Play size={12} /> : <Pause size={12} />}
-        {paused ? "재생" : "정지"}
-      </button>
+      {!compact && (
+        <>
+          {/* Pause button — bottom-left */}
+          <button
+            type="button"
+            onClick={() => setPaused((prev) => !prev)}
+            aria-label={paused ? "재생" : "일시정지"}
+            style={{
+              position: "absolute",
+              left: 16,
+              bottom: 40,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              background: chipBadgeBg,
+              color: textColor,
+              border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+              cursor: "pointer",
+            }}
+          >
+            {paused ? <Play size={12} /> : <Pause size={12} />}
+            {paused ? "재생" : "정지"}
+          </button>
 
-      <div
-        style={{
-          position: "absolute",
-          left: 16,
-          bottom: 72,
-          padding: "4px 10px",
-          borderRadius: 999,
-          fontSize: 12,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          background: chipBadgeBg,
-          color: textColor,
-          border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
-          pointerEvents: "none",
-        }}
-      >
-        {overlayBottomLeft} · {viewMode === "top" ? "TOP" : "SIDE"}
-      </div>
+          <div
+            style={{
+              position: "absolute",
+              left: 16,
+              bottom: 72,
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              background: chipBadgeBg,
+              color: textColor,
+              border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+              pointerEvents: "none",
+            }}
+          >
+            {overlayBottomLeft} · {viewMode === "top" ? "TOP" : "SIDE"}
+          </div>
 
-      {/* Caption */}
-      <div
-        style={{
-          marginTop: 6,
-          textAlign: "center",
-          fontSize: 11,
-          color: captionColor,
-        }}
-      >
-        🎬 실시간 가공 시뮬레이션 · 슬라이더를 움직여보세요
-        {" "}
-        <span style={{ opacity: 0.7 }}>
-          (⌀{diameter}mm · Z{flutes} · helix={helixAngle}° · ap={ap}mm · ae={ae}mm · stickout={stickoutMm}mm · {materialGroup})
-        </span>
-        {" "}
-        <span style={{ opacity: 0.72 }}>· {flutePatternText} · {viewMode === "top" ? "top-down stock view" : "side travel view"}</span>
-      </div>
+          {/* Caption */}
+          <div
+            style={{
+              marginTop: 6,
+              textAlign: "center",
+              fontSize: 11,
+              color: captionColor,
+            }}
+          >
+            🎬 실시간 가공 시뮬레이션 · 슬라이더를 움직여보세요
+            {" "}
+            <span style={{ opacity: 0.7 }}>
+              (⌀{diameter}mm · Z{flutes} · helix={helixAngle}° · ap={ap}mm · ae={ae}mm · stickout={stickoutMm}mm · {materialGroup})
+            </span>
+            {" "}
+            <span style={{ opacity: 0.72 }}>· {flutePatternText} · {viewMode === "top" ? "top-down stock view" : "side travel view"}</span>
+          </div>
+        </>
+      )}
     </div>
   )
 }
