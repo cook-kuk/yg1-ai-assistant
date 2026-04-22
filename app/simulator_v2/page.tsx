@@ -15,7 +15,8 @@ import { SimErrorBoundary } from "@/lib/frontend/simulator/v2/sim-error-boundary
 
 // heavy 컴포넌트 lazy-load (framer-motion / canvas)
 const CinematicBackdrop = dynamic(() => import("@/lib/frontend/simulator/v2/cinematic-backdrop"), { ssr: false })
-const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
+// CyberpunkHud 현재 비활성 (성능 부담). 필요 시 관리자 설정에서 활성화.
+// const CyberpunkHud = dynamic(() => import("@/lib/frontend/simulator/v2/cyberpunk-hud"), { ssr: false })
 
 function EducationControlMount() {
   return (

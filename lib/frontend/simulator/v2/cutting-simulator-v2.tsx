@@ -1202,7 +1202,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           <ToolbarDivider darkMode={darkMode} />
 
           {/* 💰 분석 도구 (Break-Even) */}
-          <button onClick={() => setShowBreakEven(v => !v)} title="Break-Even Vc × Cost 차트"
+          <button onClick={() => activatePanel(showBreakEven ? null : "break-even")} title="Break-Even Vc × Cost 차트"
             className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${showBreakEven ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
             💰 BE
           </button>
