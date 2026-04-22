@@ -98,7 +98,7 @@ export const MATERIAL_ENTRIES: EducationDb = {
     whyItMatters: "연삭공정을 절삭으로 대체하면 리드타임 50% 단축. 금형산업의 패러다임 시프트 주도.",
     realWorldExample: "STD61 HRC 52 금형코어 ⌀6 2날 AlTiN 볼 엔드밀 Vc 150 m/min, fz 0.08 mm, ap 0.15 mm 드라이 다듬질.",
     commonPitfall: "HRC 55 이상에서는 돌출 길이 L/D ≤ 3 필수. 공구 휨 = 치수 오차 = 금형 수정 비용.",
-    relatedConcepts: ["iso-p", "altin-coating", "hbw-hrc-scales", "hard-milling"],
+    relatedConcepts: ["iso-p", "altin-coating", "hbw-hrc-scales"],
     sourceAuthority: "ISO 513:2012 / Harvey Performance Hardened Steel Machining Guide",
   },
   "wrought-al": {

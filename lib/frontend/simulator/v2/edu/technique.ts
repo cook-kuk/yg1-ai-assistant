@@ -93,7 +93,7 @@ export const TECHNIQUE_ENTRIES: EducationDb = {
       "Ø10 엔드밀 ae=5 (0.5D)로 R6 내측 코너 진입 시 ae_eff = 10 (=D, full slot!). fz 65% 감소 + CAM 트로코이달로 평탄화.",
     commonPitfall:
       "CAM에 'Corner feed reduction' 옵션 체크 안 하고 바로 가공. 첫 내측코너에서 공구 직행.",
-    relatedConcepts: ["ae", "fz", "feed-dial", "trochoidal"],
+    relatedConcepts: ["rdoc", "fz", "feed-dial", "trochoidal"],
     sourceAuthority: "Sandvik Handbook §3.8, Iscar Hi-Feed Guide",
   },
 
@@ -116,7 +116,7 @@ export const TECHNIQUE_ENTRIES: EducationDb = {
       "SCM440 30mm 깊이 포켓: 황삭 ap=15 2패스 + 정삭 ap=0.3 1패스. 사이클 18분, Ra 1.6 / 잘못된 계획: ap=3 10패스 = 45분, Ra 3.2.",
     commonPitfall:
       "'안전하게' 얕은 ap로 패스 많이 나누기. 총 시간 ↑ + rubbing + 가공경화 + 공구수명 ↓. 역효과.",
-    relatedConcepts: ["ap", "ae", "work-hardening", "tool-life"],
+    relatedConcepts: ["adoc", "rdoc", "work-hardening", "tool-life"],
     sourceAuthority: "Sandvik Handbook §6, Smith (2008) Cutting Tool Technology",
   },
 

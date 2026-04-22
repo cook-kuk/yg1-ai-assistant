@@ -70,7 +70,7 @@ export const PHENOMENON_ENTRIES: EducationDb = {
       "Al6061 Vc=80 m/min 비코팅 HSS → BUE 발생, Ra 3.2. Vc=400 m/min + DLC 코팅 + 연마날로 전환 → Ra 0.4, BUE 소실.",
     commonPitfall:
       "Vc를 오히려 낮추면 악화. BUE는 저속 현상 → 임계속도 위로 올려야 해결. 냉각 강화만으론 부족.",
-    relatedConcepts: ["heat-build-up", "tool-wear", "vc", "coating"],
+    relatedConcepts: ["heat-build-up", "tool-wear", "vc", "altin-coating"],
     sourceAuthority: "Trent & Wright (2000) Metal Cutting Ch.6",
   },
 
@@ -93,7 +93,7 @@ export const PHENOMENON_ENTRIES: EducationDb = {
       "Ti6Al4V Vc=120 드라이 → 칩 보라, 공구 10 min 만에 크레이터. Vc=80 + 고압 쿨런트 70bar로 T=75 min 복원.",
     commonPitfall:
       "쿨런트 플러드만 뿌려서 해결된다고 믿기. 실제론 고압 내부급유 아니면 칩 아래까지 못 닿음. 드라이+MQL이 더 나을 때도 있음.",
-    relatedConcepts: ["tool-wear", "vc", "coolant", "coating"],
+    relatedConcepts: ["tool-wear", "vc", "flood-coolant", "altin-coating"],
     sourceAuthority: "Astakhov (2006) Tribology of Metal Cutting Ch.4",
   },
 
@@ -139,7 +139,7 @@ export const PHENOMENON_ENTRIES: EducationDb = {
       "Ø8 L=40 초경 엔드밀로 25mm 벽 정삭 → 상부 정치수, 하부 +35μm 부풀음. L=25로 줄이니 편향 Δ=5μm로 공차 이내.",
     commonPitfall:
       "'공구는 안 휜다'고 믿는 초보 실수. 초경도 FEM 하면 수십 μm 휘어진다. 보정 또는 조건 축소 필수.",
-    relatedConcepts: ["deflection", "chatter", "stick-out", "l-over-d"],
+    relatedConcepts: ["deflection", "chatter", "stick-out", "l-over-d-ratio"],
     sourceAuthority: "MJ Jackson (2006) Ch.5, ASME B5.54",
   },
 
@@ -185,7 +185,7 @@ export const PHENOMENON_ENTRIES: EducationDb = {
       "SCM440 단조면 (HB280) 경계 가공, 초경 Ø16 fz=0.15 진입 → 3분 만에 날 결손 0.3mm. roll-in 5°로 바꾸고 fz=0.1로 감소 → 날 40분 유지.",
     commonPitfall:
       "'더 강한 공구'를 찾는 것. 강인성과 경도는 트레이드오프. 단속절삭은 C2→C6급 서브마이크론 초경 + T-land가 정답.",
-    relatedConcepts: ["tool-wear", "fz", "operation", "coating"],
+    relatedConcepts: ["tool-wear", "fz", "slotting", "altin-coating"],
     sourceAuthority: "Byrne, Dornfeld, Denkena (2003) CIRP Annals 52/2",
   },
 }

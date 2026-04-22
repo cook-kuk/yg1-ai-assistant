@@ -116,7 +116,7 @@ export const COOLANT_ENTRIES: EducationDb = {
       "GG25 주철 Ø16 인덱서블 페이스밀 Vc 250(dry) + 코팅 AlTiN Z6, IPT 0.20, Fz 4,974 mm/min, 공구수명 90분. Flood 적용 시 Vc 270 but 공구수명 60분(열충격).",
     commonPitfall:
       "코팅 없는 HSS 공구로 dry 시도 → 공구 날 적열(600°C 이상) → 즉시 소프트닝·파손. Dry는 초경+코팅 전제 조건.",
-    relatedConcepts: ["air-blast", "flood-coolant", "mql", "coating", "coolant-multiplier"],
+    relatedConcepts: ["air-blast", "flood-coolant", "mql", "altin-coating", "coolant-multiplier"],
     sourceAuthority: "ISO 8688 / Sandvik Coromant Dry Machining Application Guide",
   },
 

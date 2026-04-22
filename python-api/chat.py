@@ -1281,8 +1281,15 @@ def _assess_cot_level(
     # fresh queries (no prior turn + ≤15 chars) because those are usually
     # the user warming up ("sus", "10mm") — they don't need Strong, they
     # need carry_forward to catch more context on the next turn.
+    # Also gated OFF for domain_knowledge / general_question turns: those
+    # branches never do a DB product search, so total_count=0 is the
+    # default, not evidence of a tricky retrieval. Without this guard,
+    # every domain-knowledge question escalates to Strong and burns 20-30s
+    # needlessly ("치과의료기기용 엔드밀 골라줘" → Strong → 30s → UX pain).
+    intent_value = getattr(intent, "intent", None) or "recommendation"
     is_fresh_short = (not has_prior) and len(message) <= 15
-    if total_count == 0 and not is_fresh_short:
+    is_non_product_intent = intent_value in ("domain_knowledge", "general_question")
+    if total_count == 0 and not is_fresh_short and not is_non_product_intent:
         score += 3
         reasons.append("0건")
     if relaxed_fields:

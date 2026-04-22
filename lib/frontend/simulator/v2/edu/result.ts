@@ -73,7 +73,7 @@ export const RESULT_ENTRIES: EducationDb = {
       "Ø80 페이스밀 n=400 vc=100 Pc=7kW → M = 9550·7/400 ≈ 167 N·m. BT40 연속토크 150 N·m → 초과, 저속기어 전환 또는 vc 상향 필요.",
     commonPitfall:
       "스핀들 파워곡선의 저속 토크 상한(constant torque zone)을 무시하고 kW만 보는 것. 1000rpm 이하는 별도 확인.",
-    relatedConcepts: ["pc-power", "fc-cutting-force", "rpm", "spindle"],
+    relatedConcepts: ["pc-power", "fc-cutting-force", "rpm", "spindle-preset"],
     sourceAuthority: "Sandvik Tool Life Curves Handbook §4.2, ASME B5.54",
   },
 
@@ -97,7 +97,7 @@ export const RESULT_ENTRIES: EducationDb = {
       "Ø10 초경 엔드밀 L=40 (L/D=4), Fc=400N → δ ≈ 42μm. IT7 공차(±18μm) 초과 → L=30으로 줄이면 δ ≈ 18μm로 급감.",
     commonPitfall:
       "캔틸레버 모델은 공구만 고려. 실제로는 홀더·스핀들 강성도 직렬로 더해져 실측 편향은 계산값의 1.3~1.8배.",
-    relatedConcepts: ["fc-cutting-force", "stick-out", "chatter-risk", "l-over-d"],
+    relatedConcepts: ["fc-cutting-force", "stick-out", "chatter-risk", "l-over-d-ratio"],
     sourceAuthority: "MJ Jackson (2006) Ch.5, Sandvik Handbook §5.3",
   },
 
@@ -193,7 +193,7 @@ export const RESULT_ENTRIES: EducationDb = {
       "Ø10 엔드밀 ae=1 (0.1D), fz_target=0.08 → RCTF 1.67 → fz=0.134 mm/tooth로 올려야 실제 칩두께 0.08 유지.",
     commonPitfall:
       "RCTF 보정 후 fz를 올렸는데 Fc·편향도 함께 오른다는 걸 잊는 것. 보정 후 재점검 필수.",
-    relatedConcepts: ["hex-chip-thickness", "fz", "ae", "trochoidal"],
+    relatedConcepts: ["hex-chip-thickness", "fz", "rdoc", "trochoidal"],
     sourceAuthority: "Sandvik Handbook §3.6, Iscar HSM Guide",
   },
 
@@ -217,7 +217,7 @@ export const RESULT_ENTRIES: EducationDb = {
       "Ø12 엔드밀 κr=90° ae=2 (0.17D) fz=0.1 → hex ≈ 0.075. ae=6 (0.5D)로 올리면 hex=fz=0.1. 같은 fz라도 ae에 따라 완전히 다른 절삭.",
     commonPitfall:
       "fz = 칩두께 라고 오해. 실제 hex는 ae·κr로 최대 50% 작아짐. 얇은 ae에서 공구 카탈로그 fz를 그대로 쓰면 rubbing.",
-    relatedConcepts: ["rctf", "fz", "kappa-r", "rubbing"],
+    relatedConcepts: ["rctf", "fz", "rubbing"],
     sourceAuthority: "Sandvik Handbook §3.5, ISO 3002-1",
   },
 

@@ -93,7 +93,7 @@ export const OPERATION_ENTRIES: EducationDb = {
       "STAVAX 54HRC Ø4 볼엔드밀 하드밀링 피니싱: Vc 150, RPM 11,937, IPT 0.03, stepover 0.08, MRR 1.1 cm³/min, Ra 0.4 µm (mirror-like).",
     commonPitfall:
       "피니싱에 rough 공구를 그대로 써서 마모된 날끝으로 진행 → 치수 편차 ±20 µm. 반드시 finishing 전용 공구(TIR <5 µm) 교체.",
-    relatedConcepts: ["profiling", "side-milling", "shrink-fit", "coating"],
+    relatedConcepts: ["profiling", "side-milling", "shrink-fit", "altin-coating"],
     sourceAuthority: "Smid §14 / Sandvik Surface Finish Handbook",
   },
 

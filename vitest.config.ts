@@ -4,7 +4,7 @@ import path from "path"
 export default defineConfig({
   test: {
     globals: true,
-    include: ["lib/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "eval/**/*.test.ts"],
     exclude: ["node_modules", ".next", "e2e"],
     testTimeout: 30000,
     hookTimeout: 30000,
