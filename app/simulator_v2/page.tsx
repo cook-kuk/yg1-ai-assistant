@@ -97,10 +97,10 @@ function SimulatorV2Content() {
           workholdingPct: Number(searchParams.get("wh") ?? "100"),
         }
       : undefined
-  const initialTab: "simulator" | "competitor" | "machine-impact" = labPreset
+  const initialTab: "simulator" | "competitor" | "machine-impact" | "ai-research" = labPreset
     ? "machine-impact"
     : "simulator"
-  const [tab, setTab] = useState<"simulator" | "competitor" | "machine-impact">(initialTab)
+  const [tab, setTab] = useState<"simulator" | "competitor" | "machine-impact" | "ai-research">(initialTab)
 
   const product = searchParams.get("product") ?? undefined
   const material = searchParams.get("material") ?? undefined
@@ -175,6 +175,20 @@ function SimulatorV2Content() {
               <FlaskConical className="h-4 w-4" />
               Machine Impact Lab
             </button>
+            <button
+              onClick={() => setTab("ai-research")}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === "ai-research"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              AI Research Lab
+              <span className="ml-1 text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                DEMO
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -189,13 +203,20 @@ function SimulatorV2Content() {
           />
         ) : tab === "competitor" ? (
           <CompetitorTab />
-        ) : (
+        ) : tab === "machine-impact" ? (
           <MachineImpactLab
             initialPresetKey={labPreset === "custom" ? undefined : labPreset}
             initialConfig={labInitialConfig}
           />
+        ) : (
+          <AiResearchLab />
         )}
       </div>
+
+      {/* Tour 오버레이 + 첫 방문 프롬프트 — 전역 배치 (AI Research Lab 탭에서
+          주로 사용되지만 다른 탭에서 재시작한 투어도 동작해야 함). */}
+      <TourOverlay />
+      <FirstVisitPrompt />
     </div>
   )
 }
@@ -204,11 +225,13 @@ export default function SimulatorV2Page() {
   return (
     <ModeProvider>
       <EducationProvider>
-        <SimErrorBoundary>
-          <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
-            <SimulatorV2Content />
-          </Suspense>
-        </SimErrorBoundary>
+        <TourProvider>
+          <SimErrorBoundary>
+            <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">로딩 중...</div>}>
+              <SimulatorV2Content />
+            </Suspense>
+          </SimErrorBoundary>
+        </TourProvider>
       </EducationProvider>
     </ModeProvider>
   )
