@@ -56,7 +56,7 @@ import { useUndoRedo, type HistoryState } from "./use-undo-redo"
 // welcome-modal: 컴포넌트는 dynamic, 상수/타입은 정적 유지
 import { WELCOME_EXAMPLES, type ExamplePreset as WelcomePreset } from "./welcome-modal"
 import FloatingWarnings from "./floating-warnings"
-import { WarningDot, type ParamKey } from "./warning-indicator-dot"
+import { WarningDot, findWarningsForParam, type ParamKey } from "./warning-indicator-dot"
 import {
   estimateHeat, estimateRunoutEffect, decomposeHelixForce,
   monteCarloToolLife, estimateBueRisk, classifyChipMorphology,
@@ -92,6 +92,7 @@ import { HARVEY_REPLACEMENT_PRESETS, MultiToolCompare, getToolOptionById, type T
 import { LearningMode } from "./learning-mode"
 import { CompetitorLiveCompare } from "./competitor-live-compare"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import SoundEngine from "./sound-engine"
 
 // ─── heavy 컴포넌트 lazy-load (three.js / canvas / framer-motion) ─────────
 const Cutting3DScene = dynamic(() => import("./cutting-3d-scene"), { ssr: false, loading: () => <div className="h-[480px] flex items-center justify-center text-sm text-slate-400">🎮 3D 씬 로딩중...</div> })
@@ -109,6 +110,11 @@ type VoxelStockTrackedProps = {
   material: "steel" | "aluminum" | "copper" | "titanium"
   initialGeometry?: BufferGeometry | null
   onVolumeRemoved?: (mm3: number) => void
+  // Ra overlay plumbing — feed per tooth (mm), nose radius (mm), toggle.
+  // Optional / non-breaking; VoxelStock owns the defaults.
+  fz?: number
+  cornerRadius?: number
+  showRaOverlay?: boolean
 }
 // Phase-B 신규 — 툴 경로 ghost trail + 자동 sweep driver.
 //   ToolPathTrail: <Line> (drei) 기반. bufferGeometry 는 drei 가 관리.
@@ -119,6 +125,16 @@ const ToolPathTrail = dynamic(
 )
 const AutoSweepDriver = dynamic(
   () => import("./auto-sweep").then(m => ({ default: m.AutoSweepDriver })),
+  { ssr: false },
+)
+// Phase-C — 절삭력 벡터 overlay. R3F/drei 기반이라 SSR disable.
+const ForceVectors = dynamic(
+  () => import("./force-vectors").then(m => ({ default: m.ForceVectors })),
+  { ssr: false },
+)
+// Chatter/vibration visualizer — vc·ap/diameter 기반 shake + outline + text.
+const ChatterEffect = dynamic(
+  () => import("./chatter-effect").then(m => ({ default: m.ChatterEffect })),
   { ssr: false },
 )
 
@@ -139,6 +155,9 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
         material,
         initialGeometry,
         onVolumeRemoved,
+        fz,
+        cornerRadius,
+        showRaOverlay,
       }: VoxelStockTrackedProps) => {
         const stableTool = useRef<[number, number, number]>([
           toolRef.current[0],
@@ -163,6 +182,9 @@ const VoxelStockTracked = dynamic<VoxelStockTrackedProps>(
               material={material}
               initialGeometry={initialGeometry ?? null}
               onVolumeRemoved={onVolumeRemoved}
+              fz={fz}
+              cornerRadius={cornerRadius}
+              showRaOverlay={showRaOverlay}
             />
           </group>
         )
@@ -193,6 +215,12 @@ const BreakEvenChart = dynamic(() => import("./break-even-chart"), { ssr: false 
 const StabilityLobeDiagram = dynamic(() => import("./stability-lobe-diagram"), { ssr: false })
 const CostWaterfallChart = dynamic(() => import("./cost-waterfall-chart"), { ssr: false })
 const WearProgressionAnimation = dynamic(() => import("./wear-progression-animation"), { ssr: false })
+const ChipMorphology3D = dynamic(() => import("./chip-morphology-3d"), { ssr: false })
+const AcousticEmissionSim = dynamic(() => import("./acoustic-emission-sim"), { ssr: false })
+const EnergySankeyChart = dynamic(() => import("./energy-sankey-chart"), { ssr: false })
+const VoiceWarning = dynamic(() => import("./voice-warning"), { ssr: false })
+const SurfaceTopography3D = dynamic(() => import("./surface-topography-3d"), { ssr: false })
+const TimeLapseSim = dynamic(() => import("./time-lapse-sim"), { ssr: false })
 const WearGaugePanel = dynamic(() => import("./wear-gauge-panel"), { ssr: false })
 const DashboardHeroDisplay = dynamic(() => import("./dashboard-hero-display"), { ssr: false })
 const BenchmarkLeaderboard = dynamic(() => import("./benchmark-leaderboard"), { ssr: false })
@@ -395,6 +423,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [showStabilityLobe, setShowStabilityLobe] = useState(false)
   const [showCostWaterfall, setShowCostWaterfall] = useState(false)
   const [showWearProg, setShowWearProg] = useState(false)
+  const [showChipMorph, setShowChipMorph] = useState(false)
+  const [showAcousticEmission, setShowAcousticEmission] = useState(false)
+  const [showEnergySankey, setShowEnergySankey] = useState(false)
+  const [showVoiceWarning, setShowVoiceWarning] = useState(false)
+  const [showSurfaceTopo, setShowSurfaceTopo] = useState(false)
+  const [showTimeLapse, setShowTimeLapse] = useState(false)
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
@@ -437,6 +471,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const [replacementStickoutRatio, setReplacementStickoutRatio] = useState(Math.round(DEFAULT_STICKOUT_RATIO * 100))
   const [operationType, setOperationType] = useState<OperationType>("endmill-general")
   const [confettiTrigger, setConfettiTrigger] = useState(0)
+  // 🔊 Web Audio 사운드 엔진 on/off — autoplay 정책상 기본값 false (사용자 제스처 필요)
+  const [soundEnabled, setSoundEnabled] = useState(false)
   const simMode = useSimulatorMode()
   // ═══ Undo/Redo 히스토리 ═══
   const history = useUndoRedo(50)
@@ -472,6 +508,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       setShowTempHeatmap(false); setShowForceVec(false); setShowWearGauge(false)
       setShowBreakEven(false); setAdvancedMetricsOpen(false); setShowCheatSheet(false)
       setShowStabilityLobe(false); setShowCostWaterfall(false); setShowWearProg(false)
+      setShowChipMorph(false); setShowAcousticEmission(false); setShowEnergySankey(false)
+      setShowVoiceWarning(false); setShowSurfaceTopo(false); setShowTimeLapse(false)
       if (typeof setShow3DScene === "function") setShow3DScene(false)
       if (typeof setShowVideoPanel === "function") setShowVideoPanel(false)
       if (typeof setShowLeaderboard === "function") setShowLeaderboard(false)
@@ -503,6 +541,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         else if (panelKey === "stability-lobe") setShowStabilityLobe(true)
         else if (panelKey === "cost-waterfall") setShowCostWaterfall(true)
         else if (panelKey === "wear-prog") setShowWearProg(true)
+        else if (panelKey === "chip-morph") setShowChipMorph(true)
+        else if (panelKey === "acoustic") setShowAcousticEmission(true)
+        else if (panelKey === "energy-sankey") setShowEnergySankey(true)
+        else if (panelKey === "voice-warning") setShowVoiceWarning(true)
+        else if (panelKey === "surface-topo") setShowSurfaceTopo(true)
+        else if (panelKey === "time-lapse") setShowTimeLapse(true)
       })
     })
     // 3) 맨 위로 스크롤 — 헤더 오프셋 보정하여 패널이 화면 최상단에 위치
@@ -553,6 +597,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   } | null>(null)
   const [voxelAnimationEnabled, setVoxelAnimationEnabled] = useState(false)
   const [voxelRemovedMm3, setVoxelRemovedMm3] = useState(0)
+  // Ra heatmap overlay toggle. When ON, VoxelStockTracked receives
+  // `showRaOverlay={true}` and the stock is recolored by the per-voxel Ra
+  // (µm) map instead of the material / thermal gradient. Coexists with
+  // thermal — showRaOverlay overrides vertex colors but thermal emissive
+  // glow still applies.
+  const [showRaOverlay, setShowRaOverlay] = useState(false)
   // Cross-section slice view (3D scene clipping plane).
   // 단면 활성화 시 선택된 축에 수직인 THREE.Plane 이 stock / tool / voxel stock material 에 적용된다.
   const [sliceEnabled, setSliceEnabled] = useState(false)
@@ -570,8 +620,12 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
   const TOOL_PATH_MAX = 200
   const [toolPathPositions, setToolPathPositions] = useState<Array<[number, number, number]>>([])
   const [showToolPathTrail, setShowToolPathTrail] = useState(true)
+  // Phase-C — 절삭력 벡터 overlay. Kienzle 단순화 모델 기반 3D 화살표.
+  const [showForceVectors, setShowForceVectors] = useState(false)
   const [autoSweepEnabled, setAutoSweepEnabled] = useState(false)
   const [autoSweepPattern, setAutoSweepPattern] = useState<"zigzag" | "spiral">("zigzag")
+  // Chatter/vibration overlay — intensity 를 받아 chip + outline + shake 연동.
+  const [chatterLevel, setChatterLevel] = useState(0)
 
   // STEP 4·5·6 통합 상태
   const [toolPathModalOpen, setToolPathModalOpen] = useState(false)
@@ -1400,6 +1454,14 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     toolLifeMin,
   ])
   const deferredAiCoachResults = useDeferredValue(aiCoachResults)
+  const warningItemsByParam = useMemo(() => ({
+    stickout: findWarningsForParam(warnings, "stickout"),
+    Vc: findWarningsForParam(warnings, "Vc"),
+    fz: findWarningsForParam(warnings, "fz"),
+    ap: findWarningsForParam(warnings, "ap"),
+    ae: findWarningsForParam(warnings, "ae"),
+  }), [warnings])
+  const { ref: nextFeaturesRef, seen: nextFeaturesVisible } = useViewportLatch<HTMLDivElement>()
   const sessionExportState = useMemo(() => ({
     productCode,
     isoGroup,
@@ -1616,6 +1678,25 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
     }
   }, [productCode, activeShape, diameter, fluteCount, isoGroup, subgroupKey, operation, coating, VcEff, fzEff, ap, ae, result, toolLifeMin, raUm, chatter, warnings])
 
+  const downloadWorkInstruction = useCallback(async () => {
+    try {
+      await generateWorkInstructionPDF({
+        state: {
+          productCode, edpCode: productCode, isoGroup, subgroupKey,
+          operation, coating, diameter, fluteCount,
+          activeShape, cornerR, LOC, OAL, shankDia, stickoutMm,
+          Vc: VcEff, fz: fzEff, ap, ae,
+        },
+        results: { n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, torque: advanced.torque, deflection: advanced.deflection, toolLifeMin, Ra: raUm },
+        warnings,
+        meta: { companyName: "YG-1", shareUrl: typeof window !== "undefined" ? window.location.href : undefined },
+      })
+      toast.success("📄 가공 지시서 PDF 다운로드")
+    } catch {
+      toast.error("지시서 생성 실패")
+    }
+  }, [LOC, OAL, VcEff, activeShape, advanced.deflection, advanced.torque, ae, ap, coating, cornerR, diameter, fluteCount, fzEff, isoGroup, operation, productCode, raUm, result.MRR, result.Pc, result.Vf, result.n, shankDia, stickoutMm, subgroupKey, toolLifeMin, warnings])
+
   useSimulatorShortcuts({
     onSaveSnapshot: saveSnapshotSlot,
     onOpenHelp: () => setShortcutsHelpOpen(true),
@@ -1689,6 +1770,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
 
   return (
     <div ref={reportAreaRef} className={rootClass}>
+      {/* 🔊 Web Audio 사운드 엔진 — headless, rpm/flute/fz 파생 */}
+      <SoundEngine enabled={soundEnabled} rpm={result.n} fluteCount={fluteCount} fz={fz} />
       {/* ───── Top bar ───── */}
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div className="flex items-center gap-2">
@@ -1815,6 +1898,10 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             className={`relative flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"} ${discoverGlow ? "ring-2 ring-indigo-400/70 animate-pulse" : ""}`}>
             ⌨
           </button>
+          <button onClick={() => setSoundEnabled(v => !v)} title={soundEnabled ? "사운드 끄기" : "사운드 켜기 (스핀들 · 칩 임팩트)"}
+            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${soundEnabled ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700" : darkMode ? "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
+            🔊 사운드
+          </button>
           <button onClick={() => setDarkMode(!darkMode)} title={darkMode ? "라이트 모드" : "다크 모드"}
             className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${darkMode ? "border-yellow-500/50 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}>
             {darkMode ? "☀" : "🌙"}
@@ -1888,145 +1975,48 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       </div>
 
       {/* 🎨 비주얼 시뮬레이션 토글 스트립 — 모든 모드에서 표시 */}
-      <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
-          <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
-          <button onClick={() => activatePanel(showLiveScene ? null : "live")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🎬 실시간 절삭
-          </button>
-          <button onClick={() => activatePanel(show3DPreview ? null : "3d")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🔄 3D 엔드밀
-          </button>
-          <button onClick={() => activatePanel(showBlueprint ? null : "blueprint")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            📐 도면
-          </button>
-          <button onClick={() => setShowBlueprintGallery(true)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🖼 갤러리(6)
-          </button>
-          <button onClick={() => activatePanel(showAnalogGauges ? null : "gauges")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🎛 게이지
-          </button>
-          <button onClick={() => setShowHeroDisplay(v => !v)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            ✨ 영웅 KPI
-          </button>
-          <button onClick={() => activatePanel(showWearGauge ? null : "wear")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🔧 마모 게이지
-          </button>
-          <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🔬 고급 지표
-          </button>
-          <button onClick={() => activatePanel(showBreakEven ? null : "break-even")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            💰 Break-Even
-          </button>
-          <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")}
-            title="Stability Lobe · 채터 안정 영역"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            📈 채터 안정
-          </button>
-          <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")}
-            title="Cost Waterfall · 원가 분해"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🧾 원가 분해
-          </button>
-          <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")}
-            title="Wear Progression · 공구 마모 진행"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearProg ? "bg-rose-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🛠 마모 진행
-          </button>
-          <button onClick={() => activatePanel(showToolPath ? null : "tool-path")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🗺 툴패스
-          </button>
-          <button onClick={() => activatePanel(showVibration ? null : "vibration")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            📡 진동
-          </button>
-          <button onClick={() => activatePanel(showTempHeatmap ? null : "temp")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🌡 온도
-          </button>
-          <button onClick={() => activatePanel(showForceVec ? null : "force")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            ➡ 힘 벡터
-          </button>
-          <ToolbarDivider darkMode={darkMode} />
-          <button onClick={handleUndo} disabled={!history.canUndo} title="Undo (Ctrl+Z)"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${history.canUndo ? (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50") : "opacity-30 cursor-not-allowed bg-white text-slate-400"}`}>
-            ↶
-          </button>
-          <button onClick={handleRedo} disabled={!history.canRedo} title="Redo (Ctrl+Y)"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${history.canRedo ? (darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50") : "opacity-30 cursor-not-allowed bg-white text-slate-400"}`}>
-            ↷
-          </button>
-          <span className={`text-[10px] font-mono ${darkMode ? "text-slate-500" : "text-slate-400"}`}>{history.historyCount}</span>
-
-          <ToolbarDivider darkMode={darkMode} />
-          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider px-1">🎓 학습</span>
-          <button onClick={() => setWizardOpen(true)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🧙 위저드
-          </button>
-          <button onClick={() => setTutorialOpen(true)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🎯 투어
-          </button>
-          <button onClick={() => activatePanel(showCheatSheet ? null : "cheat")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            📋 치트시트
-          </button>
-          <a href="/simulator_v2/glossary" target="_blank" rel="noreferrer"
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            📚 용어사전 ↗
-          </a>
-          <button onClick={() => activatePanel(showVideoPanel ? null : "video")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🎥 가공영상
-          </button>
-          <button onClick={() => activatePanel(showLeaderboard ? null : "leaderboard")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🏆 리더보드
-          </button>
-          <button onClick={() => activatePanel(showFavorites ? null : "favorites")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFavorites ? "bg-amber-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            ⭐ 즐겨찾기
-          </button>
-          <button onClick={() => activatePanel(show3DScene ? null : "3d-scene")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🎮 3D 씬
-          </button>
-          <button onClick={() => activatePanel(showAutoAgent ? null : "auto-agent")}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
-            🤖 자율 AI
-          </button>
-          <button onClick={async () => {
-            try {
-              await generateWorkInstructionPDF({
-                state: {
-                  productCode, edpCode: productCode, isoGroup, subgroupKey,
-                  operation, coating, diameter, fluteCount,
-                  activeShape, cornerR, LOC, OAL, shankDia, stickoutMm,
-                  Vc: VcEff, fz: fzEff, ap, ae,
-                },
-                results: { n: result.n, Vf: result.Vf, MRR: result.MRR, Pc: result.Pc, torque: advanced.torque, deflection: advanced.deflection, toolLifeMin, Ra: raUm },
-                warnings,
-                meta: { companyName: "YG-1", shareUrl: typeof window !== "undefined" ? window.location.href : undefined },
-              })
-              toast.success("📄 가공 지시서 PDF 다운로드")
-            } catch { toast.error("지시서 생성 실패") }
-          }}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100"}`}>
-            📄 지시서
-          </button>
-          {simMode.showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
-      </div>
+      <VisualToggleStrip
+        darkMode={darkMode}
+        activatePanel={activatePanel}
+        showLiveScene={showLiveScene}
+        show3DPreview={show3DPreview}
+        showBlueprint={showBlueprint}
+        showAnalogGauges={showAnalogGauges}
+        showHeroDisplay={showHeroDisplay}
+        showWearGauge={showWearGauge}
+        advancedMetricsOpen={advancedMetricsOpen}
+        showBreakEven={showBreakEven}
+        showStabilityLobe={showStabilityLobe}
+        showCostWaterfall={showCostWaterfall}
+        showWearProg={showWearProg}
+        showChipMorph={showChipMorph}
+        showAcousticEmission={showAcousticEmission}
+        showEnergySankey={showEnergySankey}
+        showVoiceWarning={showVoiceWarning}
+        showSurfaceTopo={showSurfaceTopo}
+        showTimeLapse={showTimeLapse}
+        showToolPath={showToolPath}
+        showVibration={showVibration}
+        showTempHeatmap={showTempHeatmap}
+        showForceVec={showForceVec}
+        historyCanUndo={history.canUndo}
+        historyCanRedo={history.canRedo}
+        historyCount={history.historyCount}
+        showCheatSheet={showCheatSheet}
+        showVideoPanel={showVideoPanel}
+        showLeaderboard={showLeaderboard}
+        showFavorites={showFavorites}
+        show3DScene={show3DScene}
+        showAutoAgent={showAutoAgent}
+        showVendorTags={simMode.showVendorTags}
+        onOpenBlueprintGallery={() => setShowBlueprintGallery(true)}
+        onToggleHeroDisplay={() => setShowHeroDisplay(v => !v)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onOpenWizard={() => setWizardOpen(true)}
+        onOpenTutorial={() => setTutorialOpen(true)}
+        onDownloadWorkInstruction={downloadWorkInstruction}
+      />
 
       {/* 상관관계 라이브 스트립 — 현재 적용되는 multiplier 투명하게 공개 */}
       {autoCorrelate && (
@@ -2131,6 +2121,50 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             </span>
           </label>
           {voxelAnimationEnabled && (
+            <label className="flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 cursor-pointer select-none hover:bg-emerald-50">
+              <span>📊 표면 거칠기(Ra) 보기</span>
+              <input
+                type="checkbox"
+                checked={showRaOverlay}
+                onChange={e => setShowRaOverlay(e.target.checked)}
+                className="h-3.5 w-3.5 accent-emerald-600"
+              />
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${showRaOverlay ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                {showRaOverlay ? "ON" : "OFF"}
+              </span>
+            </label>
+          )}
+          {voxelAnimationEnabled && showRaOverlay && (() => {
+            // Theoretical Ra preview strip — mirrors voxel-stock.tsx's
+            // sampleRaGradient ramp: green / yellow / orange / red keyed to
+            // [<0.5, 0.5–1.5, 1.5–3.0, >3.0] µm. Also surfaces the current
+            // computed Ra so the user can correlate feed/radius → color.
+            const raMm = (fz * fz) / (32 * Math.max(0.01, cornerR))
+            const raUm = raMm * 1000
+            return (
+              <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[10px] font-mono text-slate-700">
+                <span className="font-semibold text-emerald-700">Ra scale</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#22c55e" }} />
+                  &lt;0.5
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#eab308" }} />
+                  0.5~1.5
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#f97316" }} />
+                  1.5~3.0
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#ef4444" }} />
+                  &gt;3.0 µm
+                </span>
+                <span className="text-slate-500">| 현재 Ra ≈ <span className="font-semibold text-emerald-700">{raUm.toFixed(2)} µm</span></span>
+              </div>
+            )
+          })()}
+          {voxelAnimationEnabled && (
             <label className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-3 py-1 text-[11px] font-semibold text-indigo-700 cursor-pointer select-none hover:bg-indigo-50">
               <span>🌀 툴 경로 표시</span>
               <input
@@ -2141,6 +2175,20 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               />
               <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${showToolPathTrail ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                 {showToolPathTrail ? "ON" : "OFF"}
+              </span>
+            </label>
+          )}
+          {voxelAnimationEnabled && (
+            <label className="flex items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-semibold text-rose-700 cursor-pointer select-none hover:bg-rose-50">
+              <span>💪 절삭력 벡터</span>
+              <input
+                type="checkbox"
+                checked={showForceVectors}
+                onChange={e => setShowForceVectors(e.target.checked)}
+                className="h-3.5 w-3.5 accent-rose-600"
+              />
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] ${showForceVectors ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-500"}`}>
+                {showForceVectors ? "ON" : "OFF"}
               </span>
             </label>
           )}
@@ -2199,17 +2247,44 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
           </div>
         )}
 
-        {voxelAnimationEnabled && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-white/70 px-3 py-2 text-[11px]">
-            <div className="font-semibold text-indigo-800">실시간 Voxel 절삭</div>
-            <div className="font-mono text-indigo-600">
-              제거량: {(voxelRemovedMm3 / 1000).toFixed(2)} cm³
+        {voxelAnimationEnabled && (() => {
+          // Tool wear model: cumulative removed volume / 50 cm³ → [0,1]. Purely
+          // visual — arbitrary but plausible scale shared with Cutting3DScene.
+          const wearLevel = Math.min(1, voxelRemovedMm3 / 50_000)
+          const wearPct = Math.round(wearLevel * 100)
+          // Green → yellow → red scale for the "공구 마모" readout.
+          const wearColor =
+            wearLevel < 0.4 ? "text-emerald-600"
+            : wearLevel < 0.75 ? "text-amber-600"
+            : "text-red-600"
+          return (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-white/70 px-3 py-2 text-[11px]">
+              <div className="font-semibold text-indigo-800">실시간 Voxel 절삭</div>
+              <div className="font-mono text-indigo-600">
+                제거량: {(voxelRemovedMm3 / 1000).toFixed(2)} cm³
+              </div>
+              <div className={`font-mono font-semibold ${wearColor}`}>
+                공구 마모: {wearPct}%
+              </div>
+              <div className="font-mono text-slate-600">
+                툴 팁 좌표 (mm): x {toolTipDisplay[0].toFixed(2)} · y {toolTipDisplay[1].toFixed(2)} · z {toolTipDisplay[2].toFixed(2)}
+              </div>
+              {chatterLevel > 0.5 && (
+                <span
+                  data-testid="chatter-chip"
+                  className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                    chatterLevel > 1.0
+                      ? "border-red-300 bg-red-50 text-red-700"
+                      : "border-amber-300 bg-amber-50 text-amber-700"
+                  }`}
+                  title="vc·ap/(diameter·50) − 1 > 0.5"
+                >
+                  ⚠ Chatter {chatterLevel.toFixed(1)}
+                </span>
+              )}
             </div>
-            <div className="font-mono text-slate-600">
-              툴 팁 좌표 (mm): x {toolTipDisplay[0].toFixed(2)} · y {toolTipDisplay[1].toFixed(2)} · z {toolTipDisplay[2].toFixed(2)}
-            </div>
-          </div>
-        )}
+          )
+        })()}
 
         {sliceEnabled && (() => {
           // axis-aligned stock half-length: x<->L, y<->H (up), z<->W
@@ -2320,7 +2395,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         )}
       </div>
 
-      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || beforeAfterData) && (
+      {(showLiveScene || show3DPreview || showBlueprint || showAnalogGauges || showWearGauge || advancedMetricsOpen || showBreakEven || showToolPath || showVibration || showTempHeatmap || showForceVec || showCheatSheet || showVideoPanel || showLeaderboard || showFavorites || show3DScene || showAutoAgent || showStabilityLobe || showCostWaterfall || showWearProg || showChipMorph || showAcousticEmission || showEnergySankey || showVoiceWarning || showSurfaceTopo || showTimeLapse || beforeAfterData) && (
         <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-cyan-50/60 p-3 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -2364,6 +2439,7 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                     sliceEnabled={sliceEnabled}
                     sliceAxis={sliceAxis}
                     sliceOffset={sliceOffset}
+                    wearLevel={Math.min(1, voxelRemovedMm3 / 50_000)}
                     onToolTipChange={(p) => { toolTipRef.current = p }}
                     voxelStockSlot={voxelAnimationEnabled ? (
                       <>
@@ -2374,10 +2450,27 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
                           material={stockMaterialKind}
                           initialGeometry={(importedGeometry?.geometry as BufferGeometry | undefined) ?? null}
                           onVolumeRemoved={mm3 => setVoxelRemovedMm3(mm3)}
+                          fz={fz}
+                          cornerRadius={cornerR}
+                          showRaOverlay={showRaOverlay}
                         />
                         {showToolPathTrail && (
                           <ToolPathTrail positions={toolPathPositions} maxSegments={TOOL_PATH_MAX} />
                         )}
+                        {showForceVectors && (
+                          <ForceVectors
+                            toolPosition={toolTipDisplay}
+                            ap={ap}
+                            fz={fz}
+                            diameter={diameter}
+                          />
+                        )}
+                        <ChatterEffect
+                          vc={Vc}
+                          ap={ap}
+                          diameter={diameter}
+                          onChatterLevel={setChatterLevel}
+                        />
                         {autoSweepEnabled && (
                           <AutoSweepDriver
                             enabled={autoSweepEnabled}
@@ -2756,6 +2849,79 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
             <div data-visual-panel="wear-prog" className="scroll-mt-20" key={`wear-prog-${panelInstance}`}>
               <WearProgressionAnimation
                 currentVc={VcEff}
+                toolLifeMin={toolLifeMin}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showChipMorph && (
+            <div data-visual-panel="chip-morph" className="scroll-mt-20" key={`chip-morph-${panelInstance}`}>
+              <ChipMorphology3D
+                fzMmTooth={fzEff}
+                VcMmin={VcEff}
+                material={subgroupKey || isoGroup}
+                apMm={ap}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showAcousticEmission && (
+            <div data-visual-panel="acoustic" className="scroll-mt-20" key={`acoustic-${panelInstance}`}>
+              <AcousticEmissionSim
+                spindleRpm={result.n}
+                teethCount={fluteCount}
+                VcMmin={VcEff}
+                apMm={ap}
+                chatterRiskPct={chatter.risk}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showEnergySankey && (
+            <div data-visual-panel="energy-sankey" className="scroll-mt-20" key={`energy-sankey-${panelInstance}`}>
+              <EnergySankeyChart
+                PcKw={result.Pc}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showVoiceWarning && (
+            <div data-visual-panel="voice-warning" className="scroll-mt-20" key={`voice-warning-${panelInstance}`}>
+              <VoiceWarning
+                warnings={warnings.map((w, i) => ({
+                  level: (w.level === "error" ? "danger" : w.level === "warn" ? "warn" : "info") as "danger" | "warn" | "info",
+                  message: w.message,
+                  key: `${w.level}-${i}-${w.message.slice(0, 40)}`,
+                }))}
+                enabled={true}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showSurfaceTopo && (
+            <div data-visual-panel="surface-topo" className="scroll-mt-20" key={`surface-topo-${panelInstance}`}>
+              <SurfaceTopography3D
+                raUm={raUm}
+                fzMmTooth={fzEff}
+                toolDiameterMm={diameter}
+                darkMode={darkMode}
+              />
+            </div>
+          )}
+
+          {showTimeLapse && (
+            <div data-visual-panel="time-lapse" className="scroll-mt-20" key={`time-lapse-${panelInstance}`}>
+              <TimeLapseSim
+                totalCycleMin={cycleTimeMin}
+                partsPerTool={Math.max(1, Math.round(toolLifeMin / Math.max(0.1, cycleTimeMin)))}
+                spindleRpm={result.n}
+                feedVfMmMin={result.Vf}
+                raUm={raUm}
                 toolLifeMin={toolLifeMin}
                 darkMode={darkMode}
               />
@@ -3280,29 +3446,29 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
               onChange={v => { setStickoutMm(v); setStickoutManual(true) }}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(stickoutMm), unit: "in", decimals: 3 } : undefined}
               eduId="stick-out"
-              warnings={warnings} paramKey="stickout" darkMode={darkMode} />
+              warningItems={warningItemsByParam.stickout} darkMode={darkMode} />
             <PctSlider eduId="vc" label="Vc (절삭속도)" unit="m/min" value={Vc} pct={speedPct}
               min={Math.round(range.VcMin)} max={Math.round(range.VcMax)} step={1}
               onChange={v => setVc(Math.round(v))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mPerMinToSFM(Vc), unit: "SFM", decimals: 0 } : undefined}
-              warnings={warnings} paramKey="Vc" darkMode={darkMode} />
+              warningItems={warningItemsByParam.Vc} darkMode={darkMode} />
             <PctSlider eduId="fz" label="fz (날당이송)" unit="mm/t" value={fz} pct={feedPct}
               min={range.fzMin} max={range.fzMax} step={0.001} decimals={4}
               onChange={v => setFz(parseFloat(v.toFixed(4)))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(fz), unit: "in/t", decimals: 5 } : undefined}
-              warnings={warnings} paramKey="fz" darkMode={darkMode} />
+              warningItems={warningItemsByParam.fz} darkMode={darkMode} />
             <PctSlider eduId="adoc" label="ap (축방향 절입)" unit="mm" value={ap} pct={(ap / diameter) * 100} pctLabel="·D"
               locked={apLocked} onLockToggle={() => setApLocked(!apLocked)}
               min={0.1} max={range.apMax} step={0.1} decimals={1}
               onChange={v => !apLocked && setAp(parseFloat(v.toFixed(1)))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ap), unit: "in", decimals: 3 } : undefined}
-              warnings={warnings} paramKey="ap" darkMode={darkMode} />
+              warningItems={warningItemsByParam.ap} darkMode={darkMode} />
             <PctSlider eduId="rdoc" label="ae (경방향 절입)" unit="mm" value={ae} pct={(ae / diameter) * 100} pctLabel="·D"
               locked={aeLocked} onLockToggle={() => setAeLocked(!aeLocked)}
               min={0.1} max={range.aeMax} step={0.1} decimals={1}
               onChange={v => !aeLocked && setAe(parseFloat(v.toFixed(1)))}
               secondary={displayUnit !== "metric" ? { value: UNITS.mmToIn(ae), unit: "in", decimals: 3 } : undefined}
-              warnings={warnings} paramKey="ae" darkMode={darkMode} />
+              warningItems={warningItemsByParam.ae} darkMode={darkMode} />
           </div>
 
           {/* 주요 파라미터 맵: 스크롤 중에도 따라다니는 시각 패널 */}
@@ -3468,8 +3634,8 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
       />
 
       {/* 🚀 차세대 기능 (초월 7기능) */}
-      <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 dark:border-indigo-800">
-        <button onClick={() => setNextFeaturesOpen(!nextFeaturesOpen)}
+      <div ref={nextFeaturesRef} className="rounded-xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 dark:border-indigo-800">
+        <button onClick={() => startTransition(() => setNextFeaturesOpen(!nextFeaturesOpen))}
           className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
           <span className="text-sm font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
             🚀 차세대 기능 (MAP 초월)
@@ -3481,59 +3647,69 @@ export function CuttingSimulatorV2({ initialProduct, initialMaterial, initialOpe
         </button>
         {nextFeaturesOpen && (
           <div className="border-t border-indigo-200 dark:border-indigo-800 p-4 space-y-6">
-            {/* AI 코치 */}
-            <AiCoachPanel
-              state={deferredAiCoachState}
-              results={deferredAiCoachResults}
-            />
+            {nextFeaturesVisible ? (
+              <>
+                {/* AI 코치 */}
+                <AiCoachPanel
+                  state={deferredAiCoachState}
+                  results={deferredAiCoachResults}
+                />
 
-            {/* Tool Life 3시나리오 비교 */}
-            <ToolLifeScenario
-              currentVc={VcEff}
-              VcReference={VcReferenceVal}
-              coatingMult={coatingMult}
-              isoGroup={isoGroup}
-              toolMaterialE={toolMatE}
-              toolCostKrw={toolCostKrw}
-              machineCostPerHourKrw={machineCostPerHourKrw}
-              cycleTimeMin={cycleTimeMin}
-              MRR={result.MRR}
-              onApplyScenario={(newVc) => { setVc(Math.round(newVc)); setSpeedPct(0) }}
-            />
+                {/* Tool Life 3시나리오 비교 */}
+                <ToolLifeScenario
+                  currentVc={VcEff}
+                  VcReference={VcReferenceVal}
+                  coatingMult={coatingMult}
+                  isoGroup={isoGroup}
+                  toolMaterialE={toolMatE}
+                  toolCostKrw={toolCostKrw}
+                  machineCostPerHourKrw={machineCostPerHourKrw}
+                  cycleTimeMin={cycleTimeMin}
+                  MRR={result.MRR}
+                  onApplyScenario={(newVc) => { setVc(Math.round(newVc)); setSpeedPct(0) }}
+                />
 
-            {/* 가공 애니메이션 */}
-            <MachiningAnimation
-              D={diameter} LOC={LOC} ap={ap} ae={ae}
-              Vf={result.Vf} n={result.n} MRR={result.MRR}
-              shape={activeShape} toolPath={toolPath}
-            />
+                {/* 가공 애니메이션 */}
+                <MachiningAnimation
+                  D={diameter} LOC={LOC} ap={ap} ae={ae}
+                  Vf={result.Vf} n={result.n} MRR={result.MRR}
+                  shape={activeShape} toolPath={toolPath}
+                />
 
-            {/* 히트맵 */}
-            <HeatmapPanel
-              currentAp={ap} currentAe={ae}
-              D={diameter} Z={fluteCount}
-              isoGroup={isoGroup}
-              Vc={VcEff} fz={fzEff}
-              maxKw={maxKw}
-              onSpotClick={(newAp, newAe) => { setAp(newAp); setAe(newAe) }}
-            />
+                {/* 히트맵 */}
+                <HeatmapPanel
+                  currentAp={ap} currentAe={ae}
+                  D={diameter} Z={fluteCount}
+                  isoGroup={isoGroup}
+                  Vc={VcEff} fz={fzEff}
+                  maxKw={maxKw}
+                  onSpotClick={(newAp, newAe) => { setAp(newAp); setAe(newAe) }}
+                />
 
-            {/* 다중공구 비교 */}
-            <MultiToolCompare
-              isoGroup={isoGroup}
-              ap={ap} ae={ae}
-              operation={operation}
-              onSelectTool={(series, D) => { setProductCode(series); setDiameter(D); setEverInteracted(true) }}
-            />
+                {/* 다중공구 비교 */}
+                <MultiToolCompare
+                  isoGroup={isoGroup}
+                  ap={ap} ae={ae}
+                  operation={operation}
+                  onSelectTool={(series, D) => { setProductCode(series); setDiameter(D); setEverInteracted(true) }}
+                />
 
-            {/* MAP/SpeedLab 병렬 비교 */}
-            <CompetitorLiveCompare
-              ariaResults={{
-                Vc: VcEff, fz: fzEff, n: result.n, Vf: result.Vf,
-                MRR: result.MRR, SFM: UNITS.mPerMinToSFM(VcEff),
-                IPM: UNITS.mmPerMinToIPM(result.Vf),
-              }}
-            />
+                {/* MAP/SpeedLab 병렬 비교 */}
+                <CompetitorLiveCompare
+                  ariaResults={{
+                    Vc: VcEff, fz: fzEff, n: result.n, Vf: result.Vf,
+                    MRR: result.MRR, SFM: UNITS.mPerMinToSFM(VcEff),
+                    IPM: UNITS.mmPerMinToIPM(result.Vf),
+                  }}
+                />
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-indigo-300 bg-white/70 px-4 py-6 text-center dark:border-indigo-700 dark:bg-slate-900/40">
+                <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-indigo-200 dark:bg-indigo-800" />
+                <div className="mt-3 text-sm font-semibold text-indigo-900 dark:text-indigo-200">차세대 기능 준비중</div>
+                <div className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">스크롤 진입 시 AI 코치와 시뮬레이션 패널을 로드합니다.</div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -4358,6 +4534,137 @@ const ReplacementVisualSkeleton = memo(function ReplacementVisualSkeleton({ labe
   )
 })
 
+const VisualToggleStrip = memo(function VisualToggleStrip({
+  darkMode,
+  activatePanel,
+  showLiveScene,
+  show3DPreview,
+  showBlueprint,
+  showAnalogGauges,
+  showHeroDisplay,
+  showWearGauge,
+  advancedMetricsOpen,
+  showBreakEven,
+  showStabilityLobe,
+  showCostWaterfall,
+  showWearProg,
+  showChipMorph,
+  showAcousticEmission,
+  showEnergySankey,
+  showVoiceWarning,
+  showSurfaceTopo,
+  showTimeLapse,
+  showToolPath,
+  showVibration,
+  showTempHeatmap,
+  showForceVec,
+  historyCanUndo,
+  historyCanRedo,
+  historyCount,
+  showCheatSheet,
+  showVideoPanel,
+  showLeaderboard,
+  showFavorites,
+  show3DScene,
+  showAutoAgent,
+  showVendorTags,
+  onOpenBlueprintGallery,
+  onToggleHeroDisplay,
+  onUndo,
+  onRedo,
+  onOpenWizard,
+  onOpenTutorial,
+  onDownloadWorkInstruction,
+}: {
+  darkMode: boolean
+  activatePanel: (panelKey: string | null) => void
+  showLiveScene: boolean
+  show3DPreview: boolean
+  showBlueprint: boolean
+  showAnalogGauges: boolean
+  showHeroDisplay: boolean
+  showWearGauge: boolean
+  advancedMetricsOpen: boolean
+  showBreakEven: boolean
+  showStabilityLobe: boolean
+  showCostWaterfall: boolean
+  showWearProg: boolean
+  showChipMorph: boolean
+  showAcousticEmission: boolean
+  showEnergySankey: boolean
+  showVoiceWarning: boolean
+  showSurfaceTopo: boolean
+  showTimeLapse: boolean
+  showToolPath: boolean
+  showVibration: boolean
+  showTempHeatmap: boolean
+  showForceVec: boolean
+  historyCanUndo: boolean
+  historyCanRedo: boolean
+  historyCount: number
+  showCheatSheet: boolean
+  showVideoPanel: boolean
+  showLeaderboard: boolean
+  showFavorites: boolean
+  show3DScene: boolean
+  showAutoAgent: boolean
+  showVendorTags: boolean
+  onOpenBlueprintGallery: () => void
+  onToggleHeroDisplay: () => void
+  onUndo: () => void
+  onRedo: () => void
+  onOpenWizard: () => void
+  onOpenTutorial: () => void
+  onDownloadWorkInstruction: () => void
+}) {
+  const baseButtonClass = darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-600 hover:bg-slate-50"
+  const historyDisabledClass = "opacity-30 cursor-not-allowed bg-white text-slate-400"
+  return (
+    <div data-tour="visual-strip" className="flex flex-wrap items-center gap-1.5 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/60 via-blue-50/40 to-cyan-50/40 dark:from-violet-900/20 dark:via-blue-900/10 dark:to-cyan-900/10 p-2 print:hidden">
+      <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider px-1.5">🎬 비주얼 (5사 강점 통합)</span>
+      <button onClick={() => activatePanel(showLiveScene ? null : "live")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLiveScene ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>🎬 실시간 절삭</button>
+      <button onClick={() => activatePanel(show3DPreview ? null : "3d")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DPreview ? "bg-blue-500 text-white shadow-sm" : baseButtonClass}`}>🔄 3D 엔드밀</button>
+      <button onClick={() => activatePanel(showBlueprint ? null : "blueprint")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBlueprint ? "bg-cyan-600 text-white shadow-sm" : baseButtonClass}`}>📐 도면</button>
+      <button onClick={onOpenBlueprintGallery} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🖼 갤러리(6)</button>
+      <button onClick={() => activatePanel(showAnalogGauges ? null : "gauges")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAnalogGauges ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🎛 게이지</button>
+      <button onClick={onToggleHeroDisplay} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showHeroDisplay ? "bg-gradient-to-r from-cyan-500 to-violet-500 text-white shadow-sm" : baseButtonClass}`}>✨ 영웅 KPI</button>
+      <button onClick={() => activatePanel(showWearGauge ? null : "wear")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearGauge ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🔧 마모 게이지</button>
+      <button onClick={() => activatePanel(advancedMetricsOpen ? null : "advanced")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${advancedMetricsOpen ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🔬 고급 지표</button>
+      <button onClick={() => activatePanel(showBreakEven ? null : "break-even")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showBreakEven ? "bg-emerald-600 text-white shadow-sm" : baseButtonClass}`}>💰 Break-Even</button>
+      <button onClick={() => activatePanel(showStabilityLobe ? null : "stability-lobe")} title="Stability Lobe · 채터 안정 영역" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showStabilityLobe ? "bg-emerald-500 text-white shadow-sm" : baseButtonClass}`}>📈 채터 안정</button>
+      <button onClick={() => activatePanel(showCostWaterfall ? null : "cost-waterfall")} title="Cost Waterfall · 원가 분해" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCostWaterfall ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🧾 원가 분해</button>
+      <button onClick={() => activatePanel(showWearProg ? null : "wear-prog")} title="Wear Progression · 공구 마모 진행" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showWearProg ? "bg-rose-500 text-white shadow-sm" : baseButtonClass}`}>🛠 마모 진행</button>
+      <button onClick={() => activatePanel(showChipMorph ? null : "chip-morph")} title="Chip Morphology 3D · 칩 형상" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showChipMorph ? "bg-violet-500 text-white shadow-sm" : baseButtonClass}`}>🌀 칩 형상</button>
+      <button onClick={() => activatePanel(showAcousticEmission ? null : "acoustic")} title="Acoustic Emission · 절삭음 시뮬" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAcousticEmission ? "bg-pink-500 text-white shadow-sm" : baseButtonClass}`}>🔊 절삭음</button>
+      <button onClick={() => activatePanel(showEnergySankey ? null : "energy-sankey")} title="Energy Sankey · 에너지 분배" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showEnergySankey ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>⚡ 에너지</button>
+      <button onClick={() => activatePanel(showSurfaceTopo ? null : "surface-topo")} title="Surface Topography 3D · 표면 지형" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showSurfaceTopo ? "bg-cyan-500 text-white shadow-sm" : baseButtonClass}`}>🏔 표면</button>
+      <button onClick={() => activatePanel(showTimeLapse ? null : "time-lapse")} title="Time-lapse 30s · 가공 요약" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTimeLapse ? "bg-teal-500 text-white shadow-sm" : baseButtonClass}`}>🎞 타임랩스</button>
+      <button onClick={() => activatePanel(showVoiceWarning ? null : "voice-warning")} title="Voice Warning · 음성 경고" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVoiceWarning ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>📣 음성</button>
+      <button onClick={() => activatePanel(showToolPath ? null : "tool-path")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showToolPath ? "bg-sky-500 text-white shadow-sm" : baseButtonClass}`}>🗺 툴패스</button>
+      <button onClick={() => activatePanel(showVibration ? null : "vibration")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVibration ? "bg-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>📡 진동</button>
+      <button onClick={() => activatePanel(showTempHeatmap ? null : "temp")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showTempHeatmap ? "bg-orange-500 text-white shadow-sm" : baseButtonClass}`}>🌡 온도</button>
+      <button onClick={() => activatePanel(showForceVec ? null : "force")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showForceVec ? "bg-indigo-500 text-white shadow-sm" : baseButtonClass}`}>➡ 힘 벡터</button>
+      <ToolbarDivider darkMode={darkMode} />
+      <button onClick={onUndo} disabled={!historyCanUndo} title="Undo (Ctrl+Z)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${historyCanUndo ? baseButtonClass : historyDisabledClass}`}>↶</button>
+      <button onClick={onRedo} disabled={!historyCanRedo} title="Redo (Ctrl+Y)" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${historyCanRedo ? baseButtonClass : historyDisabledClass}`}>↷</button>
+      <span className={`text-[10px] font-mono ${darkMode ? "text-slate-500" : "text-slate-400"}`}>{historyCount}</span>
+      <ToolbarDivider darkMode={darkMode} />
+      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider px-1">🎓 학습</span>
+      <button onClick={onOpenWizard} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🧙 위저드</button>
+      <button onClick={onOpenTutorial} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>🎯 투어</button>
+      <button onClick={() => activatePanel(showCheatSheet ? null : "cheat")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showCheatSheet ? "bg-indigo-600 text-white shadow-sm" : baseButtonClass}`}>📋 치트시트</button>
+      <a href="/simulator_v2/glossary" target="_blank" rel="noreferrer" className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${baseButtonClass}`}>📚 용어사전 ↗</a>
+      <button onClick={() => activatePanel(showVideoPanel ? null : "video")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showVideoPanel ? "bg-red-500 text-white shadow-sm" : baseButtonClass}`}>🎥 가공영상</button>
+      <button onClick={() => activatePanel(showLeaderboard ? null : "leaderboard")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showLeaderboard ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>🏆 리더보드</button>
+      <button onClick={() => activatePanel(showFavorites ? null : "favorites")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showFavorites ? "bg-amber-500 text-white shadow-sm" : baseButtonClass}`}>⭐ 즐겨찾기</button>
+      <button onClick={() => activatePanel(show3DScene ? null : "3d-scene")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${show3DScene ? "bg-gradient-to-r from-sky-500 via-violet-500 to-fuchsia-500 text-white shadow-lg" : baseButtonClass}`}>🎮 3D 씬</button>
+      <button onClick={() => activatePanel(showAutoAgent ? null : "auto-agent")} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${showAutoAgent ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-sm" : baseButtonClass}`}>🤖 자율 AI</button>
+      <button onClick={onDownloadWorkInstruction} className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${darkMode ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100"}`}>📄 지시서</button>
+      {showVendorTags && <VendorTag featureId="provenance-panel" size="xs" darkMode={darkMode} />}
+    </div>
+  )
+})
+
 const MiniStatChip = memo(function MiniStatChip({
   label,
   value,
@@ -4509,19 +4816,18 @@ interface PctSliderProps {
   locked?: boolean; onLockToggle?: () => void
   secondary?: { value: number; unit: string; decimals: number }
   eduId?: string
-  warnings?: SimWarning[]
-  paramKey?: ParamKey
+  warningItems?: SimWarning[]
   darkMode?: boolean
 }
 
-const PctSlider = memo(function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId, warnings, paramKey, darkMode }: PctSliderProps) {
+const PctSlider = memo(function PctSlider({ label, unit, value, pct, pctLabel = "%", min, max, step, decimals = 0, onChange, locked, onLockToggle, secondary, eduId, warningItems, darkMode }: PctSliderProps) {
   return (
     <div>
       <div className="flex justify-between items-center mb-0.5">
         <div className="flex items-center gap-1.5">
           <label className="text-xs font-medium text-gray-700 dark:text-slate-300">{label}</label>
           {eduId && <EduLabel id={eduId} size="xs" />}
-          {warnings && paramKey && <WarningDot warnings={warnings} param={paramKey} darkMode={darkMode} />}
+          {warningItems && warningItems.length > 0 && <WarningDot relatedWarnings={warningItems} darkMode={darkMode} />}
           {onLockToggle && (
             <button onClick={onLockToggle} className="text-gray-400 hover:text-blue-600">
               {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}

@@ -43,14 +43,15 @@ export function getWorstLevel(warnings: SimWarning[]): "error" | "warn" | "info"
 }
 
 interface DotProps {
-  warnings: SimWarning[]
-  param: ParamKey
+  warnings?: SimWarning[]
+  param?: ParamKey
+  relatedWarnings?: SimWarning[]
   darkMode?: boolean
   showTooltip?: boolean // hover 시 경고 요약 툴팁
 }
 
-export function WarningDot({ warnings, param, darkMode, showTooltip = true }: DotProps): ReactNode {
-  const related = findWarningsForParam(warnings, param)
+export function WarningDot({ warnings, param, relatedWarnings, darkMode, showTooltip = true }: DotProps): ReactNode {
+  const related = relatedWarnings ?? (warnings && param ? findWarningsForParam(warnings, param) : [])
   const level = getWorstLevel(related)
   if (!level) return null
 

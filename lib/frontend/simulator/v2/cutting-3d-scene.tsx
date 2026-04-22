@@ -70,20 +70,24 @@ const ROTATION_VISUAL_MULT = 0.06
 const FEED_UNITS_PER_MM = 1.0
 const FEED_VISUAL_MULT = 0.08
 
-// 칩 파티클 ×3
-const MAX_CHIPS = 300
-const CHIP_LIFETIME_SEC = 1.2
-const CHIP_SPAWN_HZ_MAX = 120
-const CHIP_GRAVITY = -35
+// 칩 파티클 — 200 live cap, ballistic + tumbling + bounce
+const MAX_CHIPS = 200
+const CHIP_LIFETIME_SEC = 1.6
+const CHIP_SPAWN_HZ_MAX = 160
+const CHIP_GRAVITY = -9.8            // world units/s² (1 unit ≈ 1 mm, scene scale factor applied below)
+const CHIP_GRAVITY_SCALE = 3.8       // additional scene-scale multiplier (stock is ~80 units wide)
 const CHIP_SIZE = 0.55
-const CHIP_AIR_DRAG = 0.35
+const CHIP_AIR_DRAG = 0.22
+const CHIP_BOUNCE_RESTITUTION = 0.3
+const CHIP_BOUNCE_FRICTION = 0.55    // tangential damping on bounce
+const CHIP_BOUNCE_MIN_SPEED = 1.2    // below → settle (stop bouncing)
 
-// 스파크 ×2.5
+// 스파크 ×2.5 — faster fade
 const MAX_SPARKS = 100
-const SPARK_LIFETIME_SEC = 0.42
+const SPARK_LIFETIME_SEC = 0.28      // shortened from 0.42 for faster fade
 const SPARK_VC_MIN = 250
 const SPARK_VC_RED = 400
-const SPARK_AIR_DRAG = 0.55
+const SPARK_AIR_DRAG = 0.85
 const SPARK_EMISSIVE = 2.5
 
 // Groove
@@ -169,6 +173,50 @@ export interface Cutting3DSceneProps {
   sliceAxis?: "x" | "y" | "z"
   /** Plane constant (mm). 0 = through origin/center. Default 0. */
   sliceOffset?: number
+  /**
+   * Tool wear level in [0,1]. 0 = brand new (polished carbide), 1 = heavily worn
+   * (oxidized brownish-gray material, recessed/blunted cutting edges, red-orange
+   * overheat glow at high wear). Default 0.
+   */
+  wearLevel?: number
+}
+
+// ─────────────────────────────────────────────
+// Tool wear helpers
+// ─────────────────────────────────────────────
+// Worn carbide appearance SSOT — kept module-local so the Endmill rendering
+// and any future wear-visualization sibling (gauge, tooltip) share one color.
+const TOOL_WORN_COLOR = "#8a7a6e"
+const TOOL_WORN_ROUGHNESS = 0.65
+const TOOL_WEAR_OVERHEAT_COLOR = "#c04a1a"
+const TOOL_WEAR_OVERHEAT_THRESHOLD = 0.7
+// Edge dulling approach: scale the cutting-edge tube radius by (1 + 0.3*w) so
+// edges visibly round/blunt as wear progresses. Kept as a constant so the
+// factor is documented in one place.
+const TOOL_WEAR_EDGE_RADIUS_SCALE = 0.3
+
+function clampWear(w: number | undefined): number {
+  if (!Number.isFinite(w ?? NaN)) return 0
+  return Math.max(0, Math.min(1, w as number))
+}
+
+function wornToolColor(wearLevel: number): string {
+  const w = clampWear(wearLevel)
+  if (w <= 0) return TOOL_PBR_COLOR
+  const base = new THREE.Color(TOOL_PBR_COLOR)
+  const worn = new THREE.Color(TOOL_WORN_COLOR)
+  return "#" + base.lerp(worn, w).getHexString()
+}
+
+function wornToolRoughness(wearLevel: number): number {
+  const w = clampWear(wearLevel)
+  return TOOL_PBR_ROUGHNESS + (TOOL_WORN_ROUGHNESS - TOOL_PBR_ROUGHNESS) * w
+}
+
+function wearOverheatIntensity(wearLevel: number): number {
+  const w = clampWear(wearLevel)
+  if (w <= TOOL_WEAR_OVERHEAT_THRESHOLD) return 0
+  return (w - TOOL_WEAR_OVERHEAT_THRESHOLD) * 2
 }
 
 // ─────────────────────────────────────────────
@@ -197,21 +245,46 @@ function coatingStyle(coating?: string): CoatingStyle {
   return COATING_STYLES[key] ?? COATING_STYLES.uncoated
 }
 
-function chipTempColor(vcMPerMin: number, t01: number): THREE.Color {
-  const intensity = Math.max(0, Math.min(1, vcMPerMin / 400)) * (1 - t01 * 0.6)
-  const silver = new THREE.Color("#cbd5e1")
-  const yellow = new THREE.Color("#fde047")
-  const orange = new THREE.Color("#fb923c")
-  const red = new THREE.Color("#ef4444")
-  let c: THREE.Color
-  if (intensity < 0.33) {
-    c = silver.clone().lerp(yellow, intensity / 0.33)
-  } else if (intensity < 0.66) {
-    c = yellow.clone().lerp(orange, (intensity - 0.33) / 0.33)
+// Chip color palette — cold brass → warm orange → hot red-orange → white-hot,
+// then blend toward ash-gray as the chip cools over its flight time (t01).
+// Temperature proxy: Vc (higher cutting speed → hotter) combined with tool radius
+// (smaller radius → concentrated heat on chip).
+const CHIP_COL_BRASS = new THREE.Color("#b8860b")   // cold
+const CHIP_COL_ORANGE = new THREE.Color("#ffa500")  // warm
+const CHIP_COL_RED = new THREE.Color("#ff4500")     // hot
+const CHIP_COL_WHITE = new THREE.Color("#fff8dc")   // white-hot
+const CHIP_COL_ASH = new THREE.Color("#6b7280")     // cooled ash
+
+/**
+ * chipTempColor(vcMPerMin, t01, toolRadius)
+ *   vcMPerMin — cutting speed (m/min)
+ *   t01       — age/lifetime in [0,1]; as it rises, chip cools toward ash-gray
+ *   toolRadius — mm (optional); smaller radius → +heat bump
+ *   Returns a fresh Color (callers mutate via setColorAt).
+ */
+function chipTempColor(
+  vcMPerMin: number,
+  t01: number,
+  toolRadius = 5,
+): THREE.Color {
+  // Temperature [0..1]. Vc≈400 m/min → ≈1.0; small radius adds up to +0.15.
+  const vcT = Math.max(0, Math.min(1, vcMPerMin / 400))
+  const radBump = Math.max(0, Math.min(0.15, (5 - toolRadius) / 20))
+  const T = Math.max(0, Math.min(1, vcT + radBump))
+
+  // Hot color via 3 stops: brass → orange → red → white-hot
+  let hot: THREE.Color
+  if (T < 0.33) {
+    hot = CHIP_COL_BRASS.clone().lerp(CHIP_COL_ORANGE, T / 0.33)
+  } else if (T < 0.66) {
+    hot = CHIP_COL_ORANGE.clone().lerp(CHIP_COL_RED, (T - 0.33) / 0.33)
   } else {
-    c = orange.clone().lerp(red, (intensity - 0.66) / 0.34)
+    hot = CHIP_COL_RED.clone().lerp(CHIP_COL_WHITE, (T - 0.66) / 0.34)
   }
-  return c
+
+  // Cool toward ash gray as the chip ages in flight.
+  const cool = Math.max(0, Math.min(1, t01))
+  return hot.lerp(CHIP_COL_ASH, cool * 0.75)
 }
 
 function calcVc(dia: number, rpm: number): number {
@@ -400,6 +473,8 @@ interface EndmillProps {
   reducedMotion: boolean
   fluteCount: 2 | 3 | 4 | 5 | 6
   clippingPlanes?: THREE.Plane[]
+  /** Tool wear [0,1]. 0 = brand new, 1 = heavily worn. */
+  wearLevel?: number
 }
 
 // Build a helical flute groove as an ExtrudeGeometry that sweeps a small
@@ -438,11 +513,15 @@ function buildHelicalFluteGeometry(
   return tube
 }
 
-function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, fluteCount, clippingPlanes }: EndmillProps) {
+function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, fluteCount, clippingPlanes, wearLevel }: EndmillProps) {
   const groupRef = useRef<THREE.Group>(null)
   const shankR = (dia / 2) * SHANK_RATIO
   const shankLen = Math.max(4, OAL - LOC) * SHANK_LEN_RATIO * 0.5
   const fluteR = dia / 2
+  const w = clampWear(wearLevel)
+  const toolColor = wornToolColor(w)
+  const toolRoughness = wornToolRoughness(w)
+  const overheatIntensity = wearOverheatIntensity(w)
 
   useFrame((_state, delta) => {
     if (!groupRef.current || reducedMotion) return
@@ -458,7 +537,10 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
     return buildHelicalFluteGeometry(fluteR, LOC, helixTurns, grooveWidth, grooveDepth, 48)
   }, [fluteR, LOC])
 
-  // Cutting-edge helix (slight radial offset, brighter) — one per flute
+  // Cutting-edge helix (slight radial offset, brighter) — one per flute.
+  // Wear chosen approach: scale edge tube *radius* by (1 + 0.3*wearLevel) so
+  // edges look progressively rounded/blunted. The radial offset is kept so the
+  // edges still protrude; rounding is the visually dominant wear cue.
   const edgeGeom = useMemo(() => {
     const helixTurns = 1.1
     // TubeGeometry는 CurvePath/Curve 인스턴스 요구 — function 기반 Curve 로 구성
@@ -471,8 +553,10 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
         Math.sin(a) * (fluteR * 1.015),
       )
     }
-    return new THREE.TubeGeometry(curve, 48, Math.max(0.06, fluteR * 0.04), 6, false)
-  }, [fluteR, LOC])
+    const baseEdgeRadius = Math.max(0.06, fluteR * 0.04)
+    const wornEdgeRadius = baseEdgeRadius * (1 + TOOL_WEAR_EDGE_RADIUS_SCALE * w)
+    return new THREE.TubeGeometry(curve, 48, wornEdgeRadius, 6, false)
+  }, [fluteR, LOC, w])
 
   const fluteAngles = useMemo(
     () => Array.from({ length: fluteCount }, (_, i) => (i / fluteCount) * Math.PI * 2),
@@ -481,13 +565,13 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
 
   return (
     <group ref={groupRef}>
-      {/* Shank — PBR polished carbide */}
+      {/* Shank — PBR polished carbide (wear-shifted toward oxidized brown-gray) */}
       <mesh position={[0, shankLen / 2 + LOC / 2, 0]} castShadow>
         <cylinderGeometry args={[shankR, shankR, shankLen, 32]} />
         <meshStandardMaterial
-          color={TOOL_PBR_COLOR}
+          color={toolColor}
           metalness={TOOL_PBR_METALNESS}
-          roughness={TOOL_PBR_ROUGHNESS}
+          roughness={toolRoughness}
           envMapIntensity={1.5}
           clippingPlanes={clippingPlanes ?? null}
           side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
@@ -498,9 +582,9 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
       <mesh position={[0, LOC / 2, 0]} castShadow>
         <cylinderGeometry args={[shankR * 1.02, fluteR * 1.02, Math.max(0.6, dia * 0.1), 24]} />
         <meshStandardMaterial
-          color={TOOL_PBR_COLOR}
+          color={toolColor}
           metalness={TOOL_PBR_METALNESS}
-          roughness={TOOL_PBR_ROUGHNESS + 0.05}
+          roughness={Math.min(1, toolRoughness + 0.05)}
           envMapIntensity={1.3}
           clippingPlanes={clippingPlanes ?? null}
           side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
@@ -511,11 +595,11 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
       <mesh position={[0, 0, 0]} castShadow>
         <cylinderGeometry args={[fluteR, fluteR, LOC, 48]} />
         <meshStandardMaterial
-          color={TOOL_PBR_COLOR}
+          color={toolColor}
           metalness={TOOL_PBR_METALNESS}
-          roughness={TOOL_PBR_ROUGHNESS}
-          emissive={cs.emissive}
-          emissiveIntensity={cs.emissiveIntensity * 0.5}
+          roughness={toolRoughness}
+          emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+          emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : cs.emissiveIntensity * 0.5}
           envMapIntensity={1.4}
           clippingPlanes={clippingPlanes ?? null}
           side={clippingPlanes ? THREE.DoubleSide : THREE.FrontSide}
@@ -534,14 +618,16 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
               emissiveIntensity={cs.emissiveIntensity * 0.3}
             />
           </mesh>
-          {/* Cutting edge — slight radial offset, brighter coating tint */}
+          {/* Cutting edge — slight radial offset, brighter coating tint.
+              Under wear, the edge tube radius is scaled (see edgeGeom useMemo)
+              and an overheat emissive layer kicks in at wearLevel > 0.7. */}
           <mesh castShadow geometry={edgeGeom}>
             <meshStandardMaterial
               color={cs.color}
               metalness={0.95}
-              roughness={0.18}
-              emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 1.4}
+              roughness={Math.min(1, 0.18 + 0.4 * w)}
+              emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+              emissiveIntensity={overheatIntensity > 0 ? overheatIntensity * 1.4 : cs.emissiveIntensity * 1.4}
               envMapIntensity={1.6}
             />
           </mesh>
@@ -553,9 +639,11 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
         <mesh position={[0, -LOC / 2 - 0.05, 0]} castShadow>
           <cylinderGeometry args={[fluteR, fluteR, 0.4, TIP_SEGMENTS]} />
           <meshStandardMaterial
-            color={TOOL_PBR_COLOR}
+            color={toolColor}
             metalness={TOOL_PBR_METALNESS}
-            roughness={TOOL_PBR_ROUGHNESS}
+            roughness={toolRoughness}
+            emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : "#000000"}
+            emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : 0}
           />
         </mesh>
       )}
@@ -563,11 +651,11 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
         <mesh position={[0, -LOC / 2, 0]} rotation={[Math.PI, 0, 0]} castShadow>
           <sphereGeometry args={[fluteR, TIP_SEGMENTS, TIP_SEGMENTS, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial
-            color={TOOL_PBR_COLOR}
+            color={toolColor}
             metalness={TOOL_PBR_METALNESS}
-            roughness={TOOL_PBR_ROUGHNESS}
-            emissive={cs.emissive}
-            emissiveIntensity={cs.emissiveIntensity * 0.6}
+            roughness={toolRoughness}
+            emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+            emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : cs.emissiveIntensity * 0.6}
           />
         </mesh>
       )}
@@ -576,21 +664,21 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
           <mesh castShadow>
             <cylinderGeometry args={[fluteR, fluteR * 0.85, fluteR * 0.4, TIP_SEGMENTS]} />
             <meshStandardMaterial
-              color={TOOL_PBR_COLOR}
+              color={toolColor}
               metalness={TOOL_PBR_METALNESS}
-              roughness={TOOL_PBR_ROUGHNESS}
-              emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 0.6}
+              roughness={toolRoughness}
+              emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+              emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : cs.emissiveIntensity * 0.6}
             />
           </mesh>
           <mesh position={[0, -fluteR * 0.2, 0]} castShadow>
             <sphereGeometry args={[fluteR * 0.85, TIP_SEGMENTS, TIP_SEGMENTS, 0, Math.PI * 2, 0, Math.PI / 2]} />
             <meshStandardMaterial
-              color={TOOL_PBR_COLOR}
+              color={toolColor}
               metalness={TOOL_PBR_METALNESS}
-              roughness={TOOL_PBR_ROUGHNESS}
-              emissive={cs.emissive}
-              emissiveIntensity={cs.emissiveIntensity * 0.6}
+              roughness={toolRoughness}
+              emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+              emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : cs.emissiveIntensity * 0.6}
             />
           </mesh>
         </group>
@@ -599,11 +687,11 @@ function Endmill({ shape, dia, LOC, OAL, coatingStyle: cs, rpm, reducedMotion, f
         <mesh position={[0, -LOC / 2 - dia * 0.15, 0]} rotation={[Math.PI, 0, 0]} castShadow>
           <coneGeometry args={[fluteR, dia * 0.3, TIP_SEGMENTS]} />
           <meshStandardMaterial
-            color={TOOL_PBR_COLOR}
+            color={toolColor}
             metalness={TOOL_PBR_METALNESS}
-            roughness={TOOL_PBR_ROUGHNESS}
-            emissive={cs.emissive}
-            emissiveIntensity={cs.emissiveIntensity * 0.6}
+            roughness={toolRoughness}
+            emissive={overheatIntensity > 0 ? TOOL_WEAR_OVERHEAT_COLOR : cs.emissive}
+            emissiveIntensity={overheatIntensity > 0 ? overheatIntensity : cs.emissiveIntensity * 0.6}
           />
         </mesh>
       )}
@@ -741,6 +829,12 @@ interface ChipParticlesProps {
   rpm: number
   flutes: number
   vcMPerMin: number
+  /** Feed per tooth (mm/tooth) — used to modulate emission rate ∝ Vc × fz. */
+  feedPerTooth: number
+  /** Tool radius (mm) — used for chip temperature bias (smaller → hotter). */
+  toolRadius: number
+  /** World-space Y where chips settle / bounce (e.g., stock base). */
+  groundLevel: number
   reducedMotion: boolean
   maxChips: number
 }
@@ -750,10 +844,13 @@ interface ChipState {
   vel: THREE.Vector3
   age: number
   alive: boolean
-  color: THREE.Color
+  /** Quaternion accumulator (rotated each frame by angVel*dt). */
+  quat: THREE.Quaternion
+  /** Angular velocity (rad/s) on X/Y/Z axes — chips tumble each frame. */
+  angVel: THREE.Vector3
   sizeMult: number
-  rotAxis: THREE.Vector3
-  rotSpeed: number
+  /** Once true, chip has bounced at least once (used for settle logic). */
+  bounced: boolean
 }
 
 function ChipParticles({
@@ -762,30 +859,39 @@ function ChipParticles({
   rpm,
   flutes,
   vcMPerMin,
+  feedPerTooth,
+  toolRadius,
+  groundLevel,
   reducedMotion,
   maxChips,
 }: ChipParticlesProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
+  // Hard cap live chips at min(maxChips, 200) per spec.
+  const cap = Math.min(maxChips, MAX_CHIPS)
   const chipsRef = useRef<ChipState[]>(
-    Array.from({ length: maxChips }, () => ({
+    Array.from({ length: cap }, () => ({
       pos: new THREE.Vector3(),
       vel: new THREE.Vector3(),
       age: 0,
       alive: false,
-      color: new THREE.Color(),
+      quat: new THREE.Quaternion(),
+      angVel: new THREE.Vector3(),
       sizeMult: 1,
-      rotAxis: new THREE.Vector3(0, 1, 0),
-      rotSpeed: 1,
+      bounced: false,
     })),
   )
   const spawnAccumRef = useRef(0)
   const dummy = useMemo(() => new THREE.Object3D(), [])
+  // Scratch quaternion to compose delta rotations — avoid per-frame allocation.
+  const dq = useMemo(() => new THREE.Quaternion(), [])
+  const dqAxis = useMemo(() => new THREE.Vector3(), [])
 
   useFrame((_state, delta) => {
     const mesh = meshRef.current
     if (!mesh) return
+    // reduced-motion / inactive → freeze all instances off-screen.
     if (reducedMotion || !active) {
-      for (let i = 0; i < maxChips; i++) {
+      for (let i = 0; i < cap; i++) {
         dummy.position.set(0, -9999, 0)
         dummy.scale.set(0, 0, 0)
         dummy.updateMatrix()
@@ -795,57 +901,108 @@ function ChipParticles({
       return
     }
 
-    const rawHz = flutes * (rpm / 60)
-    const spawnHz = Math.min(CHIP_SPAWN_HZ_MAX, rawHz * 0.8)
+    // Emission rate ∝ Vc × fz, capped. Vc/400 ∈ [0..1], fz/0.2 ∈ [0..1] typical.
+    const loadNorm =
+      Math.min(1, Math.max(0, vcMPerMin) / 400) *
+      Math.min(1, Math.max(0, feedPerTooth) / 0.2)
+    const toothHz = flutes * (rpm / 60)
+    const spawnHz = Math.min(CHIP_SPAWN_HZ_MAX, toothHz * (0.3 + 0.9 * loadNorm))
     spawnAccumRef.current += delta * spawnHz
     let toSpawn = Math.floor(spawnAccumRef.current)
     spawnAccumRef.current -= toSpawn
 
-    for (let i = 0; i < maxChips; i++) {
+    // Count live chips → respect alive cap (don't oversubscribe slots).
+    let liveCount = 0
+    for (let i = 0; i < cap; i++) if (chipsRef.current[i].alive) liveCount++
+
+    const gravity = CHIP_GRAVITY * CHIP_GRAVITY_SCALE
+
+    for (let i = 0; i < cap; i++) {
       const c = chipsRef.current[i]
-      if (!c.alive && toSpawn > 0) {
+
+      // Spawn into an empty slot if we still have budget.
+      if (!c.alive && toSpawn > 0 && liveCount < cap) {
         c.alive = true
         c.age = 0
+        c.bounced = false
         c.pos.copy(tipPosRef.current)
-        const theta = Math.random() * Math.PI * 2
-        const speed = 10 + Math.random() * 22
+        // Initial velocity per spec: sideways/forward + upward kick.
+        // Scale matches our ~80-mm stock world (values in world units / s).
+        const SC = 8 // convert 0.8..2.0 m/s-ish to scene units per second
         c.vel.set(
-          Math.cos(theta) * speed * 0.7,
-          8 + Math.random() * 16,
-          Math.sin(theta) * speed * 0.7,
+          (-0.5 + Math.random() * 2.0) * SC,   // vx: [-0.5 .. +1.5] → [-4..+12]
+          (0.8 + Math.random() * 1.2) * SC,    // vy: [+0.8 .. +2.0] → [+6.4..+16]
+          (-0.8 + Math.random() * 1.6) * SC,   // vz: [-0.8 .. +0.8] → [-6.4..+6.4]
         )
-        c.color.copy(chipTempColor(vcMPerMin, 0))
-        c.sizeMult = 0.6 + Math.random() * 0.9 // 다양화
-        c.rotAxis.set(
-          Math.random() - 0.5,
-          Math.random() - 0.5,
-          Math.random() - 0.5,
-        ).normalize()
-        c.rotSpeed = 4 + Math.random() * 10
+        c.sizeMult = 0.6 + Math.random() * 0.9
+        c.quat.identity()
+        // Angular velocity (rad/s) — tumble fast; each axis independent.
+        c.angVel.set(
+          (Math.random() - 0.5) * 14,
+          (Math.random() - 0.5) * 14,
+          (Math.random() - 0.5) * 14,
+        )
         toSpawn--
+        liveCount++
       }
+
       if (c.alive) {
         c.age += delta
+
         if (c.age >= CHIP_LIFETIME_SEC) {
           c.alive = false
+          liveCount--
           dummy.position.set(0, -9999, 0)
           dummy.scale.set(0, 0, 0)
           dummy.updateMatrix()
           mesh.setMatrixAt(i, dummy.matrix)
           continue
         }
-        // physics: 중력 + 공기저항
-        c.vel.y += CHIP_GRAVITY * delta
+
+        // Ballistic: apply gravity + mild air drag, then integrate position.
+        c.vel.y += gravity * delta
         c.vel.multiplyScalar(1 - CHIP_AIR_DRAG * delta)
         c.pos.addScaledVector(c.vel, delta)
+
+        // Ground interaction: bounce with restitution + tangential friction,
+        // or settle (kill) if residual kinetic energy is too low.
+        if (c.pos.y < groundLevel) {
+          const speed = c.vel.length()
+          if (speed < CHIP_BOUNCE_MIN_SPEED) {
+            // Settle → free the slot.
+            c.alive = false
+            liveCount--
+            dummy.position.set(0, -9999, 0)
+            dummy.scale.set(0, 0, 0)
+            dummy.updateMatrix()
+            mesh.setMatrixAt(i, dummy.matrix)
+            continue
+          }
+          c.pos.y = groundLevel
+          c.vel.y = -c.vel.y * CHIP_BOUNCE_RESTITUTION
+          c.vel.x *= 1 - CHIP_BOUNCE_FRICTION
+          c.vel.z *= 1 - CHIP_BOUNCE_FRICTION
+          c.bounced = true
+        }
+
+        // Tumbling: rotate quaternion by angVel * dt around each axis.
+        const wLen = c.angVel.length()
+        if (wLen > 1e-4) {
+          dqAxis.copy(c.angVel).multiplyScalar(1 / wLen)
+          dq.setFromAxisAngle(dqAxis, wLen * delta)
+          c.quat.multiplyQuaternions(dq, c.quat)
+        }
+
         const t01 = c.age / CHIP_LIFETIME_SEC
         const scale = CHIP_SIZE * c.sizeMult * (1 - t01 * 0.4)
         dummy.position.copy(c.pos)
-        dummy.quaternion.setFromAxisAngle(c.rotAxis, c.age * c.rotSpeed)
+        dummy.quaternion.copy(c.quat)
         dummy.scale.set(scale, scale * 0.28, scale * 1.2)
         dummy.updateMatrix()
         mesh.setMatrixAt(i, dummy.matrix)
-        const col = chipTempColor(vcMPerMin, t01)
+
+        // Per-instance color: Vc+radius → hot color, cooled toward ash by t01.
+        const col = chipTempColor(vcMPerMin, t01, toolRadius)
         mesh.setColorAt(i, col)
       } else {
         dummy.position.set(0, -9999, 0)
@@ -859,7 +1016,7 @@ function ChipParticles({
   })
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, maxChips]} castShadow>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, cap]} castShadow>
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial
         vertexColors
@@ -948,8 +1105,9 @@ function Sparks({ tipPosRef, vcMPerMin, reducedMotion, maxSparks }: SparksProps)
           mesh.setMatrixAt(i, dummy.matrix)
           continue
         }
-        // 포물선 궤적: 중력 + 공기저항
-        s.vel.y += CHIP_GRAVITY * 0.6 * delta
+        // 포물선 궤적: 중력 + 공기저항 — sparks get same scaled gravity as chips
+        // (slightly lighter coefficient — sparks are small metallic flakes).
+        s.vel.y += CHIP_GRAVITY * CHIP_GRAVITY_SCALE * 0.8 * delta
         s.vel.multiplyScalar(1 - SPARK_AIR_DRAG * delta)
         s.pos.addScaledVector(s.vel, delta)
         const t01 = s.age / SPARK_LIFETIME_SEC
@@ -1072,7 +1230,7 @@ function Coolant({ tipPosRef, active, reducedMotion }: CoolantProps) {
           continue
         }
         // Slight gravity
-        p.vel.y += CHIP_GRAVITY * 0.15 * delta
+        p.vel.y += CHIP_GRAVITY * CHIP_GRAVITY_SCALE * 0.15 * delta
         p.pos.addScaledVector(p.vel, delta)
         const t01 = p.age / COOLANT_LIFETIME_SEC
         const scale = 0.35 * (1 - t01 * 0.5)
@@ -1179,6 +1337,7 @@ function InnerScene(props: InnerSceneProps) {
     sliceEnabled = false,
     sliceAxis = "z",
     sliceOffset = 0,
+    wearLevel = 0,
   } = props
   const { gl } = useThree()
 
@@ -1340,16 +1499,22 @@ function InnerScene(props: InnerSceneProps) {
           reducedMotion={reducedMotion}
           fluteCount={resolvedFluteCount}
           clippingPlanes={clippingPlanes}
+          wearLevel={wearLevel}
         />
       </ToolMover>
 
-      {/* 파티클 */}
+      {/* 파티클 — feed/tooth derived from Vf (mm/min) / (rpm * flutes). */}
       <ChipParticles
         tipPosRef={tipPosRef}
         active={true}
         rpm={rpm}
         flutes={flutes}
         vcMPerMin={vc}
+        feedPerTooth={
+          rpm > 0 && flutes > 0 ? Vf / (rpm * flutes) : 0
+        }
+        toolRadius={diameter / 2}
+        groundLevel={-stockH / 2}
         reducedMotion={reducedMotion}
         maxChips={chipBudget}
       />

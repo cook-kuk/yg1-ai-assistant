@@ -4,6 +4,8 @@ test.describe("YG-1 Simulator v3 스모크", () => {
   test("페이지 로드 + 핵심 요소 렌더", async ({ page }) => {
     await page.goto("/simulator_v2")
     await expect(page).toHaveTitle(/YG-1/)
+    await expect(await page.content()).not.toContain("findWarningsForParam is not defined")
+    await expect(await page.content()).not.toContain("ReferenceError:")
     await expect(page.getByRole("heading", { name: "가공조건 시뮬레이터" })).toBeVisible()
     await expect(page.getByText("Director-Ready")).toBeVisible()
     await expect(page.getByText("Harvey MAP")).toBeVisible()
@@ -12,10 +14,10 @@ test.describe("YG-1 Simulator v3 스모크", () => {
 
   test("비주얼 토글 스트립 존재", async ({ page }) => {
     await page.goto("/simulator_v2")
-    await expect(page.getByText("🎬 실시간 절삭")).toBeVisible()
-    await expect(page.getByText("🔄 3D 엔드밀")).toBeVisible()
-    await expect(page.getByText("📐 도면")).toBeVisible()
-    await expect(page.getByText("💰 Break-Even")).toBeVisible()
+    await expect(page.getByRole("button", { name: "🎬 실시간 절삭" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "🔄 3D 엔드밀" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "📐 도면", exact: true })).toBeVisible()
+    await expect(page.getByRole("button", { name: "💰 Break-Even" })).toBeVisible()
   })
 
   test("비주얼 토글로 실시간 절삭 패널을 열면 스테이지에서 바로 렌더된다", async ({ page }) => {

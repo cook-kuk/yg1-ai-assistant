@@ -9,6 +9,9 @@
 "use client"
 
 import { memo, useMemo, useState } from "react"
+import { Link2 } from "lucide-react"
+import { toast } from "sonner"
+import { copyText } from "../clipboard-util"
 import {
   DEFAULT_LOCKED_MATERIAL,
   DEFAULT_LOCKED_OPERATION,
@@ -49,6 +52,44 @@ function resolveInitialConfig(
     return { ...IMPACT_PRESETS[initialPresetKey].config }
   }
   return initialConfig ?? BASELINE_CONFIG
+}
+
+/** Return the preset key that matches `config` exactly, or null if custom. */
+function matchPresetKey(config: MachineConfigState): string | null {
+  for (const [key, preset] of Object.entries(IMPACT_PRESETS)) {
+    const c = preset.config
+    if (
+      c.spindleKey === config.spindleKey &&
+      c.holderKey === config.holderKey &&
+      c.coolantKey === config.coolantKey &&
+      c.stickoutInch === config.stickoutInch &&
+      c.workholdingPct === config.workholdingPct
+    ) {
+      return key
+    }
+  }
+  return null
+}
+
+function buildShareUrl(config: MachineConfigState): string {
+  if (typeof window === "undefined") return ""
+  const origin = window.location.origin
+  const pathname = window.location.pathname
+  const presetKey = matchPresetKey(config)
+  const params = new URLSearchParams()
+  if (presetKey) {
+    params.set("lab", presetKey)
+  } else {
+    // Custom config — encode all 5 knobs. Lab will hydrate via `initialConfig`
+    // if the page passes them along (future enhancement).
+    params.set("lab", "custom")
+    params.set("spindle", config.spindleKey)
+    params.set("holder", config.holderKey)
+    params.set("coolant", config.coolantKey)
+    params.set("stickout", config.stickoutInch.toFixed(2))
+    params.set("wh", String(Math.round(config.workholdingPct)))
+  }
+  return `${origin}${pathname}?${params.toString()}`
 }
 
 export const MachineImpactLab = memo(function MachineImpactLab({

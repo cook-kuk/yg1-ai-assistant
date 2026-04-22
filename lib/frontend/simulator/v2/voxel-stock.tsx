@@ -47,6 +47,25 @@ const HEAT_STOP_RGB: [number, number, number][] = [
   [0xff / 255, 0xd2 / 255, 0x4a / 255],
 ]
 
+// ── Theoretical surface roughness (Ra) gradient ──────────────────────────────
+// Ra is computed per carve event as (fz² / (32·r_nose)) in mm, then converted
+// to micrometers (×1000). The value is stamped onto the 6 axis-aligned
+// neighbors of each removed voxel (i.e. the freshly-exposed cut surface).
+//
+// Color ramp (µm) — maps machinist intuition to a traffic-light palette:
+//   Ra < 0.5 µm        → #22c55e (green)  "mirror finish"
+//   Ra 0.5 ~ 1.5 µm    → #eab308 (yellow)
+//   Ra 1.5 ~ 3.0 µm    → #f97316 (orange)
+//   Ra > 3.0 µm        → #ef4444 (red)    "rough"
+// Linear lerp between stops; out-of-range values clamp to the endpoint color.
+const RA_STOP_UM = [0.5, 1.5, 3.0] as const
+const RA_STOP_RGB: [number, number, number][] = [
+  [0x22 / 255, 0xc5 / 255, 0x5e / 255], // green  (≤0.5µm)
+  [0xea / 255, 0xb3 / 255, 0x08 / 255], // yellow (0.5~1.5µm)
+  [0xf9 / 255, 0x73 / 255, 0x16 / 255], // orange (1.5~3.0µm)
+  [0xef / 255, 0x44 / 255, 0x44 / 255], // red    (≥3.0µm)
+]
+
 type MaterialKey = "steel" | "aluminum" | "copper" | "titanium"
 
 interface MaterialStyle {
@@ -112,6 +131,43 @@ export interface VoxelStockProps {
    * all-solid box derived from `dimensions`.
    */
   initialGeometry?: THREE.BufferGeometry | null
+  /**
+   * Feed per tooth (mm). Used together with `cornerRadius` to compute the
+   * theoretical peak-to-valley surface roughness each time a voxel is carved:
+   *
+   *   Ra [mm] = fz² / (32 · r_nose)
+   *   Ra [µm] = Ra [mm] × 1000
+   *
+   * The resulting value (µm) is written into a parallel `raValue` grid on
+   * the 6-connected neighbors of the carved voxel (i.e. the freshly-exposed
+   * cut-surface). Defaults to 0.05 mm/tooth, a typical finishing feed.
+   * Non-breaking: old callers omit this and the Ra grid is populated but
+   * invisible (see `showRaOverlay`).
+   */
+  fz?: number
+  /**
+   * Nose / corner radius of the tool (mm). See `fz` for the Ra formula.
+   * Defaults to 0.4 mm. Must be > 0 to produce a finite Ra — values ≤ 0 are
+   * treated as 0.4 mm.
+   */
+  cornerRadius?: number
+  /**
+   * When true, the stock is vertex-colored by the per-voxel Ra map instead
+   * of the base material / thermal gradient. Overrides `thermalIntensity`
+   * for vertex colors (the emissive glow from thermal still applies so the
+   * part doesn't go dark when heated while Ra is on). Defaults to false.
+   */
+  showRaOverlay?: boolean
+  /**
+   * Fires every time the exposed-face mesh geometry is rebuilt — i.e. on the
+   * initial grid-build, after every throttled carve-driven rebuild inside
+   * useFrame, and whenever the Ra overlay toggle forces a rebuild. The caller
+   * receives the freshly-built `THREE.BufferGeometry` (same instance the mesh
+   * is rendering) so it can stash it for 3D export or inspection. Non-owning —
+   * the caller MUST NOT dispose the geometry since VoxelStock will dispose it
+   * on the next rebuild or on unmount.
+   */
+  onGeometryUpdate?: (geom: THREE.BufferGeometry) => void
 }
 
 // Hard upper bound on any geometry-derived voxelization (nx*ny*nz).
@@ -242,6 +298,10 @@ interface VoxelGrid {
   // Per-voxel surface temperature in [0, 1], parallel to `data`. 1.0 = tool
   // contact temperature (white-hot), 0.0 = ambient. Decays each frame.
   temperature: Float32Array
+  // Per-voxel surface roughness Ra (micrometers, µm), parallel to `data`.
+  // 0 = untouched / virgin stock. Stamped onto the 6-connected neighbors of
+  // each carved voxel with the theoretical Ra computed from fz² / (32·r_nose).
+  raValue: Float32Array
   solidCount: number
 }
 
@@ -261,6 +321,7 @@ function makeGrid(
   const data = new Uint8Array(nx * ny * nz)
   data.fill(1)
   const temperature = new Float32Array(nx * ny * nz)
+  const raValue = new Float32Array(nx * ny * nz)
   return {
     nx,
     ny,
@@ -270,6 +331,7 @@ function makeGrid(
     vz,
     data,
     temperature,
+    raValue,
     solidCount: nx * ny * nz,
   }
 }
@@ -387,8 +449,9 @@ function voxelizeGeometry(
   ;(mesh.material as THREE.Material).dispose()
 
   const temperature = new Float32Array(nx * ny * nz)
+  const raValue = new Float32Array(nx * ny * nz)
   return {
-    grid: { nx, ny, nz, vx, vy, vz, data, temperature, solidCount },
+    grid: { nx, ny, nz, vx, vy, vz, data, temperature, raValue, solidCount },
     dimensions: [L, W, H],
   }
 }
@@ -408,10 +471,11 @@ function carveSphere(
   dimensions: [number, number, number],
   toolPos: [number, number, number],
   radius: number,
+  raUm: number,
 ): number {
   if (radius <= 0) return 0
   const [L, W, H] = dimensions
-  const { nx, ny, nz, vx, vy, vz, data, temperature } = grid
+  const { nx, ny, nz, vx, vy, vz, data, temperature, raValue } = grid
 
   // Stock is centered at origin on XZ (and Y), matching typical R3F stock convention:
   //   stock spans [-L/2, L/2] × [-W/2, W/2] × [-H/2, H/2]
@@ -474,30 +538,50 @@ function carveSphere(
           flipped++
 
           // Heat the 6-connected neighbors of the carved voxel to 1.0 — these
-          // are the freshly-exposed surfaces at the cut boundary.
+          // are the freshly-exposed surfaces at the cut boundary. Simultaneously
+          // stamp the theoretical Ra (µm) onto those same neighbors so the
+          // roughness overlay picks them up on the next rebuild.
           if (i > 0) {
             const nid = id - nynz
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
           if (i < nx - 1) {
             const nid = id + nynz
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
           if (j > 0) {
             const nid = id - nz
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
           if (j < ny - 1) {
             const nid = id + nz
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
           if (k > 0) {
             const nid = id - 1
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
           if (k < nz - 1) {
             const nid = id + 1
-            if (data[nid] === 1) temperature[nid] = 1
+            if (data[nid] === 1) {
+              temperature[nid] = 1
+              raValue[nid] = raUm
+            }
           }
         }
       }
@@ -568,6 +652,65 @@ function sampleHeatGradient(
   out[outOff + 2] = a[2] * inv + b[2] * u
 }
 
+// Sample the Ra gradient at `raUm` (micrometers). Writes result into
+// out[outOff..outOff+2]. See RA_STOP_UM / RA_STOP_RGB for the ramp definition.
+//
+// A raUm of 0 means "no cut happened here yet" (e.g. virgin exterior face of
+// the stock); we return the base material color in that case so the overlay
+// cleanly highlights only the machined surfaces.
+function sampleRaGradient(
+  raUm: number,
+  baseRGB: [number, number, number],
+  out: Float32Array,
+  outOff: number,
+): void {
+  if (raUm <= 0) {
+    out[outOff] = baseRGB[0]
+    out[outOff + 1] = baseRGB[1]
+    out[outOff + 2] = baseRGB[2]
+    return
+  }
+  // Below the first stop → green.
+  if (raUm <= RA_STOP_UM[0]) {
+    const c = RA_STOP_RGB[0]
+    out[outOff] = c[0]
+    out[outOff + 1] = c[1]
+    out[outOff + 2] = c[2]
+    return
+  }
+  // Above the last stop → red.
+  const lastIdx = RA_STOP_UM.length - 1
+  if (raUm >= RA_STOP_UM[lastIdx]) {
+    const c = RA_STOP_RGB[RA_STOP_RGB.length - 1]
+    out[outOff] = c[0]
+    out[outOff + 1] = c[1]
+    out[outOff + 2] = c[2]
+    return
+  }
+  // Find the segment. RA_STOP_UM has N stops and RA_STOP_RGB has N+1 colors,
+  // where colors[i] anchors the left side of segment i and colors[i+1] the
+  // right. Segment i covers RA_STOP_UM[i-1]..RA_STOP_UM[i] (with -∞ for i=0).
+  for (let seg = 0; seg < RA_STOP_UM.length - 1; seg++) {
+    const lo = RA_STOP_UM[seg]
+    const hi = RA_STOP_UM[seg + 1]
+    if (raUm >= lo && raUm <= hi) {
+      const a = RA_STOP_RGB[seg]
+      const b = RA_STOP_RGB[seg + 1]
+      const u = (raUm - lo) / (hi - lo)
+      const inv = 1 - u
+      out[outOff] = a[0] * inv + b[0] * u
+      out[outOff + 1] = a[1] * inv + b[1] * u
+      out[outOff + 2] = a[2] * inv + b[2] * u
+      return
+    }
+  }
+  // Should be unreachable given the clamps above.
+  const c = RA_STOP_RGB[RA_STOP_RGB.length - 1]
+  out[outOff] = c[0]
+  out[outOff + 1] = c[1]
+  out[outOff + 2] = c[2]
+}
+
 // Build exposed-face geometry. Allocates tight typed arrays.
 //
 // When `thermalIntensity` > 0, per-vertex colors are emitted using the heat
@@ -581,9 +724,10 @@ function buildGeometry(
   dimensions: [number, number, number],
   baseRGB: [number, number, number],
   thermalIntensity: number,
+  showRaOverlay: boolean,
 ): THREE.BufferGeometry {
   const [L, W, H] = dimensions
-  const { nx, ny, nz, vx, vy, vz, data, temperature } = grid
+  const { nx, ny, nz, vx, vy, vz, data, temperature, raValue } = grid
   const originX = -L / 2
   const originY = -W / 2
   const originZ = -H / 2
@@ -640,6 +784,10 @@ function buildGeometry(
         // gradient softly fades back to the base color as intensity goes to 0.
         const rawT = temperature[srcId]
         const effT = rawT * clampedIntensity
+        // Source voxel Ra (µm) — 0 means "virgin / uncut", which the Ra
+        // sampler renders as the base material color. Only consulted when
+        // `showRaOverlay` is on.
+        const raUm = raValue[srcId]
 
         for (let f = 0; f < 6; f++) {
           const face = FACES[f]
@@ -666,7 +814,11 @@ function buildGeometry(
             normals[nPtr++] = nxN
             normals[nPtr++] = nyN
             normals[nPtr++] = nzN
-            sampleHeatGradient(effT, baseRGB, colors, cPtr)
+            if (showRaOverlay) {
+              sampleRaGradient(raUm, baseRGB, colors, cPtr)
+            } else {
+              sampleHeatGradient(effT, baseRGB, colors, cPtr)
+            }
             cPtr += 3
             heats[hPtr++] = effT
           }
@@ -707,6 +859,10 @@ export function VoxelStock({
   thermalIntensity = 0,
   initialGeometry: seedGeometry,
   clippingPlanes,
+  fz = 0.05,
+  cornerRadius = 0.4,
+  showRaOverlay = false,
+  onGeometryUpdate,
 }: VoxelStockProps): React.ReactElement {
   const meshRef = useRef<THREE.Mesh>(null)
   const gridRef = useRef<VoxelGrid | null>(null)
@@ -761,11 +917,12 @@ export function VoxelStock({
       dims,
       [initColor.r, initColor.g, initColor.b],
       thermalIntensity,
+      showRaOverlay,
     )
-    // NOTE: we intentionally DO NOT include `material` / `thermalIntensity` in
-    // the dep list — changes to either should NOT blow away the current
-    // carving state. They are re-read on the next throttled rebuild inside
-    // useFrame via the refs above.
+    // NOTE: we intentionally DO NOT include `material` / `thermalIntensity` /
+    // `showRaOverlay` in the dep list — changes to any of these should NOT
+    // blow away the current carving state. They are re-read on the next
+    // throttled rebuild inside useFrame via the refs below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dimensions, resolution, seedGeometry])
 
@@ -804,6 +961,31 @@ export function VoxelStock({
   const baseRGBRef = useRef<[number, number, number]>(baseRGB)
   baseRGBRef.current = baseRGB
 
+  // Ra-overlay-related refs (feed, nose radius, overlay toggle). All three
+  // follow the same "refs-not-deps" pattern as thermalIntensity above — so
+  // that changing any of them never blows away accumulated carve state.
+  // We also precompute the Ra value in µm once per render (cheap) and stash
+  // the ref so the per-frame carve loop doesn't redo the multiplication.
+  const fzRef = useRef(fz)
+  fzRef.current = fz
+  const cornerRadiusRef = useRef(cornerRadius)
+  cornerRadiusRef.current = cornerRadius
+  const showRaOverlayRef = useRef(showRaOverlay)
+  showRaOverlayRef.current = showRaOverlay
+  // Ra [µm] = (fz² / (32·r_nose)) × 1000. Guard against r_nose ≤ 0.
+  const raUm = useMemo(() => {
+    const r = cornerRadius > 0 ? cornerRadius : 0.4
+    return ((fz * fz) / (32 * r)) * 1000
+  }, [fz, cornerRadius])
+  const raUmRef = useRef(raUm)
+  raUmRef.current = raUm
+
+  // Mirror the external onGeometryUpdate callback through a ref so the
+  // useFrame loop and the Ra-overlay effect don't need to bind to the current
+  // function identity every render.
+  const onGeometryUpdateRef = useRef<typeof onGeometryUpdate>(onGeometryUpdate)
+  onGeometryUpdateRef.current = onGeometryUpdate
+
   useFrame((state, delta) => {
     const grid = gridRef.current
     const mesh = meshRef.current
@@ -814,6 +996,7 @@ export function VoxelStock({
       effectiveDimsRef.current,
       toolPosition,
       toolRadius,
+      raUmRef.current,
     )
     if (flipped > 0) {
       flippedSinceBuildRef.current += flipped
@@ -862,6 +1045,7 @@ export function VoxelStock({
         effectiveDimsRef.current,
         baseRGBRef.current,
         intensity,
+        showRaOverlayRef.current,
       )
       const old = mesh.geometry
       mesh.geometry = next
@@ -873,11 +1057,40 @@ export function VoxelStock({
     }
   })
 
-  // Also dispose any live geometry on full unmount.
+  // When the overlay toggle flips, we need to re-color the mesh right away
+  // — otherwise the user would only see the switch take effect on the next
+  // carve or heat-decay rebuild. We force a rebuild outside useFrame via a
+  // tiny dedicated effect that skips the throttle.
+  useEffect(() => {
+    const grid = gridRef.current
+    const mesh = meshRef.current
+    if (!grid || !mesh) return
+    const next = buildGeometry(
+      grid,
+      effectiveDimsRef.current,
+      baseRGBRef.current,
+      thermalIntensityRef.current,
+      showRaOverlay,
+    )
+    const old = mesh.geometry
+    mesh.geometry = next
+    currentGeomRef.current = next
+    if (old && old !== next) old.dispose()
+    flippedSinceBuildRef.current = 0
+    framesSinceBuildRef.current = 0
+  }, [showRaOverlay])
+
+  // Also dispose any live geometry on full unmount. Additionally drop the
+  // grid reference so the parallel typed arrays (`data`, `temperature`,
+  // `raValue`) are eligible for GC immediately — on resize/unmount they
+  // shouldn't linger. The arrays themselves don't need explicit dispose()
+  // (Float32Array / Uint8Array have no GPU resources), but clearing the
+  // ref is the sibling to the three.js geometry dispose() above.
   useEffect(() => {
     return () => {
       const g = currentGeomRef.current
       if (g) g.dispose()
+      gridRef.current = null
     }
   }, [])
 
